@@ -18,8 +18,9 @@ pipeline {
         ARTIFACT_NAME = "${PROJECT_NAME}-${PROJECT_VERSION}-${BUILD_NUMBER}.jar"
         
         // SonarQube (Phase 2)
-        SONAR_HOST_URL = 'http://sonarqube:9000'
-        SONAR_PROJECT_KEY = 'tn.esprit.rh:achat'
+        SONAR_HOST_URL = 'http://sonarqube-server:9000'
+        SONAR_PROJECT_KEY = 'achat'
+        SONAR_PROJECT_NAME = 'Achat Application'
         
         // Nexus (Phase 3)
         NEXUS_URL = 'http://nexus:8081'
@@ -124,50 +125,50 @@ pipeline {
         }
         
         stage('Code Quality Analysis - SonarQube') {
-            when {
-                expression { return fileExists('sonar-project.properties') }
-            }
             steps {
                 script {
                     echo '========================================='
                     echo 'Stage 5: SonarQube Code Quality Analysis'
                     echo '========================================='
-                    echo 'Note: This stage requires Phase 2 setup'
                 }
-                
+
                 // Run SonarQube analysis
-                withSonarQubeEnv('SonarQube-Server') {
+                withSonarQubeEnv('SonarQube') {
                     sh '''
                         mvn sonar:sonar \
                           -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                          -Dsonar.host.url=${SONAR_HOST_URL}
+                          -Dsonar.projectName="${SONAR_PROJECT_NAME}" \
+                          -Dsonar.host.url=${SONAR_HOST_URL} \
+                          -Dsonar.java.binaries=target/classes
                     '''
                 }
-                
+
                 script {
                     echo '✓ SonarQube analysis completed'
+                    echo "✓ View results at: ${SONAR_HOST_URL}/dashboard?id=${SONAR_PROJECT_KEY}"
                 }
             }
         }
         
         stage('Quality Gate') {
-            when {
-                expression { return fileExists('sonar-project.properties') }
-            }
             steps {
                 script {
                     echo '========================================='
                     echo 'Stage 6: Waiting for Quality Gate'
                     echo '========================================='
                 }
-                
+
                 // Wait for SonarQube Quality Gate result
                 timeout(time: 5, unit: 'MINUTES') {
-                    waitForQualityGate abortPipeline: false
-                }
-                
-                script {
-                    echo '✓ Quality Gate check completed'
+                    script {
+                        def qg = waitForQualityGate()
+                        if (qg.status != 'OK') {
+                            echo "⚠ Quality Gate status: ${qg.status}"
+                            echo "⚠ Pipeline will continue but code quality needs attention"
+                        } else {
+                            echo '✓ Quality Gate passed!'
+                        }
+                    }
                 }
             }
         }
