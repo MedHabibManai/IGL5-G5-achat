@@ -84,6 +84,13 @@
 					</excludes>
 				</configuration>
 			</plugin>
+
+			<!-- SonarQube Maven Plugin - Version 3.9.1.2184 supports Java 8 -->
+			<plugin>
+				<groupId>org.sonarsource.scanner.maven</groupId>
+				<artifactId>sonar-maven-plugin</artifactId>
+				<version>3.9.1.2184</version>
+			</plugin>
 		</plugins>
 	</build>
 
