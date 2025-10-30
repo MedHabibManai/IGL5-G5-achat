@@ -1,10 +1,6 @@
 pipeline {
     agent any
-    
-    triggers {
-        githubPush()
-    }
-    
+
     tools {
         maven 'Maven-3.8.6'  // Configure this in Jenkins Global Tool Configuration
         jdk 'JDK-8'          // Configure this in Jenkins Global Tool Configuration
@@ -370,7 +366,7 @@ EOF
         
         failure {
             script {
-                echo 'âœ—âœ—âœ— Pipeline failed! âœ—âœ—âœ—'
+                echo '✗✗✗ Pipeline failed! ✗✗✗'
             }
             
             // Send notification (optional - requires email plugin)
@@ -388,5 +384,4 @@ EOF
         }
     }
 }
-
 
