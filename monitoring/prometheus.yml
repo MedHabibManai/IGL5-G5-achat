@@ -1,0 +1,85 @@
+# Prometheus Configuration for CI/CD Pipeline Monitoring
+# This configuration scrapes metrics from Jenkins and other services
+
+global:
+  scrape_interval: 15s      # How often to scrape targets
+  evaluation_interval: 15s  # How often to evaluate rules
+  
+  # Attach these labels to any time series or alerts
+  external_labels:
+    monitor: 'devops-pipeline'
+    environment: 'development'
+
+# Alertmanager configuration (optional - can be added later)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets:
+#           - alertmanager:9093
+
+# Load rules once and periodically evaluate them
+# rule_files:
+#   - "alerts/*.yml"
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+          type: 'monitoring'
+
+  # Jenkins metrics (requires Prometheus plugin)
+  - job_name: 'jenkins'
+    metrics_path: '/prometheus'
+    static_configs:
+      - targets: ['jenkins-cicd:8080']
+        labels:
+          service: 'jenkins'
+          type: 'ci-cd'
+    # Scrape more frequently for CI/CD metrics
+    scrape_interval: 10s
+    scrape_timeout: 10s
+
+  # SonarQube metrics (if exposed)
+  - job_name: 'sonarqube'
+    metrics_path: '/api/monitoring/metrics'
+    static_configs:
+      - targets: ['sonarqube-server:9000']
+        labels:
+          service: 'sonarqube'
+          type: 'code-quality'
+    scrape_interval: 30s
+
+  # Nexus metrics (if exposed)
+  - job_name: 'nexus'
+    metrics_path: '/service/metrics/prometheus'
+    static_configs:
+      - targets: ['nexus-repository:8081']
+        labels:
+          service: 'nexus'
+          type: 'artifact-repository'
+    scrape_interval: 30s
+
+  # Docker container metrics (requires cAdvisor)
+  # Uncomment if you add cAdvisor to docker-compose.yml
+  # - job_name: 'cadvisor'
+  #   static_configs:
+  #     - targets: ['cadvisor:8080']
+  #       labels:
+  #         service: 'cadvisor'
+  #         type: 'container-metrics'
+
+  # Application metrics (Spring Boot Actuator)
+  # Uncomment when application is deployed with actuator/prometheus endpoint
+  # - job_name: 'achat-app'
+  #   metrics_path: '/SpringMVC/actuator/prometheus'
+  #   static_configs:
+  #     - targets: ['achat-app:8089']
+  #       labels:
+  #         service: 'achat-application'
+  #         type: 'application'
+  #   scrape_interval: 15s
+

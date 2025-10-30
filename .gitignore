@@ -124,3 +124,11 @@ logs/
 application-local.properties
 application-dev.properties
 
+# Documentation (local only)
+PIPELINE_DOCUMENTATION.md
+
+# Monitoring - Keep configs, ignore data
+# We want to commit the configuration files but not the runtime data
+monitoring/grafana/data/
+monitoring/prometheus/data/
+
