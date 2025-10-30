@@ -1,25 +1,19 @@
-{
+﻿{
   "annotations": {
-    "list": [
-      {
-        "builtIn": 1,
-        "datasource": "-- Grafana --",
-        "enable": true,
-        "hide": true,
-        "iconColor": "rgba(0, 211, 255, 1)",
-        "name": "Annotations & Alerts",
-        "type": "dashboard"
-      }
-    ]
+    "list": []
   },
   "editable": true,
-  "gnetId": null,
+  "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
   "id": null,
   "links": [],
+  "liveNow": false,
   "panels": [
     {
-      "datasource": "Prometheus",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -34,11 +28,13 @@
                 "value": null
               }
             ]
-          }
-        }
+          },
+          "unit": "short"
+        },
+        "overrides": []
       },
       "gridPos": {
-        "h": 4,
+        "h": 8,
         "w": 6,
         "x": 0,
         "y": 0
@@ -50,17 +46,21 @@
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
+          "values": false,
           "calcs": [
             "lastNotNull"
           ],
-          "fields": "",
-          "values": false
+          "fields": ""
         },
         "textMode": "auto"
       },
-      "pluginVersion": "8.0.0",
+      "pluginVersion": "9.0.0",
       "targets": [
         {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
           "expr": "jenkins_executor_count_value",
           "refId": "A"
         }
@@ -69,7 +69,10 @@
       "type": "stat"
     },
     {
-      "datasource": "Prometheus",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -89,14 +92,16 @@
               },
               {
                 "color": "red",
-                "value": 3
+                "value": 5
               }
             ]
-          }
-        }
+          },
+          "unit": "short"
+        },
+        "overrides": []
       },
       "gridPos": {
-        "h": 4,
+        "h": 8,
         "w": 6,
         "x": 6,
         "y": 0
@@ -108,17 +113,21 @@
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
+          "values": false,
           "calcs": [
             "lastNotNull"
           ],
-          "fields": "",
-          "values": false
+          "fields": ""
         },
         "textMode": "auto"
       },
-      "pluginVersion": "8.0.0",
+      "pluginVersion": "9.0.0",
       "targets": [
         {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
           "expr": "jenkins_queue_size_value",
           "refId": "A"
         }
@@ -127,7 +136,10 @@
       "type": "stat"
     },
     {
-      "datasource": "Prometheus",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -142,11 +154,13 @@
                 "value": null
               }
             ]
-          }
-        }
+          },
+          "unit": "short"
+        },
+        "overrides": []
       },
       "gridPos": {
-        "h": 4,
+        "h": 8,
         "w": 6,
         "x": 12,
         "y": 0
@@ -158,17 +172,21 @@
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
+          "values": false,
           "calcs": [
             "lastNotNull"
           ],
-          "fields": "",
-          "values": false
+          "fields": ""
         },
         "textMode": "auto"
       },
-      "pluginVersion": "8.0.0",
+      "pluginVersion": "9.0.0",
       "targets": [
         {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
           "expr": "jenkins_node_count_value",
           "refId": "A"
         }
@@ -177,32 +195,14 @@
       "type": "stat"
     },
     {
-      "datasource": "Prometheus",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "tooltip": false,
-              "viz": false,
-              "legend": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": true
+            "mode": "thresholds"
           },
           "mappings": [],
           "thresholds": {
@@ -215,44 +215,57 @@
             ]
           },
           "unit": "short"
-        }
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 4
+        "w": 6,
+        "x": 18,
+        "y": 0
       },
       "id": 4,
       "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom"
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
         },
-        "tooltip": {
-          "mode": "single"
-        }
+        "textMode": "auto"
       },
-      "pluginVersion": "8.0.0",
+      "pluginVersion": "9.0.0",
       "targets": [
         {
-          "expr": "rate(jenkins_job_count_value[5m])",
-          "legendFormat": "Job Count Rate",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "jenkins_executor_in_use_value",
           "refId": "A"
         }
       ],
-      "title": "Jenkins Job Activity",
-      "type": "timeseries"
+      "title": "Executors In Use",
+      "type": "stat"
     },
     {
-      "datasource": "Prometheus",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
           "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -271,7 +284,14 @@
               "type": "linear"
             },
             "showPoints": "never",
-            "spanNulls": true
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
           "thresholds": {
@@ -282,52 +302,70 @@
                 "value": null
               }
             ]
-          }
-        }
+          },
+          "unit": "short"
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 4
+        "w": 24,
+        "x": 0,
+        "y": 8
       },
       "id": 5,
       "options": {
         "legend": {
           "calcs": [],
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "showLegend": true
         },
         "tooltip": {
-          "mode": "single"
+          "mode": "single",
+          "sort": "none"
         }
       },
-      "pluginVersion": "8.0.0",
+      "pluginVersion": "9.0.0",
       "targets": [
         {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
           "expr": "jenkins_executor_in_use_value",
           "legendFormat": "Executors In Use",
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "jenkins_queue_size_value",
+          "legendFormat": "Queue Size",
+          "refId": "B"
         }
       ],
-      "title": "Executor Usage",
+      "title": "Jenkins Activity Over Time",
       "type": "timeseries"
     }
   ],
-  "schemaVersion": 27,
+  "refresh": "5s",
+  "schemaVersion": 38,
   "style": "dark",
   "tags": ["jenkins", "ci-cd"],
   "templating": {
     "list": []
   },
   "time": {
-    "from": "now-6h",
+    "from": "now-5m",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "",
   "title": "Jenkins CI/CD Metrics",
   "uid": "jenkins-cicd",
-  "version": 1
+  "version": 0,
+  "weekStart": ""
 }
-
