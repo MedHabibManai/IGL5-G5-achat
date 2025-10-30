@@ -1,0 +1,53 @@
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# CI/CD
+.github
+Jenkinsfile
+
+# IDE
+.idea
+.vscode
+*.iml
+*.ipr
+*.iws
+
+# Build artifacts (except the final JAR)
+target/classes
+target/test-classes
+target/maven-status
+target/maven-archiver
+target/generated-sources
+target/generated-test-sources
+target/surefire-reports
+
+# Maven
+.mvn
+mvnw
+mvnw.cmd
+
+# Documentation
+README.md
+*.md
+docs
+
+# Docker
+docker-compose.yml
+.dockerignore
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test files
+src/test
+
+# Other
+*.tmp
+*.bak
+

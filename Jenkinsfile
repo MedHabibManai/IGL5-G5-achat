@@ -28,8 +28,11 @@ pipeline {
         NEXUS_CREDENTIAL_ID = 'nexus-credentials'
         
         // Docker (Phase 5)
-        DOCKER_IMAGE = "achat-app:${BUILD_NUMBER}"
-        DOCKER_REGISTRY = 'your-docker-registry'  // Update with your registry
+        DOCKER_IMAGE_NAME = 'achat-app'
+        DOCKER_IMAGE_TAG = "${BUILD_NUMBER}"
+        DOCKER_IMAGE = "${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
+        DOCKER_REGISTRY = 'docker.io'  // Docker Hub
+        DOCKER_CREDENTIAL_ID = 'docker-hub-credentials'
     }
     
     stages {
@@ -221,7 +224,6 @@ EOF
         
         stage('Build Docker Image') {
             when {
-                branch 'main'
                 expression { return fileExists('Dockerfile') }
             }
             steps {
@@ -229,21 +231,38 @@ EOF
                     echo '========================================='
                     echo 'Stage 8: Building Docker Image'
                     echo '========================================='
-                    echo 'Note: This stage requires Phase 5 setup'
                 }
-                
+
                 // Build Docker image
-                sh "docker build -t ${DOCKER_IMAGE} ."
-                
                 script {
-                    echo "✓ Docker image built: ${DOCKER_IMAGE}"
+                    echo "Building Docker image: ${DOCKER_IMAGE}"
+                    echo "JAR file: target/${PROJECT_NAME}-${PROJECT_VERSION}.jar"
+
+                    // Verify JAR exists
+                    sh "ls -lh target/${PROJECT_NAME}-${PROJECT_VERSION}.jar"
+
+                    // Build the image
+                    sh """
+                        docker build \
+                          --build-arg JAR_FILE=target/${PROJECT_NAME}-${PROJECT_VERSION}.jar \
+                          --build-arg BUILD_NUMBER=${BUILD_NUMBER} \
+                          -t ${DOCKER_IMAGE} \
+                          -t ${DOCKER_IMAGE_NAME}:latest \
+                          .
+                    """
+
+                    echo "✓ Docker image built successfully!"
+                    echo "  - ${DOCKER_IMAGE}"
+                    echo "  - ${DOCKER_IMAGE_NAME}:latest"
+
+                    // Show image details
+                    sh "docker images | grep ${DOCKER_IMAGE_NAME}"
                 }
             }
         }
         
         stage('Push Docker Image') {
             when {
-                branch 'main'
                 expression { return fileExists('Dockerfile') }
             }
             steps {
@@ -252,20 +271,39 @@ EOF
                     echo 'Stage 9: Pushing Docker Image to Registry'
                     echo '========================================='
                 }
-                
+
                 // Push to Docker registry
-                withCredentials([usernamePassword(credentialsId: 'docker-registry-credentials', 
-                                                  usernameVariable: 'DOCKER_USER', 
+                withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIAL_ID}",
+                                                  usernameVariable: 'DOCKER_USER',
                                                   passwordVariable: 'DOCKER_PASS')]) {
-                    sh '''
-                        echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin ${DOCKER_REGISTRY}
-                        docker tag ${DOCKER_IMAGE} ${DOCKER_REGISTRY}/${DOCKER_IMAGE}
-                        docker push ${DOCKER_REGISTRY}/${DOCKER_IMAGE}
-                    '''
-                }
-                
-                script {
-                    echo '✓ Docker image pushed to registry'
+                    script {
+                        echo "Logging in to Docker Hub as ${DOCKER_USER}..."
+
+                        sh '''
+                            echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                        '''
+
+                        echo "Tagging images for Docker Hub..."
+
+                        // Tag with username prefix for Docker Hub
+                        sh """
+                            docker tag ${DOCKER_IMAGE} ${DOCKER_USER}/${DOCKER_IMAGE}
+                            docker tag ${DOCKER_IMAGE_NAME}:latest ${DOCKER_USER}/${DOCKER_IMAGE_NAME}:latest
+                        """
+
+                        echo "Pushing images to Docker Hub..."
+
+                        sh """
+                            docker push ${DOCKER_USER}/${DOCKER_IMAGE}
+                            docker push ${DOCKER_USER}/${DOCKER_IMAGE_NAME}:latest
+                        """
+
+                        echo "✓ Docker images pushed successfully!"
+                        echo "  - ${DOCKER_USER}/${DOCKER_IMAGE}"
+                        echo "  - ${DOCKER_USER}/${DOCKER_IMAGE_NAME}:latest"
+                        echo ""
+                        echo "View on Docker Hub: https://hub.docker.com/r/${DOCKER_USER}/${DOCKER_IMAGE_NAME}"
+                    }
                 }
             }
         }
