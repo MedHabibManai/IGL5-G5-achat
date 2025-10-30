@@ -43,25 +43,27 @@ scrape_configs:
     scrape_interval: 10s
     scrape_timeout: 10s
 
-  # SonarQube metrics (if exposed)
-  - job_name: 'sonarqube'
-    metrics_path: '/api/monitoring/metrics'
-    static_configs:
-      - targets: ['sonarqube-server:9000']
-        labels:
-          service: 'sonarqube'
-          type: 'code-quality'
-    scrape_interval: 30s
+  # SonarQube metrics (Community Edition does NOT support Prometheus metrics)
+  # Requires SonarQube Enterprise Edition
+  # - job_name: 'sonarqube'
+  #   metrics_path: '/api/monitoring/metrics'
+  #   static_configs:
+  #     - targets: ['sonarqube-server:9000']
+  #       labels:
+  #         service: 'sonarqube'
+  #         type: 'code-quality'
+  #   scrape_interval: 30s
 
-  # Nexus metrics (if exposed)
-  - job_name: 'nexus'
-    metrics_path: '/service/metrics/prometheus'
-    static_configs:
-      - targets: ['nexus-repository:8081']
-        labels:
-          service: 'nexus'
-          type: 'artifact-repository'
-    scrape_interval: 30s
+  # Nexus metrics (Community Edition does NOT support Prometheus metrics)
+  # Requires Nexus Repository Pro
+  # - job_name: 'nexus'
+  #   metrics_path: '/service/metrics/prometheus'
+  #   static_configs:
+  #     - targets: ['nexus-repository:8081']
+  #       labels:
+  #         service: 'nexus'
+  #         type: 'artifact-repository'
+  #   scrape_interval: 30s
 
   # Docker container metrics (requires cAdvisor)
   # Uncomment if you add cAdvisor to docker-compose.yml
