@@ -23,7 +23,7 @@ pipeline {
         SONAR_PROJECT_NAME = 'Achat Application'
         
         // Nexus (Phase 3)
-        NEXUS_URL = 'http://nexus:8081'
+        NEXUS_URL = 'nexus-repository:8081'
         NEXUS_REPOSITORY = 'maven-releases'
         NEXUS_CREDENTIAL_ID = 'nexus-credentials'
         
@@ -173,40 +173,48 @@ pipeline {
             }
         }
         
-        stage('Upload to Nexus') {
-            when {
-                branch 'main'
-                expression { return fileExists('pom.xml') }
-            }
+        stage('Deploy to Nexus') {
             steps {
                 script {
                     echo '========================================='
-                    echo 'Stage 7: Uploading artifacts to Nexus'
+                    echo 'Stage 7: Deploying artifacts to Nexus'
                     echo '========================================='
-                    echo 'Note: This stage requires Phase 3 setup'
                 }
-                
-                // Upload to Nexus Repository
-                nexusArtifactUploader(
-                    nexusVersion: 'nexus3',
-                    protocol: 'http',
-                    nexusUrl: "${NEXUS_URL}",
-                    groupId: 'tn.esprit.rh',
-                    version: "${PROJECT_VERSION}-${BUILD_NUMBER}",
-                    repository: "${NEXUS_REPOSITORY}",
-                    credentialsId: "${NEXUS_CREDENTIAL_ID}",
-                    artifacts: [
-                        [
-                            artifactId: "${PROJECT_NAME}",
-                            classifier: '',
-                            file: "target/${PROJECT_NAME}-${PROJECT_VERSION}.jar",
-                            type: 'jar'
-                        ]
-                    ]
-                )
-                
+
+                // Create Maven settings.xml with Nexus credentials
+                withCredentials([usernamePassword(credentialsId: "${NEXUS_CREDENTIAL_ID}",
+                                                  usernameVariable: 'NEXUS_USER',
+                                                  passwordVariable: 'NEXUS_PASS')]) {
+                    sh '''
+                        # Create settings.xml with Nexus credentials
+                        cat > settings.xml << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 http://maven.apache.org/xsd/settings-1.0.0.xsd">
+  <servers>
+    <server>
+      <id>nexus-releases</id>
+      <username>${NEXUS_USER}</username>
+      <password>${NEXUS_PASS}</password>
+    </server>
+    <server>
+      <id>nexus-snapshots</id>
+      <username>${NEXUS_USER}</username>
+      <password>${NEXUS_PASS}</password>
+    </server>
+  </servers>
+</settings>
+EOF
+
+                        # Deploy to Nexus
+                        mvn deploy -DskipTests -s settings.xml
+                    '''
+                }
+
                 script {
-                    echo '✓ Artifacts uploaded to Nexus successfully'
+                    echo '✓ Artifacts deployed to Nexus successfully'
+                    echo "✓ View artifacts at: http://localhost:8081/#browse/browse:maven-releases"
                 }
             }
         }
