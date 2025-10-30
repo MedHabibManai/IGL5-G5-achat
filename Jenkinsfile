@@ -1,5 +1,9 @@
-pipeline {
+﻿pipeline {
     agent any
+    
+    triggers {
+        githubPush()
+    }
     
     tools {
         maven 'Maven-3.8.6'  // Configure this in Jenkins Global Tool Configuration
@@ -48,8 +52,8 @@ pipeline {
                 checkout scm
                 
                 script {
-                    echo "✓ Successfully checked out branch: ${env.GIT_BRANCH}"
-                    echo "✓ Commit: ${env.GIT_COMMIT}"
+                    echo "âœ“ Successfully checked out branch: ${env.GIT_BRANCH}"
+                    echo "âœ“ Commit: ${env.GIT_COMMIT}"
                 }
             }
         }
@@ -66,7 +70,7 @@ pipeline {
                 sh 'mvn clean compile'
                 
                 script {
-                    echo '✓ Build completed successfully'
+                    echo 'âœ“ Build completed successfully'
                 }
             }
         }
@@ -83,7 +87,7 @@ pipeline {
                 sh 'mvn test'
                 
                 script {
-                    echo '✓ All unit tests passed'
+                    echo 'âœ“ All unit tests passed'
                 }
             }
             
@@ -93,7 +97,7 @@ pipeline {
                     junit '**/target/surefire-reports/*.xml'
                     
                     script {
-                        echo '✓ Test results published'
+                        echo 'âœ“ Test results published'
                     }
                 }
             }
@@ -111,7 +115,7 @@ pipeline {
                 sh 'mvn package -DskipTests'
                 
                 script {
-                    echo "✓ Application packaged: ${ARTIFACT_NAME}"
+                    echo "âœ“ Application packaged: ${ARTIFACT_NAME}"
                 }
             }
             
@@ -121,7 +125,7 @@ pipeline {
                     archiveArtifacts artifacts: '**/target/*.jar', fingerprint: true
                     
                     script {
-                        echo '✓ Artifacts archived successfully'
+                        echo 'âœ“ Artifacts archived successfully'
                     }
                 }
             }
@@ -147,8 +151,8 @@ pipeline {
                 }
 
                 script {
-                    echo '✓ SonarQube analysis completed'
-                    echo "✓ View results at: ${SONAR_HOST_URL}/dashboard?id=${SONAR_PROJECT_KEY}"
+                    echo 'âœ“ SonarQube analysis completed'
+                    echo "âœ“ View results at: ${SONAR_HOST_URL}/dashboard?id=${SONAR_PROJECT_KEY}"
                 }
             }
         }
@@ -166,10 +170,10 @@ pipeline {
                     script {
                         def qg = waitForQualityGate()
                         if (qg.status != 'OK') {
-                            echo "⚠ Quality Gate status: ${qg.status}"
-                            echo "⚠ Pipeline will continue but code quality needs attention"
+                            echo "âš  Quality Gate status: ${qg.status}"
+                            echo "âš  Pipeline will continue but code quality needs attention"
                         } else {
-                            echo '✓ Quality Gate passed!'
+                            echo 'âœ“ Quality Gate passed!'
                         }
                     }
                 }
@@ -216,8 +220,8 @@ EOF
                 }
 
                 script {
-                    echo '✓ Artifacts deployed to Nexus successfully'
-                    echo "✓ View artifacts at: http://localhost:8081/#browse/browse:maven-releases"
+                    echo 'âœ“ Artifacts deployed to Nexus successfully'
+                    echo "âœ“ View artifacts at: http://localhost:8081/#browse/browse:maven-releases"
                 }
             }
         }
@@ -251,7 +255,7 @@ EOF
                           .
                     """
 
-                    echo "✓ Docker image built successfully!"
+                    echo "âœ“ Docker image built successfully!"
                     echo "  - ${DOCKER_IMAGE}"
                     echo "  - ${DOCKER_IMAGE_NAME}:latest"
 
@@ -298,7 +302,7 @@ EOF
                             docker push ${DOCKER_USER}/${DOCKER_IMAGE_NAME}:latest
                         """
 
-                        echo "✓ Docker images pushed successfully!"
+                        echo "âœ“ Docker images pushed successfully!"
                         echo "  - ${DOCKER_USER}/${DOCKER_IMAGE}"
                         echo "  - ${DOCKER_USER}/${DOCKER_IMAGE_NAME}:latest"
                         echo ""
@@ -330,7 +334,7 @@ EOF
                 }
                 
                 script {
-                    echo '✓ Application deployed to Kubernetes'
+                    echo 'âœ“ Application deployed to Kubernetes'
                 }
             }
         }
@@ -353,7 +357,7 @@ EOF
         
         success {
             script {
-                echo '✓✓✓ Pipeline completed successfully! ✓✓✓'
+                echo 'âœ“âœ“âœ“ Pipeline completed successfully! âœ“âœ“âœ“'
             }
             
             // Send notification (optional - requires email plugin)
@@ -366,7 +370,7 @@ EOF
         
         failure {
             script {
-                echo '✗✗✗ Pipeline failed! ✗✗✗'
+                echo 'âœ—âœ—âœ— Pipeline failed! âœ—âœ—âœ—'
             }
             
             // Send notification (optional - requires email plugin)
@@ -379,9 +383,10 @@ EOF
         
         unstable {
             script {
-                echo '⚠ Pipeline is unstable ⚠'
+                echo 'âš  Pipeline is unstable âš '
             }
         }
     }
 }
+
 
