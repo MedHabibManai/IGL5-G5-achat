@@ -6,12 +6,12 @@ apiVersion: 1
 providers:
   - name: 'DevOps Dashboards'
     orgId: 1
-    folder: 'CI/CD Pipeline'
+    folder: ''
     type: file
     disableDeletion: false
     updateIntervalSeconds: 10
     allowUiUpdates: true
     options:
       path: /etc/grafana/provisioning/dashboards
-      foldersFromFilesStructure: true
+      foldersFromFilesStructure: false
 
