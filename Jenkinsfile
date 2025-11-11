@@ -2,8 +2,8 @@ pipeline {
     agent any
 
     tools {
-        maven 'Maven-3.8.6'  // Configure this in Jenkins Global Tool Configuration
-        jdk 'JDK-8'          // Configure this in Jenkins Global Tool Configuration
+        maven 'maven-3.8.6'  // Will be auto-installed
+        jdk 'jdk-8'          // Will be auto-installed
     }
     
     environment {
