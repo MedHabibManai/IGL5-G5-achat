@@ -3,10 +3,13 @@ pipeline {
 
     // Parameters to control pipeline behavior
     parameters {
-        booleanParam(
-            name: 'CLEANUP_INFRASTRUCTURE',
-            defaultValue: false,
-            description: 'Destroy existing AWS infrastructure before deployment (use when hitting VPC limits)'
+        choice(
+            name: 'DEPLOYMENT_MODE',
+            choices: ['NORMAL', 'CLEANUP_AND_DEPLOY', 'REUSE_INFRASTRUCTURE'],
+            description: '''Deployment mode:
+            • NORMAL: Deploy fresh infrastructure (may fail if VPC limit reached)
+            • CLEANUP_AND_DEPLOY: Destroy old resources first, then deploy new ones
+            • REUSE_INFRASTRUCTURE: Keep VPC/RDS, only recreate EC2 instance (fastest for testing)'''
         )
     }
 
@@ -326,7 +329,7 @@ EOF
         stage('Cleanup AWS Infrastructure') {
             when {
                 allOf {
-                    expression { return params.CLEANUP_INFRASTRUCTURE == true }
+                    expression { return params.DEPLOYMENT_MODE == 'CLEANUP_AND_DEPLOY' }
                     expression { return fileExists('terraform/main.tf') }
                 }
             }
@@ -335,7 +338,7 @@ EOF
                     echo '========================================='
                     echo 'Stage 9.5: Cleaning Up Old AWS Infrastructure'
                     echo '========================================='
-                    echo 'WARNING: This will destroy AWS resources tagged with project=achat-app'
+                    echo 'WARNING: This will destroy ALL AWS resources with name achat-app-vpc'
                 }
 
                 withCredentials([file(credentialsId: "${AWS_CREDENTIAL_ID}", variable: 'AWS_CREDENTIALS_FILE')]) {
@@ -552,9 +555,71 @@ EOF
             }
         }
 
+        stage('Refresh EC2 Instance Only') {
+            when {
+                allOf {
+                    expression { return params.DEPLOYMENT_MODE == 'REUSE_INFRASTRUCTURE' }
+                    expression { return fileExists('terraform/main.tf') }
+                }
+            }
+            steps {
+                script {
+                    echo '========================================='
+                    echo 'Stage 9.6: Refreshing EC2 Instance Only'
+                    echo '========================================='
+                    echo 'Mode: REUSE_INFRASTRUCTURE'
+                    echo 'This will keep VPC, RDS, and other resources'
+                    echo 'Only the EC2 instance will be recreated with new user-data'
+                }
+
+                withCredentials([file(credentialsId: "${AWS_CREDENTIAL_ID}", variable: 'AWS_CREDENTIALS_FILE')]) {
+                    dir(TERRAFORM_DIR) {
+                        sh '''
+                            echo "Setting up AWS credentials..."
+                            mkdir -p ~/.aws
+                            cp $AWS_CREDENTIALS_FILE ~/.aws/credentials
+                            chmod 600 ~/.aws/credentials
+                            
+                            echo "======================================"
+                            echo "Finding existing EC2 instance to replace..."
+                            echo "======================================"
+                            
+                            # Initialize Terraform first
+                            terraform init -input=false
+                            
+                            # Taint the EC2 instance to force recreation
+                            echo "Marking EC2 instance for recreation..."
+                            terraform taint aws_instance.app 2>/dev/null || {
+                                echo "Note: Instance might not exist yet or already tainted"
+                            }
+                            
+                            # Apply only the EC2 instance and its dependencies
+                            echo "Applying changes (EC2 instance only)..."
+                            terraform apply -auto-approve \
+                              -target=aws_instance.app \
+                              -target=aws_eip.app \
+                              -target=aws_eip_association.app \
+                              -var="docker_image=${TF_VAR_docker_image}"
+                            
+                            echo "======================================"
+                            echo "✓ EC2 instance refreshed successfully"
+                            echo "======================================"
+                        '''
+                    }
+                }
+
+                script {
+                    echo 'EC2 instance recreated with new configuration'
+                    echo 'VPC and RDS remain unchanged (faster deployment!)'
+                }
+            }
+        }
+
         stage('Terraform Init') {
             when {
-                expression { return fileExists('terraform/main.tf') }
+                expression { 
+                    return fileExists('terraform/main.tf') && params.DEPLOYMENT_MODE != 'REUSE_INFRASTRUCTURE'
+                }
             }
             steps {
                 script {
@@ -618,7 +683,9 @@ EOF
 
         stage('Terraform Plan') {
             when {
-                expression { return fileExists('terraform/main.tf') }
+                expression { 
+                    return fileExists('terraform/main.tf') && params.DEPLOYMENT_MODE != 'REUSE_INFRASTRUCTURE'
+                }
             }
             steps {
                 script {
@@ -656,7 +723,9 @@ EOF
 
         stage('Terraform Apply') {
             when {
-                expression { return fileExists('terraform/main.tf') }
+                expression { 
+                    return fileExists('terraform/main.tf') && params.DEPLOYMENT_MODE != 'REUSE_INFRASTRUCTURE'
+                }
             }
             steps {
                 script {
