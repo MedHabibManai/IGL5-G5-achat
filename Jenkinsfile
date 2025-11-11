@@ -39,6 +39,12 @@ pipeline {
             description: 'Force cleanup of old VPCs before deployment (use if VPC limit reached)'
         )
 
+        booleanParam(
+            name: 'IMPORT_EXISTING_RESOURCES',
+            defaultValue: true,
+            description: 'Scan and import existing AWS resources into Terraform state (recommended for first deploy)'
+        )
+
         choice(
             name: 'LOG_LEVEL',
             choices: ['INFO', 'DEBUG', 'VERBOSE'],
@@ -99,12 +105,13 @@ pipeline {
                     echo '========================================='
                     echo ''
                     echo 'PIPELINE PARAMETERS:'
-                    echo "   Deploy Action:    ${params.DEPLOY_ACTION}"
-                    echo "   Docker Tag:       ${env.DOCKER_IMAGE_TAG}"
-                    echo "   Skip Tests:       ${params.SKIP_TESTS}"
-                    echo "   Skip SonarQube:   ${params.SKIP_SONARQUBE}"
-                    echo "   Force Cleanup:    ${params.FORCE_CLEANUP}"
-                    echo "   Log Level:        ${params.LOG_LEVEL}"
+                    echo "   Deploy Action:         ${params.DEPLOY_ACTION}"
+                    echo "   Docker Tag:            ${env.DOCKER_IMAGE_TAG}"
+                    echo "   Skip Tests:            ${params.SKIP_TESTS}"
+                    echo "   Skip SonarQube:        ${params.SKIP_SONARQUBE}"
+                    echo "   Force Cleanup:         ${params.FORCE_CLEANUP}"
+                    echo "   Import Resources:      ${params.IMPORT_EXISTING_RESOURCES}"
+                    echo "   Log Level:             ${params.LOG_LEVEL}"
                     echo ''
                     echo 'ENVIRONMENT:'
                     echo "   Build Number:     ${BUILD_NUMBER}"
@@ -707,6 +714,246 @@ EOF
                         '''
                         echo "✓ Local cleanup complete!"
                     }
+                }
+            }
+        }
+
+        stage('Import Existing AWS Resources') {
+            when {
+                allOf {
+                    expression { return fileExists('terraform/main.tf') }
+                    expression { return params.DEPLOY_ACTION == 'deploy' }
+                    expression { return params.IMPORT_EXISTING_RESOURCES }
+                    expression { return !fileExists("${TERRAFORM_STATE_DIR}/terraform.tfstate") }
+                }
+            }
+            steps {
+                script {
+                    echo '========================================='
+                    echo 'Stage 11.5: Import Existing AWS Resources'
+                    echo '========================================='
+                    echo ''
+                    echo '🔍 Scanning AWS for existing resources to import...'
+                    echo ''
+                }
+
+                dir(TERRAFORM_DIR) {
+                    script {
+                        sh '''
+                            export AWS_SHARED_CREDENTIALS_FILE=/var/jenkins_home/.aws/credentials
+                            export AWS_CONFIG_FILE=/var/jenkins_home/.aws/config
+                            export AWS_PAGER=""
+
+                            echo "Initializing Terraform for import..."
+                            terraform init -input=false
+                            echo ""
+
+                            # Function to safely import resource
+                            import_resource() {
+                                local resource_type=$1
+                                local resource_name=$2
+                                local resource_id=$3
+
+                                echo "  Checking: $resource_type.$resource_name"
+
+                                # Check if resource already in state
+                                if terraform state show "$resource_type.$resource_name" >/dev/null 2>&1; then
+                                    echo "    ✓ Already in state"
+                                    return 0
+                                fi
+
+                                # Try to import
+                                if [ -n "$resource_id" ]; then
+                                    echo "    → Importing: $resource_id"
+                                    if terraform import "$resource_type.$resource_name" "$resource_id" 2>&1 | grep -q "Successfully imported"; then
+                                        echo "    ✅ Imported successfully"
+                                        return 0
+                                    else
+                                        echo "    ⚠️  Import failed or resource doesn't exist"
+                                        return 1
+                                    fi
+                                else
+                                    echo "    ℹ️  No resource ID found - will be created"
+                                    return 1
+                                fi
+                            }
+
+                            echo "════════════════════════════════════════"
+                            echo "1. Scanning for VPC..."
+                            echo "════════════════════════════════════════"
+
+                            VPC_ID=$(aws ec2 describe-vpcs \
+                              --filters "Name=tag:Name,Values=achat-app-vpc" \
+                              --query "Vpcs[0].VpcId" \
+                              --output text 2>/dev/null)
+
+                            if [ "$VPC_ID" != "None" ] && [ -n "$VPC_ID" ]; then
+                                echo "Found VPC: $VPC_ID"
+                                import_resource "aws_vpc" "main" "$VPC_ID"
+                            else
+                                echo "No existing VPC found - will create new one"
+                            fi
+                            echo ""
+
+                            # Only continue if VPC was found
+                            if [ "$VPC_ID" != "None" ] && [ -n "$VPC_ID" ]; then
+
+                                echo "════════════════════════════════════════"
+                                echo "2. Scanning for Subnets..."
+                                echo "════════════════════════════════════════"
+
+                                # Public Subnet
+                                PUBLIC_SUBNET_ID=$(aws ec2 describe-subnets \
+                                  --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=achat-app-public-subnet" \
+                                  --query "Subnets[0].SubnetId" \
+                                  --output text 2>/dev/null)
+
+                                if [ "$PUBLIC_SUBNET_ID" != "None" ] && [ -n "$PUBLIC_SUBNET_ID" ]; then
+                                    echo "Found Public Subnet: $PUBLIC_SUBNET_ID"
+                                    import_resource "aws_subnet" "public" "$PUBLIC_SUBNET_ID"
+                                fi
+
+                                # Private Subnet
+                                PRIVATE_SUBNET_ID=$(aws ec2 describe-subnets \
+                                  --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=achat-app-private-subnet" \
+                                  --query "Subnets[0].SubnetId" \
+                                  --output text 2>/dev/null)
+
+                                if [ "$PRIVATE_SUBNET_ID" != "None" ] && [ -n "$PRIVATE_SUBNET_ID" ]; then
+                                    echo "Found Private Subnet: $PRIVATE_SUBNET_ID"
+                                    import_resource "aws_subnet" "private" "$PRIVATE_SUBNET_ID"
+                                fi
+                                echo ""
+
+                                echo "════════════════════════════════════════"
+                                echo "3. Scanning for Internet Gateway..."
+                                echo "════════════════════════════════════════"
+
+                                IGW_ID=$(aws ec2 describe-internet-gateways \
+                                  --filters "Name=attachment.vpc-id,Values=$VPC_ID" \
+                                  --query "InternetGateways[0].InternetGatewayId" \
+                                  --output text 2>/dev/null)
+
+                                if [ "$IGW_ID" != "None" ] && [ -n "$IGW_ID" ]; then
+                                    echo "Found Internet Gateway: $IGW_ID"
+                                    import_resource "aws_internet_gateway" "main" "$IGW_ID"
+                                fi
+                                echo ""
+
+                                echo "════════════════════════════════════════"
+                                echo "4. Scanning for Route Tables..."
+                                echo "════════════════════════════════════════"
+
+                                # Public Route Table
+                                PUBLIC_RT_ID=$(aws ec2 describe-route-tables \
+                                  --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=achat-app-public-rt" \
+                                  --query "RouteTables[0].RouteTableId" \
+                                  --output text 2>/dev/null)
+
+                                if [ "$PUBLIC_RT_ID" != "None" ] && [ -n "$PUBLIC_RT_ID" ]; then
+                                    echo "Found Public Route Table: $PUBLIC_RT_ID"
+                                    import_resource "aws_route_table" "public" "$PUBLIC_RT_ID"
+
+                                    # Import route table association
+                                    ASSOC_ID=$(aws ec2 describe-route-tables \
+                                      --route-table-ids "$PUBLIC_RT_ID" \
+                                      --query "RouteTables[0].Associations[?SubnetId=='$PUBLIC_SUBNET_ID'].RouteTableAssociationId" \
+                                      --output text 2>/dev/null)
+
+                                    if [ "$ASSOC_ID" != "None" ] && [ -n "$ASSOC_ID" ]; then
+                                        echo "Found Route Table Association: $ASSOC_ID"
+                                        import_resource "aws_route_table_association" "public" "$ASSOC_ID"
+                                    fi
+                                fi
+                                echo ""
+
+                                echo "════════════════════════════════════════"
+                                echo "5. Scanning for Security Groups..."
+                                echo "════════════════════════════════════════"
+
+                                SG_ID=$(aws ec2 describe-security-groups \
+                                  --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=achat-app-sg" \
+                                  --query "SecurityGroups[0].GroupId" \
+                                  --output text 2>/dev/null)
+
+                                if [ "$SG_ID" != "None" ] && [ -n "$SG_ID" ]; then
+                                    echo "Found Security Group: $SG_ID"
+                                    import_resource "aws_security_group" "app_sg" "$SG_ID"
+                                fi
+                                echo ""
+
+                                echo "════════════════════════════════════════"
+                                echo "6. Scanning for EC2 Instances..."
+                                echo "════════════════════════════════════════"
+
+                                INSTANCE_ID=$(aws ec2 describe-instances \
+                                  --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=achat-app-server" "Name=instance-state-name,Values=running,stopped" \
+                                  --query "Reservations[0].Instances[0].InstanceId" \
+                                  --output text 2>/dev/null)
+
+                                if [ "$INSTANCE_ID" != "None" ] && [ -n "$INSTANCE_ID" ]; then
+                                    echo "Found EC2 Instance: $INSTANCE_ID"
+                                    import_resource "aws_instance" "app_server" "$INSTANCE_ID"
+                                fi
+                                echo ""
+
+                                echo "════════════════════════════════════════"
+                                echo "7. Scanning for EKS Clusters..."
+                                echo "════════════════════════════════════════"
+
+                                EKS_CLUSTERS=$(aws eks list-clusters --query "clusters" --output text 2>/dev/null)
+
+                                if [ -n "$EKS_CLUSTERS" ]; then
+                                    for cluster in $EKS_CLUSTERS; do
+                                        echo "Found EKS Cluster: $cluster"
+                                        # Note: Import command would be: terraform import aws_eks_cluster.name cluster-name
+                                        echo "  ⚠️  EKS import requires manual configuration in terraform files"
+                                    done
+                                else
+                                    echo "No EKS clusters found"
+                                fi
+                                echo ""
+
+                                echo "════════════════════════════════════════"
+                                echo "8. Scanning for RDS/DB Subnet Groups..."
+                                echo "════════════════════════════════════════"
+
+                                DB_SUBNET_GROUPS=$(aws rds describe-db-subnet-groups \
+                                  --query "DBSubnetGroups[?VpcId=='$VPC_ID'].DBSubnetGroupName" \
+                                  --output text 2>/dev/null)
+
+                                if [ -n "$DB_SUBNET_GROUPS" ]; then
+                                    for group in $DB_SUBNET_GROUPS; do
+                                        echo "Found DB Subnet Group: $group"
+                                        # Note: Import command would be: terraform import aws_db_subnet_group.name group-name
+                                        echo "  ⚠️  DB Subnet Group import requires manual configuration in terraform files"
+                                    done
+                                else
+                                    echo "No DB Subnet Groups found"
+                                fi
+                                echo ""
+
+                            fi
+
+                            echo "════════════════════════════════════════"
+                            echo "✅ Resource Import Complete!"
+                            echo "════════════════════════════════════════"
+                            echo ""
+                            echo "Current Terraform State:"
+                            terraform state list || echo "No resources in state yet"
+                            echo ""
+                        '''
+                    }
+                }
+
+                script {
+                    echo ''
+                    echo '💾 Saving imported state...'
+                    sh """
+                        mkdir -p ${TERRAFORM_STATE_DIR}
+                        cp -v ${TERRAFORM_DIR}/terraform.tfstate ${TERRAFORM_STATE_DIR}/terraform.tfstate 2>/dev/null || true
+                    """
+                    echo '✅ Import stage complete!'
                 }
             }
         }
