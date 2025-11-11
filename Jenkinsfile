@@ -513,7 +513,7 @@ EOF
                                 echo "  5. Deleting route tables..."
                                 RT_IDS=\$(aws ec2 describe-route-tables \
                                   --filters "Name=vpc-id,Values=${vpcId}" \
-                                  --query "RouteTables[?Associations[0].Main==\`false\`].RouteTableId" \
+                                  --query 'RouteTables[?Associations[0].Main==`false`].RouteTableId' \
                                   --output text)
 
                                 if [ -n "\$RT_IDS" ]; then
