@@ -263,12 +263,21 @@ resource "aws_db_instance" "mysql" {
 locals {
   user_data = <<-EOF
     #!/bin/bash
+    # Redirect all output to console and log file
+    exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
+    
+    echo "=========================================="
+    echo "Starting user-data script at $(date)"
+    echo "=========================================="
+    
     set -e
     
     # Update system
+    echo "Step 1: Updating system packages..."
     yum update -y
     
     # Install Docker and netcat for database connectivity check
+    echo "Step 2: Installing Docker..."
     yum install -y docker nc
     systemctl start docker
     systemctl enable docker
@@ -277,28 +286,33 @@ locals {
     usermod -a -G docker ec2-user
     
     # Install Docker Compose
+    echo "Step 3: Installing Docker Compose..."
     curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
     chmod +x /usr/local/bin/docker-compose
     
     # Wait for RDS to be ready (with timeout of 10 minutes)
-    echo "Waiting for RDS MySQL to be ready..."
+    echo "Step 4: Waiting for RDS MySQL to be ready..."
+    echo "RDS Endpoint: ${aws_db_instance.mysql.address}"
     MAX_WAIT=600
     ELAPSED=0
     until timeout 5 bash -c "cat < /dev/null > /dev/tcp/${aws_db_instance.mysql.address}/3306" 2>/dev/null; do
       if [ $ELAPSED -ge $MAX_WAIT ]; then
-        echo "Timeout waiting for database after $MAX_WAIT seconds"
+        echo "ERROR: Timeout waiting for database after $MAX_WAIT seconds"
         exit 1
       fi
       echo "Waiting for database connection... ($ELAPSED/$MAX_WAIT seconds)"
       sleep 10
       ELAPSED=$((ELAPSED + 10))
     done
-    echo "RDS MySQL is ready!"
+    echo "SUCCESS: RDS MySQL is ready!"
     
     # Pull application image
+    echo "Step 5: Pulling Docker image: ${var.docker_image}"
     docker pull ${var.docker_image}
     
     # Run the application container with RDS connection
+    echo "Step 6: Starting application container..."
+    echo "Database URL: jdbc:mysql://${aws_db_instance.mysql.address}:3306/achatdb"
     docker run -d \
       --name ${var.app_name} \
       --restart unless-stopped \
@@ -309,15 +323,26 @@ locals {
       ${var.docker_image}
     
     # Wait a bit for container to start
+    echo "Step 7: Waiting for container to initialize..."
     sleep 10
     
     # Check if container is running
+    echo "Step 8: Checking container status..."
     if docker ps | grep ${var.app_name}; then
-      echo "Application container is running successfully"
+      echo "SUCCESS: Application container is running"
+      docker ps | grep ${var.app_name}
     else
-      echo "Application container failed to start. Checking logs:"
+      echo "ERROR: Application container failed to start"
+      echo "Container logs:"
       docker logs ${var.app_name} || true
+      exit 1
     fi
+    
+    # Show container logs
+    echo "=========================================="
+    echo "Container Logs (last 100 lines):"
+    echo "=========================================="
+    docker logs --tail 100 ${var.app_name}
     
     # Create a simple health check script
     cat > /usr/local/bin/health-check.sh << 'HEALTH'
@@ -326,13 +351,23 @@ locals {
     HEALTH
     chmod +x /usr/local/bin/health-check.sh
     
-    # Log deployment
-    echo "Application deployed successfully at $(date)" >> /var/log/app-deployment.log
-    echo "Database endpoint: ${aws_db_instance.mysql.address}" >> /var/log/app-deployment.log
-    echo "Container status:" >> /var/log/app-deployment.log
-    docker ps >> /var/log/app-deployment.log
-    echo "Container logs (last 50 lines):" >> /var/log/app-deployment.log
-    docker logs --tail 50 ${var.app_name} >> /var/log/app-deployment.log 2>&1 || true
+    # Log deployment summary
+    echo "=========================================="
+    echo "Deployment Summary"
+    echo "=========================================="
+    echo "Deployment completed at: $(date)"
+    echo "Database endpoint: ${aws_db_instance.mysql.address}"
+    echo "Application port: ${var.app_port}"
+    echo "Docker image: ${var.docker_image}"
+    echo "Container status:"
+    docker ps
+    echo "=========================================="
+    echo "User-data script completed successfully!"
+    echo "=========================================="
+    
+    # Also save to log file
+    echo "Deployment completed successfully at $(date)" >> /var/log/app-deployment.log
+    docker logs ${var.app_name} >> /var/log/app-deployment.log 2>&1 || true
   EOF
 }
 
