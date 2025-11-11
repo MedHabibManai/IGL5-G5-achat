@@ -415,6 +415,23 @@ EOF
                                         echo "    No RDS instances found"
                                     fi
                                     
+                                    # 2.5. Delete DB Subnet Groups
+                                    echo ""
+                                    echo "  2.5. Deleting DB Subnet Groups..."
+                                    DB_SUBNET_GROUPS=$(aws rds describe-db-subnet-groups \
+                                        --region ${AWS_REGION} \
+                                        --query 'DBSubnetGroups[?VpcId==`'"$vpc_id"'`].DBSubnetGroupName' \
+                                        --output text 2>/dev/null || echo "")
+                                    
+                                    if [ -n "$DB_SUBNET_GROUPS" ]; then
+                                        for db_subnet_group in $DB_SUBNET_GROUPS; do
+                                            echo "    Deleting DB subnet group: $db_subnet_group"
+                                            safe_delete "aws rds delete-db-subnet-group --region ${AWS_REGION} --db-subnet-group-name $db_subnet_group"
+                                        done
+                                    else
+                                        echo "    No DB subnet groups found"
+                                    fi
+                                    
                                     # 3. Delete NAT Gateways
                                     echo ""
                                     echo "  3. Deleting NAT Gateways..."
