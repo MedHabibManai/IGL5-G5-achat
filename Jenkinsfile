@@ -903,6 +903,57 @@ EOF
             }
         }
 
+        stage('Debug EC2 Instance') {
+            when {
+                expression { return fileExists('terraform/main.tf') }
+            }
+            steps {
+                script {
+                    echo '========================================='
+                    echo 'Stage 13.5: Debug EC2 Instance'
+                    echo '========================================='
+                }
+
+                withCredentials([file(credentialsId: "${AWS_CREDENTIAL_ID}", variable: 'AWS_CREDENTIALS_FILE')]) {
+                    dir(TERRAFORM_DIR) {
+                        sh '''
+                            echo "Setting up AWS credentials..."
+                            mkdir -p ~/.aws
+                            cp $AWS_CREDENTIALS_FILE ~/.aws/credentials
+                            chmod 600 ~/.aws/credentials
+                            
+                            echo "======================================"
+                            echo "Fetching EC2 Instance Information"
+                            echo "======================================"
+                            
+                            # Get instance ID from Terraform output
+                            INSTANCE_ID=$(terraform output -raw instance_id 2>/dev/null || echo "")
+                            
+                            if [ -n "$INSTANCE_ID" ]; then
+                                echo "Instance ID: $INSTANCE_ID"
+                                echo ""
+                                
+                                # Get instance status
+                                echo "Instance Status:"
+                                aws ec2 describe-instance-status --region ${AWS_REGION} --instance-ids $INSTANCE_ID || echo "Status not available yet"
+                                echo ""
+                                
+                                # Get console output (last 50 lines for readability)
+                                echo "======================================"
+                                echo "EC2 Console Output (Last 50 lines):"
+                                echo "======================================"
+                                aws ec2 get-console-output --region ${AWS_REGION} --instance-id $INSTANCE_ID --output text 2>/dev/null | tail -n 50 || echo "Console output not available yet"
+                                echo ""
+                                echo "======================================"
+                            else
+                                echo "Could not retrieve instance ID from Terraform"
+                            fi
+                        '''
+                    }
+                }
+            }
+        }
+
         stage('Health Check AWS Deployment') {
             when {
                 expression { return fileExists('terraform/main.tf') }
@@ -923,14 +974,18 @@ EOF
                         ).trim()
 
                         if (appUrl) {
-                            echo "Waiting for application to start (60 seconds)..."
-                            sleep(60)
+                            echo "Waiting for application to start (120 seconds)..."
+                            echo "This includes time for:"
+                            echo "  - Docker to start"
+                            echo "  - Database connectivity check (up to 10 minutes)"
+                            echo "  - Application startup"
+                            sleep(120)
 
                             echo "Checking application health..."
                             def healthUrl = "${appUrl}/actuator/health"
 
-                            retry(5) {
-                                sleep(10)
+                            retry(10) {
+                                sleep(15)
                                 sh """
                                     curl -f ${healthUrl} || exit 1
                                 """
