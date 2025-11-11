@@ -1,17 +1,35 @@
-# Custom Jenkins image with Docker CLI installed
+# Custom Jenkins image with Docker CLI, Terraform, and AWS CLI installed
 FROM jenkins/jenkins:lts
 
 USER root
 
-# Install Docker CLI
+# Install prerequisites
 RUN apt-get update && \
-    apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release && \
-    curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg && \
+    apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release wget unzip && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Docker CLI
+RUN curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg && \
     echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null && \
     apt-get update && \
     apt-get install -y docker-ce-cli && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+# Install Terraform
+RUN wget -O terraform.zip https://releases.hashicorp.com/terraform/1.9.8/terraform_1.9.8_linux_amd64.zip && \
+    unzip terraform.zip -d /usr/local/bin/ && \
+    rm terraform.zip && \
+    chmod +x /usr/local/bin/terraform && \
+    terraform version
+
+# Install AWS CLI v2
+RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
+    unzip awscliv2.zip && \
+    ./aws/install && \
+    rm -rf awscliv2.zip aws && \
+    /usr/local/bin/aws --version
 
 # Give Jenkins user access to Docker socket
 RUN usermod -aG docker jenkins || true
