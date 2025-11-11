@@ -327,6 +327,10 @@ EOF
 
                 dir(TERRAFORM_DIR) {
                     sh '''
+                        # Set AWS credentials path
+                        export AWS_SHARED_CREDENTIALS_FILE=/var/jenkins_home/.aws/credentials
+                        export AWS_CONFIG_FILE=/var/jenkins_home/.aws/config
+
                         echo "Initializing Terraform..."
 
                         # Retry terraform init up to 3 times
@@ -357,11 +361,11 @@ EOF
 
                         echo ""
                         echo "AWS CLI version:"
-                        /usr/local/bin/aws --version
+                        aws --version
 
                         echo ""
                         echo "AWS Account:"
-                        /usr/local/bin/aws sts get-caller-identity
+                        aws sts get-caller-identity
                     '''
                 }
 
@@ -384,6 +388,10 @@ EOF
 
                 dir(TERRAFORM_DIR) {
                     sh '''
+                        # Set AWS credentials path
+                        export AWS_SHARED_CREDENTIALS_FILE=/var/jenkins_home/.aws/credentials
+                        export AWS_CONFIG_FILE=/var/jenkins_home/.aws/config
+
                         echo "Creating Terraform execution plan..."
                         terraform plan \
                           -var="docker_image=${TF_VAR_docker_image}" \
@@ -422,6 +430,10 @@ EOF
 
                 dir(TERRAFORM_DIR) {
                     sh '''
+                        # Set AWS credentials path
+                        export AWS_SHARED_CREDENTIALS_FILE=/var/jenkins_home/.aws/credentials
+                        export AWS_CONFIG_FILE=/var/jenkins_home/.aws/config
+
                         echo "Applying Terraform plan..."
                         terraform apply -auto-approve tfplan
 
