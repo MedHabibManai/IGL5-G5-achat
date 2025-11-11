@@ -479,26 +479,36 @@ EOF
                         echo "Terraform Outputs:"
                         echo outputs
 
-                        // Parse and display key information
-                        def outputsJson = readJSON text: outputs
+                        // Extract key information using shell commands
+                        def appUrl = sh(
+                            script: "terraform output -raw application_url 2>/dev/null || echo 'N/A'",
+                            returnStdout: true
+                        ).trim()
 
-                        if (outputsJson.application_url) {
-                            def appUrl = outputsJson.application_url.value
+                        def healthCheckUrl = sh(
+                            script: "terraform output -raw health_check_url 2>/dev/null || echo 'N/A'",
+                            returnStdout: true
+                        ).trim()
+
+                        def publicIp = sh(
+                            script: "terraform output -raw public_ip 2>/dev/null || echo 'N/A'",
+                            returnStdout: true
+                        ).trim()
+
+                        def instanceId = sh(
+                            script: "terraform output -raw instance_id 2>/dev/null || echo 'N/A'",
+                            returnStdout: true
+                        ).trim()
+
+                        if (appUrl != 'N/A') {
                             echo ""
                             echo "========================================="
                             echo "APPLICATION DEPLOYED SUCCESSFULLY!"
                             echo "========================================="
                             echo "Application URL: ${appUrl}"
-                            echo ""
-
-                            if (outputsJson.health_check_url) {
-                                echo "Health Check: ${outputsJson.health_check_url.value}"
-                            }
-
-                            if (outputsJson.public_ip) {
-                                echo "Public IP: ${outputsJson.public_ip.value}"
-                            }
-
+                            echo "Health Check: ${healthCheckUrl}"
+                            echo "Public IP: ${publicIp}"
+                            echo "Instance ID: ${instanceId}"
                             echo "========================================="
                         }
                     }
