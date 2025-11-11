@@ -1,0 +1,142 @@
+version: '3.8'
+
+services:
+  # Jenkins Service with Docker support
+  jenkins:
+    build:
+      context: .
+      dockerfile: Dockerfile.jenkins
+    image: jenkins-with-docker:latest
+    container_name: jenkins-cicd
+    privileged: true
+    user: root
+    ports:
+      - "8080:8080"      # Jenkins Web UI
+      - "50000:50000"    # Jenkins Agent Port
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock  # Docker socket for Docker-in-Docker
+      - ./:/workspace                               # Mount project workspace
+    environment:
+      - JAVA_OPTS=-Djenkins.install.runSetupWizard=true
+    networks:
+      - devops-network
+    restart: unless-stopped
+
+  # SonarQube Service (Phase 2) - Version 7.9 LTS supports Java 8
+  sonarqube:
+    image: sonarqube:7.9-community
+    container_name: sonarqube-server
+    depends_on:
+      - sonarqube-db
+    ports:
+      - "9000:9000"
+    environment:
+      - SONAR_JDBC_URL=jdbc:postgresql://sonarqube-db:5432/sonarqube
+      - SONAR_JDBC_USERNAME=sonar
+      - SONAR_JDBC_PASSWORD=sonar
+      - SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+    networks:
+      - devops-network
+    restart: unless-stopped
+    profiles:
+      - phase2  # Only start when phase2 profile is active
+
+  # PostgreSQL for SonarQube (Phase 2)
+  sonarqube-db:
+    image: postgres:13
+    container_name: sonarqube-postgres
+    environment:
+      - POSTGRES_USER=sonar
+      - POSTGRES_PASSWORD=sonar
+      - POSTGRES_DB=sonarqube
+    volumes:
+      - postgresql_data:/var/lib/postgresql/data
+    networks:
+      - devops-network
+    restart: unless-stopped
+    profiles:
+      - phase2
+
+  # Nexus Repository Manager (Phase 3)
+  nexus:
+    image: sonatype/nexus3
+    container_name: nexus-repository
+    ports:
+      - "8081:8081"      # Nexus Web UI
+      - "8082:8082"      # Docker Registry (hosted)
+    volumes:
+      - nexus_data:/nexus-data
+    environment:
+      - INSTALL4J_ADD_VM_PARAMS=-Xms512m -Xmx512m -XX:MaxDirectMemorySize=273m
+    networks:
+      - devops-network
+    restart: unless-stopped
+    profiles:
+      - phase3
+
+  # Prometheus (Phase 4)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus-monitoring
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - devops-network
+    restart: unless-stopped
+    profiles:
+      - phase4
+
+  # Grafana (Phase 4)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana-dashboard
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    networks:
+      - devops-network
+    restart: unless-stopped
+    profiles:
+      - phase4
+
+# Volumes
+volumes:
+  jenkins_home:
+    driver: local
+  sonarqube_data:
+    driver: local
+  sonarqube_extensions:
+    driver: local
+  sonarqube_logs:
+    driver: local
+  postgresql_data:
+    driver: local
+  nexus_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+# Networks
+networks:
+  devops-network:
+    driver: bridge
+
