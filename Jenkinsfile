@@ -1,6 +1,15 @@
 pipeline {
     agent any
 
+    // Parameters to control pipeline behavior
+    parameters {
+        booleanParam(
+            name: 'CLEANUP_INFRASTRUCTURE',
+            defaultValue: false,
+            description: 'Destroy existing AWS infrastructure before deployment (use when hitting VPC limits)'
+        )
+    }
+
     tools {
         maven 'maven-3.8.6'  // Will be auto-installed
         jdk 'jdk-8'          // Will be auto-installed
@@ -310,6 +319,64 @@ EOF
                         echo ""
                         echo "View on Docker Hub: https://hub.docker.com/r/${DOCKER_USER}/${DOCKER_IMAGE_NAME}"
                     }
+                }
+            }
+        }
+
+        stage('Cleanup AWS Infrastructure') {
+            when {
+                allOf {
+                    expression { return params.CLEANUP_INFRASTRUCTURE == true }
+                    expression { return fileExists('terraform/main.tf') }
+                }
+            }
+            steps {
+                script {
+                    echo '========================================='
+                    echo 'Stage 9.5: Cleaning Up Old AWS Infrastructure'
+                    echo '========================================='
+                    echo 'WARNING: This will destroy existing AWS resources managed by Terraform'
+                }
+
+                withCredentials([file(credentialsId: "${AWS_CREDENTIAL_ID}", variable: 'AWS_CREDENTIALS_FILE')]) {
+                    dir(TERRAFORM_DIR) {
+                        sh '''
+                            echo "Setting up AWS credentials..."
+                            mkdir -p ~/.aws
+                            cp $AWS_CREDENTIALS_FILE ~/.aws/credentials
+                            chmod 600 ~/.aws/credentials
+                            
+                            # Check if Terraform state exists
+                            if [ -f "terraform.tfstate" ] || [ -f ".terraform/terraform.tfstate" ]; then
+                                echo "Found existing Terraform state, proceeding with destroy..."
+                                
+                                # Initialize Terraform first
+                                terraform init -input=false
+                                
+                                # Destroy infrastructure with auto-approve
+                                echo "Destroying AWS infrastructure..."
+                                terraform destroy -auto-approve \
+                                  -var="docker_image=${TF_VAR_docker_image}" || {
+                                    echo "Warning: Destroy failed or partially completed"
+                                    echo "This might be expected if resources were already deleted manually"
+                                }
+                                
+                                # Clean up state files
+                                echo "Cleaning up Terraform state files..."
+                                rm -f terraform.tfstate terraform.tfstate.backup
+                                rm -rf .terraform
+                                
+                                echo "✓ Cleanup completed successfully"
+                            else
+                                echo "No Terraform state found, nothing to destroy"
+                            fi
+                        '''
+                    }
+                }
+
+                script {
+                    echo 'AWS infrastructure cleanup completed'
+                    echo 'Ready for fresh deployment'
                 }
             }
         }
