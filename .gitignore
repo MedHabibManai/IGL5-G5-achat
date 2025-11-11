@@ -119,6 +119,8 @@ Dockerfile.*
 docker-compose.yml
 docker-compose.*.yml
 .dockerignore
+start-jenkins.bat
+start-jenkins.sh
 
 # Terraform - All files
 terraform/
