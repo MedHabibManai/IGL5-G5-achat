@@ -86,7 +86,7 @@ variable "app_name" {
 variable "app_port" {
   description = "Application port"
   type        = number
-  default     = 8080
+  default     = 8089  # Spring Boot application port
 }
 
 variable "docker_image" {
