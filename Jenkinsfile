@@ -405,49 +405,152 @@ EOF
                     echo '========================================='
                     echo 'Stage 11: Cleanup Previous Deployment'
                     echo '========================================='
+                    echo ''
+                    echo '🧹 Searching for existing Terraform-managed VPCs...'
+                }
+
+                script {
+                    // Find all VPCs with Name tag = "achat-app-vpc"
+                    def vpcIds = sh(
+                        script: '''
+                            export AWS_SHARED_CREDENTIALS_FILE=/var/jenkins_home/.aws/credentials
+                            export AWS_CONFIG_FILE=/var/jenkins_home/.aws/config
+                            export AWS_PAGER=""
+
+                            aws ec2 describe-vpcs \
+                              --filters "Name=tag:Name,Values=achat-app-vpc" \
+                              --query "Vpcs[*].VpcId" \
+                              --output text
+                        ''',
+                        returnStdout: true
+                    ).trim()
+
+                    if (vpcIds) {
+                        echo "⚠️  Found existing Terraform VPCs: ${vpcIds}"
+                        echo ""
+                        echo "Deleting all Terraform-managed resources..."
+                        echo ""
+
+                        // Delete each VPC and its dependencies
+                        vpcIds.split().each { vpcId ->
+                            echo "─────────────────────────────────────────"
+                            echo "Deleting VPC: ${vpcId}"
+                            echo ""
+
+                            sh """
+                                export AWS_SHARED_CREDENTIALS_FILE=/var/jenkins_home/.aws/credentials
+                                export AWS_CONFIG_FILE=/var/jenkins_home/.aws/config
+                                export AWS_PAGER=""
+
+                                # 1. Terminate EC2 instances
+                                echo "  1. Checking for EC2 instances..."
+                                INSTANCE_IDS=\$(aws ec2 describe-instances \
+                                  --filters "Name=vpc-id,Values=${vpcId}" "Name=instance-state-name,Values=running,stopped,stopping" \
+                                  --query "Reservations[*].Instances[*].InstanceId" \
+                                  --output text)
+
+                                if [ -n "\$INSTANCE_IDS" ]; then
+                                  echo "     Terminating instances: \$INSTANCE_IDS"
+                                  aws ec2 terminate-instances --instance-ids \$INSTANCE_IDS > /dev/null
+                                  echo "     Waiting for instances to terminate..."
+                                  aws ec2 wait instance-terminated --instance-ids \$INSTANCE_IDS || true
+                                  echo "     ✓ Instances terminated"
+                                else
+                                  echo "     No instances found"
+                                fi
+
+                                # 2. Delete security groups (except default)
+                                echo "  2. Deleting security groups..."
+                                SG_IDS=\$(aws ec2 describe-security-groups \
+                                  --filters "Name=vpc-id,Values=${vpcId}" \
+                                  --query "SecurityGroups[?GroupName!='default'].GroupId" \
+                                  --output text)
+
+                                if [ -n "\$SG_IDS" ]; then
+                                  for sg_id in \$SG_IDS; do
+                                    echo "     Deleting SG: \$sg_id"
+                                    aws ec2 delete-security-group --group-id \$sg_id 2>/dev/null || echo "     (already deleted or in use)"
+                                  done
+                                else
+                                  echo "     No security groups to delete"
+                                fi
+
+                                # 3. Delete subnets
+                                echo "  3. Deleting subnets..."
+                                SUBNET_IDS=\$(aws ec2 describe-subnets \
+                                  --filters "Name=vpc-id,Values=${vpcId}" \
+                                  --query "Subnets[*].SubnetId" \
+                                  --output text)
+
+                                if [ -n "\$SUBNET_IDS" ]; then
+                                  for subnet_id in \$SUBNET_IDS; do
+                                    echo "     Deleting subnet: \$subnet_id"
+                                    aws ec2 delete-subnet --subnet-id \$subnet_id 2>/dev/null || echo "     (already deleted)"
+                                  done
+                                else
+                                  echo "     No subnets to delete"
+                                fi
+
+                                # 4. Detach and delete internet gateways
+                                echo "  4. Deleting internet gateways..."
+                                IGW_IDS=\$(aws ec2 describe-internet-gateways \
+                                  --filters "Name=attachment.vpc-id,Values=${vpcId}" \
+                                  --query "InternetGateways[*].InternetGatewayId" \
+                                  --output text)
+
+                                if [ -n "\$IGW_IDS" ]; then
+                                  for igw_id in \$IGW_IDS; do
+                                    echo "     Detaching IGW: \$igw_id"
+                                    aws ec2 detach-internet-gateway --internet-gateway-id \$igw_id --vpc-id ${vpcId} 2>/dev/null || echo "     (already detached)"
+                                    echo "     Deleting IGW: \$igw_id"
+                                    aws ec2 delete-internet-gateway --internet-gateway-id \$igw_id 2>/dev/null || echo "     (already deleted)"
+                                  done
+                                else
+                                  echo "     No internet gateways to delete"
+                                fi
+
+                                # 5. Delete route tables (except main)
+                                echo "  5. Deleting route tables..."
+                                RT_IDS=\$(aws ec2 describe-route-tables \
+                                  --filters "Name=vpc-id,Values=${vpcId}" \
+                                  --query "RouteTables[?Associations[0].Main==\\\`false\\\`].RouteTableId" \
+                                  --output text)
+
+                                if [ -n "\$RT_IDS" ]; then
+                                  for rt_id in \$RT_IDS; do
+                                    echo "     Deleting route table: \$rt_id"
+                                    aws ec2 delete-route-table --route-table-id \$rt_id 2>/dev/null || echo "     (already deleted)"
+                                  done
+                                else
+                                  echo "     No route tables to delete"
+                                fi
+
+                                # 6. Delete VPC
+                                echo "  6. Deleting VPC..."
+                                aws ec2 delete-vpc --vpc-id ${vpcId} && echo "     ✓ VPC deleted!" || echo "     ⚠️  VPC deletion failed (may have dependencies)"
+                                echo ""
+                            """
+                        }
+
+                        echo "════════════════════════════════════════"
+                        echo "✅ Cleanup complete!"
+                        echo "════════════════════════════════════════"
+                    } else {
+                        echo "✓ No existing Terraform VPCs found - starting fresh deployment"
+                    }
+
+                    echo ""
                 }
 
                 dir(TERRAFORM_DIR) {
                     script {
-                        echo "Checking for existing Terraform state..."
-
-                        def stateExists = sh(
-                            script: 'test -f terraform.tfstate && echo "true" || echo "false"',
-                            returnStdout: true
-                        ).trim()
-
-                        if (stateExists == 'true') {
-                            echo "⚠ Found existing Terraform state - destroying previous deployment..."
-                            echo ""
-
-                            sh '''
-                                # Set AWS credentials path
-                                export AWS_SHARED_CREDENTIALS_FILE=/var/jenkins_home/.aws/credentials
-                                export AWS_CONFIG_FILE=/var/jenkins_home/.aws/config
-
-                                echo "Initializing Terraform for cleanup..."
-                                terraform init -input=false
-
-                                echo ""
-                                echo "Destroying previous deployment..."
-                                terraform destroy -auto-approve
-
-                                echo ""
-                                echo "✓ Previous deployment destroyed successfully!"
-                            '''
-
-                            echo ""
-                            echo "Cleaning up Terraform state files..."
-                            sh '''
-                                rm -f terraform.tfstate*
-                                rm -f tfplan
-                                rm -rf .terraform/
-                            '''
-
-                            echo "✓ Cleanup complete!"
-                        } else {
-                            echo "No existing Terraform state found - skipping cleanup"
-                        }
+                        echo "Cleaning up local Terraform files..."
+                        sh '''
+                            rm -f terraform.tfstate*
+                            rm -f tfplan
+                            rm -rf .terraform/
+                        '''
+                        echo "✓ Local cleanup complete!"
                     }
                 }
             }
