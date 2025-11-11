@@ -393,9 +393,28 @@ EOF
                                         echo "    No instances found"
                                     fi
                                     
-                                    # 2. Delete NAT Gateways
+                                    # 2. Delete RDS Instances in VPC
                                     echo ""
-                                    echo "  2. Deleting NAT Gateways..."
+                                    echo "  2. Deleting RDS Instances..."
+                                    DB_INSTANCES=$(aws rds describe-db-instances \
+                                        --region ${AWS_REGION} \
+                                        --query "DBInstances[?DBSubnetGroup.VpcId==\`$vpc_id\`].DBInstanceIdentifier" \
+                                        --output text 2>/dev/null || echo "")
+                                    
+                                    if [ -n "$DB_INSTANCES" ]; then
+                                        for db_id in $DB_INSTANCES; do
+                                            echo "    Deleting RDS instance: $db_id"
+                                            safe_delete "aws rds delete-db-instance --region ${AWS_REGION} --db-instance-identifier $db_id --skip-final-snapshot"
+                                        done
+                                        echo "    Waiting for RDS instances to delete (this may take 5-10 minutes)..."
+                                        sleep 60
+                                    else
+                                        echo "    No RDS instances found"
+                                    fi
+                                    
+                                    # 3. Delete NAT Gateways
+                                    echo ""
+                                    echo "  3. Deleting NAT Gateways..."
                                     NAT_GW_IDS=$(aws ec2 describe-nat-gateways \
                                         --region ${AWS_REGION} \
                                         --filter "Name=vpc-id,Values=$vpc_id" "Name=state,Values=available" \
@@ -413,9 +432,9 @@ EOF
                                         echo "    No NAT Gateways found"
                                     fi
                                     
-                                    # 3. Release Elastic IPs
+                                    # 4. Release Elastic IPs
                                     echo ""
-                                    echo "  3. Releasing Elastic IPs..."
+                                    echo "  4. Releasing Elastic IPs..."
                                     ALLOCATION_IDS=$(aws ec2 describe-addresses \
                                         --region ${AWS_REGION} \
                                         --filters "Name=domain,Values=vpc" \
@@ -431,9 +450,9 @@ EOF
                                         echo "    No Elastic IPs found"
                                     fi
                                     
-                                    # 4. Detach and delete Internet Gateways
+                                    # 5. Detach and delete Internet Gateways
                                     echo ""
-                                    echo "  4. Deleting Internet Gateways..."
+                                    echo "  5. Deleting Internet Gateways..."
                                     IGW_IDS=$(aws ec2 describe-internet-gateways \
                                         --region ${AWS_REGION} \
                                         --filters "Name=attachment.vpc-id,Values=$vpc_id" \
@@ -450,9 +469,9 @@ EOF
                                         echo "    No Internet Gateways found"
                                     fi
                                     
-                                    # 5. Delete Subnets
+                                    # 6. Delete Subnets
                                     echo ""
-                                    echo "  5. Deleting Subnets..."
+                                    echo "  6. Deleting Subnets..."
                                     SUBNET_IDS=$(aws ec2 describe-subnets \
                                         --region ${AWS_REGION} \
                                         --filters "Name=vpc-id,Values=$vpc_id" \
@@ -468,9 +487,9 @@ EOF
                                         echo "    No subnets found"
                                     fi
                                     
-                                    # 6. Delete custom Route Tables (skip main route table)
+                                    # 7. Delete custom Route Tables (skip main route table)
                                     echo ""
-                                    echo "  6. Deleting Route Tables..."
+                                    echo "  7. Deleting Route Tables..."
                                     RTB_IDS=$(aws ec2 describe-route-tables \
                                         --region ${AWS_REGION} \
                                         --filters "Name=vpc-id,Values=$vpc_id" \
@@ -486,9 +505,9 @@ EOF
                                         echo "    No custom route tables found"
                                     fi
                                     
-                                    # 7. Delete Security Groups (skip default)
+                                    # 8. Delete Security Groups (skip default)
                                     echo ""
-                                    echo "  7. Deleting Security Groups..."
+                                    echo "  8. Deleting Security Groups..."
                                     SG_IDS=$(aws ec2 describe-security-groups \
                                         --region ${AWS_REGION} \
                                         --filters "Name=vpc-id,Values=$vpc_id" \
@@ -504,9 +523,9 @@ EOF
                                         echo "    No custom security groups found"
                                     fi
                                     
-                                    # 8. Finally, delete the VPC
+                                    # 9. Finally, delete the VPC
                                     echo ""
-                                    echo "  8. Deleting VPC..."
+                                    echo "  9. Deleting VPC..."
                                     echo "    Deleting VPC: $vpc_id"
                                     if aws ec2 delete-vpc --region ${AWS_REGION} --vpc-id $vpc_id 2>/dev/null; then
                                         echo "    ✓ VPC $vpc_id deleted successfully"

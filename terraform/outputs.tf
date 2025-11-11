@@ -98,6 +98,35 @@ output "swagger_url" {
 }
 
 # ============================================================================
+# Database Outputs
+# ============================================================================
+
+output "rds_endpoint" {
+  description = "RDS MySQL endpoint address"
+  value       = aws_db_instance.mysql.address
+}
+
+output "rds_port" {
+  description = "RDS MySQL port"
+  value       = aws_db_instance.mysql.port
+}
+
+output "database_name" {
+  description = "Database name"
+  value       = aws_db_instance.mysql.db_name
+}
+
+output "rds_instance_class" {
+  description = "RDS instance class"
+  value       = aws_db_instance.mysql.instance_class
+}
+
+output "rds_storage" {
+  description = "RDS allocated storage (GB)"
+  value       = aws_db_instance.mysql.allocated_storage
+}
+
+# ============================================================================
 # Deployment Information
 # ============================================================================
 
@@ -148,6 +177,12 @@ output "deployment_summary" {
       • Instance Type: ${aws_instance.app.instance_type}
       • Public IP: ${aws_eip.app.public_ip}
       • Region: ${var.aws_region}
+    
+    Database Details:
+      • RDS Endpoint: ${aws_db_instance.mysql.address}
+      • Database: ${aws_db_instance.mysql.db_name}
+      • Instance Class: ${aws_db_instance.mysql.instance_class} (~$0.017/hour)
+      • Storage: ${aws_db_instance.mysql.allocated_storage} GB
     
     Connect to Instance:
       ${var.key_name != "" ? "SSH: ssh -i ~/.ssh/${var.key_name}.pem ec2-user@${aws_eip.app.public_ip}" : "SSM: aws ssm start-session --target ${aws_instance.app.id}"}

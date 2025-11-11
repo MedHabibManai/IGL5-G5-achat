@@ -165,6 +165,100 @@ data "aws_iam_instance_profile" "lab_profile" {
 # EC2 Instance
 # ============================================================================
 
+# ============================================================================
+# RDS MySQL Database
+# ============================================================================
+
+# Security Group for RDS
+resource "aws_security_group" "rds" {
+  name        = "${var.project_name}-rds-sg"
+  description = "Security group for ${var.project_name} RDS MySQL"
+  vpc_id      = aws_vpc.main.id
+
+  # Allow MySQL traffic from application security group
+  ingress {
+    description     = "MySQL from application"
+    from_port       = 3306
+    to_port         = 3306
+    protocol        = "tcp"
+    security_groups = [aws_security_group.app.id]
+  }
+
+  egress {
+    description = "Allow all outbound"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name = "${var.project_name}-rds-sg"
+    }
+  )
+}
+
+# DB Subnet Group (RDS requires at least 2 subnets in different AZs)
+resource "aws_subnet" "private" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.2.0/24"
+  availability_zone = data.aws_availability_zones.available.names[1]
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name = "${var.project_name}-private-subnet"
+    }
+  )
+}
+
+resource "aws_db_subnet_group" "main" {
+  name       = "${var.project_name}-db-subnet-group"
+  subnet_ids = [aws_subnet.public.id, aws_subnet.private.id]
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name = "${var.project_name}-db-subnet-group"
+    }
+  )
+}
+
+# RDS MySQL Instance - db.t3.micro (cheapest option, ~$0.017/hour = ~$12.24/month)
+resource "aws_db_instance" "mysql" {
+  identifier        = "${var.project_name}-db"
+  engine            = "mysql"
+  engine_version    = "8.0.39"
+  instance_class    = "db.t3.micro"
+  allocated_storage = 20
+  storage_type      = "gp2"
+
+  db_name  = "achatdb"
+  username = "admin"
+  password = "Admin123456!" # Change this to a secure password
+
+  db_subnet_group_name   = aws_db_subnet_group.main.name
+  vpc_security_group_ids = [aws_security_group.rds.id]
+  publicly_accessible    = false
+
+  # Performance and cost optimization
+  skip_final_snapshot       = true
+  backup_retention_period   = 1 # Minimum backup retention
+  multi_az                  = false
+  deletion_protection       = false
+  storage_encrypted         = false
+  auto_minor_version_upgrade = true
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name = "${var.project_name}-mysql-db"
+    }
+  )
+}
+
 # User Data Script to install Docker and run application
 locals {
   user_data = <<-EOF
@@ -186,14 +280,25 @@ locals {
     curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
     chmod +x /usr/local/bin/docker-compose
     
-    # Pull and run the application
+    # Wait for RDS to be ready
+    echo "Waiting for RDS MySQL to be ready..."
+    until nc -z -v -w30 ${aws_db_instance.mysql.address} 3306; do
+      echo "Waiting for database connection..."
+      sleep 5
+    done
+    echo "RDS MySQL is ready!"
+    
+    # Pull application image
     docker pull ${var.docker_image}
     
-    # Run the application container
+    # Run the application container with RDS connection
     docker run -d \
       --name ${var.app_name} \
       --restart unless-stopped \
       -p ${var.app_port}:${var.app_port} \
+      -e SPRING_DATASOURCE_URL=jdbc:mysql://${aws_db_instance.mysql.address}:3306/achatdb?useUnicode=true&useJDBCCompliantTimezoneShift=true&useLegacyDatetimeCode=false&serverTimezone=UTC \
+      -e SPRING_DATASOURCE_USERNAME=admin \
+      -e SPRING_DATASOURCE_PASSWORD=Admin123456! \
       ${var.docker_image}
     
     # Create a simple health check script
@@ -205,6 +310,7 @@ locals {
     
     # Log deployment
     echo "Application deployed successfully at $(date)" >> /var/log/app-deployment.log
+    echo "Database endpoint: ${aws_db_instance.mysql.address}" >> /var/log/app-deployment.log
     docker ps >> /var/log/app-deployment.log
   EOF
 }
