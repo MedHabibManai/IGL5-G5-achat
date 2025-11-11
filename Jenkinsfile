@@ -1,35 +1,80 @@
 pipeline {
     agent any
 
+    // ============================================================================
+    // PIPELINE PARAMETERS - Control deployment behavior
+    // ============================================================================
+    parameters {
+        choice(
+            name: 'DEPLOY_ACTION',
+            choices: ['deploy', 'redeploy', 'destroy', 'plan-only'],
+            description: '''Deployment action:
+• deploy: Update existing infrastructure (incremental, fast)
+• redeploy: Destroy and recreate everything (clean slate)
+• destroy: Cleanup all resources (no deployment)
+• plan-only: Show what would change (dry-run)'''
+        )
+
+        string(
+            name: 'DOCKER_IMAGE_TAG',
+            defaultValue: '',
+            description: 'Docker image tag to deploy (leave empty to use BUILD_NUMBER)'
+        )
+
+        booleanParam(
+            name: 'SKIP_TESTS',
+            defaultValue: false,
+            description: 'Skip unit tests (faster builds for testing)'
+        )
+
+        booleanParam(
+            name: 'SKIP_SONARQUBE',
+            defaultValue: false,
+            description: 'Skip SonarQube analysis (faster builds)'
+        )
+
+        booleanParam(
+            name: 'FORCE_CLEANUP',
+            defaultValue: false,
+            description: 'Force cleanup of old VPCs before deployment (use if VPC limit reached)'
+        )
+
+        choice(
+            name: 'LOG_LEVEL',
+            choices: ['INFO', 'DEBUG', 'VERBOSE'],
+            description: 'Pipeline logging verbosity'
+        )
+    }
+
     tools {
         maven 'Maven-3.8.6'  // Configure this in Jenkins Global Tool Configuration
         jdk 'JDK-8'          // Configure this in Jenkins Global Tool Configuration
     }
-    
+
     environment {
         // Maven settings
         MAVEN_OPTS = '-Xmx1024m'
-        
+
         // Project information from pom.xml
         PROJECT_NAME = 'achat'
         PROJECT_VERSION = '1.0'
-        
+
         // Artifact naming
         ARTIFACT_NAME = "${PROJECT_NAME}-${PROJECT_VERSION}-${BUILD_NUMBER}.jar"
-        
+
         // SonarQube (Phase 2)
         SONAR_HOST_URL = 'http://sonarqube-server:9000'
         SONAR_PROJECT_KEY = 'achat'
         SONAR_PROJECT_NAME = 'Achat Application'
-        
+
         // Nexus (Phase 3)
         NEXUS_URL = 'nexus-repository:8081'
         NEXUS_REPOSITORY = 'maven-releases'
         NEXUS_CREDENTIAL_ID = 'nexus-credentials'
-        
+
         // Docker (Phase 4)
         DOCKER_IMAGE_NAME = 'achat-app'
-        DOCKER_IMAGE_TAG = "${BUILD_NUMBER}"
+        DOCKER_IMAGE_TAG = "${params.DOCKER_IMAGE_TAG ?: BUILD_NUMBER}"
         DOCKER_IMAGE = "${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
         DOCKER_REGISTRY = 'docker.io'  // Docker Hub
         DOCKER_CREDENTIAL_ID = 'docker-hub-credentials'
@@ -39,9 +84,54 @@ pipeline {
         AWS_CREDENTIAL_ID = 'aws-sandbox-credentials'
         TERRAFORM_DIR = 'terraform'
         TF_VAR_docker_image = "${DOCKER_REGISTRY}/rayenslouma/${DOCKER_IMAGE}"
+
+        // Terraform State Management
+        // Store state in persistent Jenkins location (outside workspace)
+        TERRAFORM_STATE_DIR = "/var/jenkins_home/terraform-states/${JOB_NAME}"
     }
-    
+
     stages {
+        stage('Initialize Pipeline') {
+            steps {
+                script {
+                    echo '========================================='
+                    echo 'Stage 0: Pipeline Initialization'
+                    echo '========================================='
+                    echo ''
+                    echo 'PIPELINE PARAMETERS:'
+                    echo "   Deploy Action:    ${params.DEPLOY_ACTION}"
+                    echo "   Docker Tag:       ${env.DOCKER_IMAGE_TAG}"
+                    echo "   Skip Tests:       ${params.SKIP_TESTS}"
+                    echo "   Skip SonarQube:   ${params.SKIP_SONARQUBE}"
+                    echo "   Force Cleanup:    ${params.FORCE_CLEANUP}"
+                    echo "   Log Level:        ${params.LOG_LEVEL}"
+                    echo ''
+                    echo 'ENVIRONMENT:'
+                    echo "   Build Number:     ${BUILD_NUMBER}"
+                    echo "   Job Name:         ${JOB_NAME}"
+                    echo "   AWS Region:       ${AWS_REGION}"
+                    echo "   Docker Image:     ${TF_VAR_docker_image}"
+                    echo ''
+
+                    // Set up Terraform state directory
+                    sh """
+                        mkdir -p ${TERRAFORM_STATE_DIR}
+                        echo "Terraform state directory ready: ${TERRAFORM_STATE_DIR}"
+                    """
+
+                    // Validate parameters
+                    if (params.DEPLOY_ACTION == 'destroy' && params.FORCE_CLEANUP) {
+                        echo 'WARNING: Both destroy and force_cleanup are enabled'
+                    }
+
+                    echo ''
+                    echo 'Pipeline initialized successfully!'
+                    echo '========================================='
+                }
+            }
+        }
+
+
         stage('Checkout') {
             steps {
                 script {
@@ -49,62 +139,68 @@ pipeline {
                     echo 'Stage 1: Checking out code from GitHub'
                     echo '========================================='
                 }
-                
+
                 // Checkout code from GitHub
                 checkout scm
-                
+
                 script {
                     echo "âœ“ Successfully checked out branch: ${env.GIT_BRANCH}"
                     echo "âœ“ Commit: ${env.GIT_COMMIT}"
                 }
             }
         }
-        
+
         stage('Build') {
+            when {
+                expression { return params.DEPLOY_ACTION != 'destroy' }
+            }
             steps {
                 script {
                     echo '========================================='
                     echo 'Stage 2: Building the application'
                     echo '========================================='
                 }
-                
+
                 // Clean and compile the project
                 sh 'mvn clean compile'
-                
+
                 script {
                     echo 'âœ“ Build completed successfully'
                 }
             }
         }
-        
+
         stage('Unit Tests') {
+            when {
+                expression { return !params.SKIP_TESTS }
+            }
             steps {
                 script {
                     echo '========================================='
                     echo 'Stage 3: Running Unit Tests'
                     echo '========================================='
                 }
-                
+
                 // Run tests
                 sh 'mvn test'
-                
+
                 script {
                     echo 'âœ“ All unit tests passed'
                 }
             }
-            
+
             post {
                 always {
                     // Publish JUnit test results
                     junit '**/target/surefire-reports/*.xml'
-                    
+
                     script {
                         echo 'âœ“ Test results published'
                     }
                 }
             }
         }
-        
+
         stage('Package') {
             steps {
                 script {
@@ -112,28 +208,31 @@ pipeline {
                     echo 'Stage 4: Packaging the application'
                     echo '========================================='
                 }
-                
+
                 // Package the application
                 sh 'mvn package -DskipTests'
-                
+
                 script {
                     echo "âœ“ Application packaged: ${ARTIFACT_NAME}"
                 }
             }
-            
+
             post {
                 success {
                     // Archive the artifacts
                     archiveArtifacts artifacts: '**/target/*.jar', fingerprint: true
-                    
+
                     script {
                         echo 'âœ“ Artifacts archived successfully'
                     }
                 }
             }
         }
-        
+
         stage('Code Quality Analysis - SonarQube') {
+            when {
+                expression { return !params.SKIP_SONARQUBE }
+            }
             steps {
                 script {
                     echo '========================================='
@@ -158,7 +257,7 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Quality Gate') {
             steps {
                 script {
@@ -181,7 +280,7 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Deploy to Nexus') {
             steps {
                 script {
@@ -227,10 +326,13 @@ EOF
                 }
             }
         }
-        
+
         stage('Build Docker Image') {
             when {
-                expression { return fileExists('Dockerfile') }
+                allOf {
+                    expression { return fileExists('Dockerfile') }
+                    expression { return params.DEPLOY_ACTION != 'destroy' }
+                }
             }
             steps {
                 script {
@@ -266,7 +368,7 @@ EOF
                 }
             }
         }
-        
+
         stage('Push Docker Image') {
             when {
                 expression { return fileExists('Dockerfile') }
@@ -398,7 +500,14 @@ EOF
 
         stage('Cleanup Previous Deployment') {
             when {
-                expression { return fileExists('terraform/main.tf') }
+                allOf {
+                    expression { return fileExists('terraform/main.tf') }
+                    expression {
+                        return params.DEPLOY_ACTION == 'redeploy' ||
+                               params.DEPLOY_ACTION == 'destroy' ||
+                               params.FORCE_CLEANUP
+                    }
+                }
             }
             steps {
                 script {
@@ -558,7 +667,10 @@ EOF
 
         stage('Terraform Init') {
             when {
-                expression { return fileExists('terraform/main.tf') }
+                allOf {
+                    expression { return fileExists('terraform/main.tf') }
+                    expression { return params.DEPLOY_ACTION != 'destroy' }
+                }
             }
             steps {
                 script {
@@ -619,7 +731,10 @@ EOF
 
         stage('Terraform Plan') {
             when {
-                expression { return fileExists('terraform/main.tf') }
+                allOf {
+                    expression { return fileExists('terraform/main.tf') }
+                    expression { return params.DEPLOY_ACTION != 'destroy' }
+                }
             }
             steps {
                 script {
@@ -654,7 +769,13 @@ EOF
 
         stage('Terraform Apply') {
             when {
-                expression { return fileExists('terraform/main.tf') }
+                allOf {
+                    expression { return fileExists('terraform/main.tf') }
+                    expression {
+                        return params.DEPLOY_ACTION == 'deploy' ||
+                               params.DEPLOY_ACTION == 'redeploy'
+                    }
+                }
             }
             steps {
                 script {
@@ -807,7 +928,7 @@ EOF
                     echo '========================================='
                     echo 'Note: This stage requires Phase 5 setup'
                 }
-                
+
                 // Deploy to Kubernetes
                 withKubeConfig([credentialsId: 'kubeconfig-credentials']) {
                     sh '''
@@ -815,14 +936,14 @@ EOF
                         kubectl rollout status deployment/achat-app
                     '''
                 }
-                
+
                 script {
                     echo 'âœ“ Application deployed to Kubernetes'
                 }
             }
         }
     }
-    
+
     post {
         always {
             script {
@@ -833,16 +954,16 @@ EOF
                 echo "Build Status: ${currentBuild.currentResult}"
                 echo "Duration: ${currentBuild.durationString}"
             }
-            
+
             // Clean workspace
             cleanWs()
         }
-        
+
         success {
             script {
                 echo 'âœ“âœ“âœ“ Pipeline completed successfully! âœ“âœ“âœ“'
             }
-            
+
             // Send notification (optional - requires email plugin)
             // emailext (
             //     subject: "SUCCESS: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
@@ -850,12 +971,12 @@ EOF
             //     to: 'your-email@example.com'
             // )
         }
-        
+
         failure {
             script {
                 echo '✗✗✗ Pipeline failed! ✗✗✗'
             }
-            
+
             // Send notification (optional - requires email plugin)
             // emailext (
             //     subject: "FAILURE: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
@@ -863,7 +984,7 @@ EOF
             //     to: 'your-email@example.com'
             // )
         }
-        
+
         unstable {
             script {
                 echo 'âš  Pipeline is unstable âš '
