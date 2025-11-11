@@ -90,32 +90,6 @@ nexus_data/
 prometheus_data/
 grafana_data/
 
-# Terraform
-*.tfstate
-*.tfstate.*
-.terraform/
-.terraform.lock.hcl
-terraform.tfvars
-*.tfvars
-
-# AWS Credentials
-.env.aws
-.env.aws.*
-.aws/
-credentials
-config
-
-# Kubernetes secrets
-k8s/secrets/
-*.key
-*.crt
-*.pem
-
-# Environment files
-.env
-.env.local
-.env.*.local
-
 # Logs
 logs/
 *.log
@@ -127,15 +101,81 @@ logs/
 *.swo
 *~
 
-# Application specific
+# ============================================================================
+# PIPELINE AND DEVOPS INFRASTRUCTURE - EXCLUDE FROM VERSION CONTROL
+# ============================================================================
+# Only application source code should be versioned
+# All pipeline, CI/CD, and infrastructure files are excluded
+
+# Jenkins
+Jenkinsfile
+Jenkinsfile.*
+.jenkins/
+jenkins/
+
+# Docker
+Dockerfile
+Dockerfile.*
+docker-compose.yml
+docker-compose.*.yml
+.dockerignore
+
+# Terraform - All files
+terraform/
+*.tf
+*.tfvars
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Kubernetes
+k8s/
+*.yaml
+*.yml
+!src/**/*.yml
+!src/**/*.yaml
+
+# Monitoring
+monitoring/
+prometheus.yml
+grafana/
+
+# Scripts (DevOps/Pipeline related)
+scripts/
+*.sh
+*.ps1
+!src/**/*.sh
+
+# Documentation (Pipeline/DevOps related)
+SETUP.md
+QUICK-REFERENCE.md
+TEAM-CHECKLIST.md
+README-TEAM.md
+AWS_*.md
+JENKINS_*.md
+WEBHOOK_*.md
+GUIDE_*.md
+CICD_*.md
+PIPELINE_*.md
+DEPLOYMENT_*.md
+DOCKER_*.md
+TERRAFORM_*.md
+KUBERNETES_*.md
+MONITORING_*.md
+
+# Environment and Configuration
+.env*
+!.env.example
 application-local.properties
 application-dev.properties
+application-prod.properties
 
-# Documentation (local only)
-PIPELINE_DOCUMENTATION.md
+# AWS Credentials and Config
+.aws/
+credentials
+config
 
-# Monitoring - Keep configs, ignore data
-# We want to commit the configuration files but not the runtime data
-monitoring/grafana/data/
-monitoring/prometheus/data/
+# SonarQube
+sonar-project.properties
 
