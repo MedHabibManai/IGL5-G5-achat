@@ -325,44 +325,51 @@ EOF
                     echo '========================================='
                 }
 
-                dir(TERRAFORM_DIR) {
-                    sh '''
-                        echo "Initializing Terraform..."
+                withCredentials([file(credentialsId: "${AWS_CREDENTIAL_ID}", variable: 'AWS_CREDENTIALS_FILE')]) {
+                    dir(TERRAFORM_DIR) {
+                        sh '''
+                            echo "Setting up AWS credentials..."
+                            mkdir -p ~/.aws
+                            cp $AWS_CREDENTIALS_FILE ~/.aws/credentials
+                            chmod 600 ~/.aws/credentials
+                            
+                            echo "Initializing Terraform..."
 
-                        # Retry terraform init up to 3 times
-                        MAX_RETRIES=3
-                        RETRY_COUNT=0
+                            # Retry terraform init up to 3 times
+                            MAX_RETRIES=3
+                            RETRY_COUNT=0
 
-                        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-                            echo "Attempt $((RETRY_COUNT + 1)) of $MAX_RETRIES..."
+                            while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+                                echo "Attempt $((RETRY_COUNT + 1)) of $MAX_RETRIES..."
 
-                            if terraform init -input=false -upgrade; then
-                                echo "Terraform init successful!"
-                                break
-                            else
-                                RETRY_COUNT=$((RETRY_COUNT + 1))
-                                if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-                                    echo "Terraform init failed, retrying in 10 seconds..."
-                                    sleep 10
+                                if terraform init -input=false -upgrade; then
+                                    echo "Terraform init successful!"
+                                    break
                                 else
-                                    echo "Terraform init failed after $MAX_RETRIES attempts"
-                                    exit 1
+                                    RETRY_COUNT=$((RETRY_COUNT + 1))
+                                    if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                                        echo "Terraform init failed, retrying in 10 seconds..."
+                                        sleep 10
+                                    else
+                                        echo "Terraform init failed after $MAX_RETRIES attempts"
+                                        exit 1
+                                    fi
                                 fi
-                            fi
-                        done
+                            done
 
-                        echo ""
-                        echo "Terraform version:"
-                        terraform version
+                            echo ""
+                            echo "Terraform version:"
+                            terraform version
 
-                        echo ""
-                        echo "AWS CLI version:"
-                        /usr/local/bin/aws --version
+                            echo ""
+                            echo "AWS CLI version:"
+                            /usr/local/bin/aws --version
 
-                        echo ""
-                        echo "AWS Account:"
-                        /usr/local/bin/aws sts get-caller-identity
-                    '''
+                            echo ""
+                            echo "AWS Account:"
+                            /usr/local/bin/aws sts get-caller-identity
+                        '''
+                    }
                 }
 
                 script {
@@ -382,17 +389,24 @@ EOF
                     echo '========================================='
                 }
 
-                dir(TERRAFORM_DIR) {
-                    sh '''
-                        echo "Creating Terraform execution plan..."
-                        terraform plan \
-                          -var="docker_image=${TF_VAR_docker_image}" \
-                          -out=tfplan \
-                          -input=false
+                withCredentials([file(credentialsId: "${AWS_CREDENTIAL_ID}", variable: 'AWS_CREDENTIALS_FILE')]) {
+                    dir(TERRAFORM_DIR) {
+                        sh '''
+                            echo "Setting up AWS credentials..."
+                            mkdir -p ~/.aws
+                            cp $AWS_CREDENTIALS_FILE ~/.aws/credentials
+                            chmod 600 ~/.aws/credentials
+                            
+                            echo "Creating Terraform execution plan..."
+                            terraform plan \
+                              -var="docker_image=${TF_VAR_docker_image}" \
+                              -out=tfplan \
+                              -input=false
 
-                        echo ""
-                        echo "Plan saved to: tfplan"
-                    '''
+                            echo ""
+                            echo "Plan saved to: tfplan"
+                        '''
+                    }
                 }
 
                 script {
@@ -420,14 +434,21 @@ EOF
                 //     ok "Deploy"
                 // }
 
-                dir(TERRAFORM_DIR) {
-                    sh '''
-                        echo "Applying Terraform plan..."
-                        terraform apply -auto-approve tfplan
+                withCredentials([file(credentialsId: "${AWS_CREDENTIAL_ID}", variable: 'AWS_CREDENTIALS_FILE')]) {
+                    dir(TERRAFORM_DIR) {
+                        sh '''
+                            echo "Setting up AWS credentials..."
+                            mkdir -p ~/.aws
+                            cp $AWS_CREDENTIALS_FILE ~/.aws/credentials
+                            chmod 600 ~/.aws/credentials
+                            
+                            echo "Applying Terraform plan..."
+                            terraform apply -auto-approve tfplan
 
-                        echo ""
-                        echo "Deployment complete!"
-                    '''
+                            echo ""
+                            echo "Deployment complete!"
+                        '''
+                    }
                 }
 
                 script {
