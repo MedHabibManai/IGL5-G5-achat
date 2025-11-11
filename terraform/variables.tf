@@ -70,7 +70,7 @@ variable "key_name" {
 variable "root_volume_size" {
   description = "Size of root EBS volume in GB"
   type        = number
-  default     = 20
+  default     = 30  # Minimum required by Amazon Linux 2023 AMI
 }
 
 # ============================================================================
