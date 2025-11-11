@@ -268,8 +268,8 @@ locals {
     # Update system
     yum update -y
     
-    # Install Docker
-    yum install -y docker
+    # Install Docker and netcat for database connectivity check
+    yum install -y docker nc
     systemctl start docker
     systemctl enable docker
     
@@ -280,11 +280,18 @@ locals {
     curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
     chmod +x /usr/local/bin/docker-compose
     
-    # Wait for RDS to be ready
+    # Wait for RDS to be ready (with timeout of 10 minutes)
     echo "Waiting for RDS MySQL to be ready..."
-    until nc -z -v -w30 ${aws_db_instance.mysql.address} 3306; do
-      echo "Waiting for database connection..."
-      sleep 5
+    MAX_WAIT=600
+    ELAPSED=0
+    until timeout 5 bash -c "cat < /dev/null > /dev/tcp/${aws_db_instance.mysql.address}/3306" 2>/dev/null; do
+      if [ $ELAPSED -ge $MAX_WAIT ]; then
+        echo "Timeout waiting for database after $MAX_WAIT seconds"
+        exit 1
+      fi
+      echo "Waiting for database connection... ($ELAPSED/$MAX_WAIT seconds)"
+      sleep 10
+      ELAPSED=$((ELAPSED + 10))
     done
     echo "RDS MySQL is ready!"
     
@@ -301,6 +308,17 @@ locals {
       -e SPRING_DATASOURCE_PASSWORD=Admin123456! \
       ${var.docker_image}
     
+    # Wait a bit for container to start
+    sleep 10
+    
+    # Check if container is running
+    if docker ps | grep ${var.app_name}; then
+      echo "Application container is running successfully"
+    else
+      echo "Application container failed to start. Checking logs:"
+      docker logs ${var.app_name} || true
+    fi
+    
     # Create a simple health check script
     cat > /usr/local/bin/health-check.sh << 'HEALTH'
     #!/bin/bash
@@ -311,7 +329,10 @@ locals {
     # Log deployment
     echo "Application deployed successfully at $(date)" >> /var/log/app-deployment.log
     echo "Database endpoint: ${aws_db_instance.mysql.address}" >> /var/log/app-deployment.log
+    echo "Container status:" >> /var/log/app-deployment.log
     docker ps >> /var/log/app-deployment.log
+    echo "Container logs (last 50 lines):" >> /var/log/app-deployment.log
+    docker logs --tail 50 ${var.app_name} >> /var/log/app-deployment.log 2>&1 || true
   EOF
 }
 
