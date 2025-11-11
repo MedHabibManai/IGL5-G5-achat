@@ -2,7 +2,7 @@
 # Stage 1: Build stage (not used in CI/CD, JAR comes from Jenkins)
 # Stage 2: Runtime stage
 
-FROM openjdk:8-jre-alpine
+FROM eclipse-temurin:8-jre-alpine
 
 # Set working directory
 WORKDIR /app

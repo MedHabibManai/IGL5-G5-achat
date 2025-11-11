@@ -98,6 +98,13 @@ grafana_data/
 terraform.tfvars
 *.tfvars
 
+# AWS Credentials
+.env.aws
+.env.aws.*
+.aws/
+credentials
+config
+
 # Kubernetes secrets
 k8s/secrets/
 *.key

@@ -27,12 +27,18 @@ pipeline {
         NEXUS_REPOSITORY = 'maven-releases'
         NEXUS_CREDENTIAL_ID = 'nexus-credentials'
         
-        // Docker (Phase 5)
+        // Docker (Phase 4)
         DOCKER_IMAGE_NAME = 'achat-app'
         DOCKER_IMAGE_TAG = "${BUILD_NUMBER}"
         DOCKER_IMAGE = "${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
         DOCKER_REGISTRY = 'docker.io'  // Docker Hub
         DOCKER_CREDENTIAL_ID = 'docker-hub-credentials'
+
+        // AWS & Terraform (Phase 5)
+        AWS_REGION = 'us-east-1'
+        AWS_CREDENTIAL_ID = 'aws-sandbox-credentials'
+        TERRAFORM_DIR = 'terraform'
+        TF_VAR_docker_image = "${DOCKER_REGISTRY}/rayenslouma/${DOCKER_IMAGE}"
     }
     
     stages {
@@ -307,7 +313,200 @@ EOF
                 }
             }
         }
-        
+
+        stage('Terraform Init') {
+            when {
+                expression { return fileExists('terraform/main.tf') }
+            }
+            steps {
+                script {
+                    echo '========================================='
+                    echo 'Stage 10: Terraform Initialization'
+                    echo '========================================='
+                }
+
+                dir(TERRAFORM_DIR) {
+                    sh '''
+                        echo "Initializing Terraform..."
+                        terraform init -input=false
+
+                        echo ""
+                        echo "Terraform version:"
+                        terraform version
+
+                        echo ""
+                        echo "AWS CLI version:"
+                        /usr/local/bin/aws --version
+
+                        echo ""
+                        echo "AWS Account:"
+                        /usr/local/bin/aws sts get-caller-identity
+                    '''
+                }
+
+                script {
+                    echo 'Terraform initialized successfully'
+                }
+            }
+        }
+
+        stage('Terraform Plan') {
+            when {
+                expression { return fileExists('terraform/main.tf') }
+            }
+            steps {
+                script {
+                    echo '========================================='
+                    echo 'Stage 11: Terraform Plan'
+                    echo '========================================='
+                }
+
+                dir(TERRAFORM_DIR) {
+                    sh '''
+                        echo "Creating Terraform execution plan..."
+                        terraform plan \
+                          -var="docker_image=${TF_VAR_docker_image}" \
+                          -out=tfplan \
+                          -input=false
+
+                        echo ""
+                        echo "Plan saved to: tfplan"
+                    '''
+                }
+
+                script {
+                    echo 'Terraform plan created successfully'
+                    echo 'Review the plan above before applying'
+                }
+            }
+        }
+
+        stage('Terraform Apply') {
+            when {
+                expression { return fileExists('terraform/main.tf') }
+            }
+            steps {
+                script {
+                    echo '========================================='
+                    echo 'Stage 12: Terraform Apply (Deploy to AWS)'
+                    echo '========================================='
+                }
+
+                // Ask for approval before deploying to AWS (optional)
+                // Uncomment the following lines to require manual approval
+                // input {
+                //     message "Deploy to AWS?"
+                //     ok "Deploy"
+                // }
+
+                dir(TERRAFORM_DIR) {
+                    sh '''
+                        echo "Applying Terraform plan..."
+                        terraform apply -auto-approve tfplan
+
+                        echo ""
+                        echo "Deployment complete!"
+                    '''
+                }
+
+                script {
+                    echo 'Infrastructure deployed to AWS successfully'
+                }
+            }
+        }
+
+        stage('Get AWS Deployment Info') {
+            when {
+                expression { return fileExists('terraform/main.tf') }
+            }
+            steps {
+                script {
+                    echo '========================================='
+                    echo 'Stage 13: AWS Deployment Information'
+                    echo '========================================='
+                }
+
+                dir(TERRAFORM_DIR) {
+                    script {
+                        // Get outputs from Terraform
+                        def outputs = sh(
+                            script: 'terraform output -json',
+                            returnStdout: true
+                        ).trim()
+
+                        echo "Terraform Outputs:"
+                        echo outputs
+
+                        // Parse and display key information
+                        def outputsJson = readJSON text: outputs
+
+                        if (outputsJson.application_url) {
+                            def appUrl = outputsJson.application_url.value
+                            echo ""
+                            echo "========================================="
+                            echo "APPLICATION DEPLOYED SUCCESSFULLY!"
+                            echo "========================================="
+                            echo "Application URL: ${appUrl}"
+                            echo ""
+
+                            if (outputsJson.health_check_url) {
+                                echo "Health Check: ${outputsJson.health_check_url.value}"
+                            }
+
+                            if (outputsJson.public_ip) {
+                                echo "Public IP: ${outputsJson.public_ip.value}"
+                            }
+
+                            echo "========================================="
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Health Check AWS Deployment') {
+            when {
+                expression { return fileExists('terraform/main.tf') }
+            }
+            steps {
+                script {
+                    echo '========================================='
+                    echo 'Stage 14: Health Check'
+                    echo '========================================='
+                }
+
+                dir(TERRAFORM_DIR) {
+                    script {
+                        // Get application URL from Terraform output
+                        def appUrl = sh(
+                            script: 'terraform output -raw application_url 2>/dev/null || echo ""',
+                            returnStdout: true
+                        ).trim()
+
+                        if (appUrl) {
+                            echo "Waiting for application to start (60 seconds)..."
+                            sleep(60)
+
+                            echo "Checking application health..."
+                            def healthUrl = "${appUrl}/actuator/health"
+
+                            retry(5) {
+                                sleep(10)
+                                sh """
+                                    curl -f ${healthUrl} || exit 1
+                                """
+                            }
+
+                            echo ""
+                            echo "Application is healthy and responding!"
+                        } else {
+                            echo "Could not retrieve application URL"
+                        }
+                    }
+                }
+            }
+        }
+
         stage('Deploy to Kubernetes') {
             when {
                 branch 'main'
