@@ -355,135 +355,167 @@ EOF
                                 eval "$1" 2>/dev/null || echo "  (already deleted or not found)"
                             }
                             
-                            # 1. Find and terminate EC2 instances with project tag
+                            # Find VPCs with name "achat-app-vpc" (regardless of tags)
                             echo ""
-                            echo "1. Terminating EC2 instances..."
-                            INSTANCE_IDS=$(aws ec2 describe-instances \
-                                --region ${AWS_REGION} \
-                                --filters "Name=tag:project,Values=achat-app" "Name=instance-state-name,Values=running,stopped" \
-                                --query "Reservations[].Instances[].InstanceId" \
-                                --output text 2>/dev/null || echo "")
-                            
-                            if [ -n "$INSTANCE_IDS" ]; then
-                                echo "  Found instances: $INSTANCE_IDS"
-                                safe_delete "aws ec2 terminate-instances --region ${AWS_REGION} --instance-ids $INSTANCE_IDS"
-                                echo "  Waiting for instances to terminate..."
-                                sleep 30
-                            else
-                                echo "  No instances found"
-                            fi
-                            
-                            # 2. Release Elastic IPs
-                            echo ""
-                            echo "2. Releasing Elastic IPs..."
-                            ALLOCATION_IDS=$(aws ec2 describe-addresses \
-                                --region ${AWS_REGION} \
-                                --filters "Name=tag:project,Values=achat-app" \
-                                --query "Addresses[].AllocationId" \
-                                --output text 2>/dev/null || echo "")
-                            
-                            if [ -n "$ALLOCATION_IDS" ]; then
-                                for alloc_id in $ALLOCATION_IDS; do
-                                    echo "  Releasing $alloc_id"
-                                    safe_delete "aws ec2 release-address --region ${AWS_REGION} --allocation-id $alloc_id"
-                                done
-                            else
-                                echo "  No Elastic IPs found"
-                            fi
-                            
-                            # Wait a bit for resources to settle
-                            sleep 10
-                            
-                            # 3. Delete Internet Gateways and detach from VPCs
-                            echo ""
-                            echo "3. Deleting Internet Gateways..."
+                            echo "Step 1: Finding VPCs named 'achat-app-vpc'..."
                             VPC_IDS=$(aws ec2 describe-vpcs \
                                 --region ${AWS_REGION} \
-                                --filters "Name=tag:project,Values=achat-app" \
+                                --filters "Name=tag:Name,Values=achat-app-vpc" \
                                 --query "Vpcs[].VpcId" \
                                 --output text 2>/dev/null || echo "")
                             
-                            if [ -n "$VPC_IDS" ]; then
+                            if [ -z "$VPC_IDS" ]; then
+                                echo "  No VPCs named 'achat-app-vpc' found. Nothing to clean up."
+                            else
+                                echo "  Found VPCs to delete: $VPC_IDS"
+                                
                                 for vpc_id in $VPC_IDS; do
-                                    echo "  Processing VPC: $vpc_id"
+                                    echo ""
+                                    echo "=========================================="
+                                    echo "Processing VPC: $vpc_id"
+                                    echo "=========================================="
+                                    
+                                    # 1. Terminate EC2 instances in this VPC
+                                    echo ""
+                                    echo "  1. Terminating EC2 instances in VPC..."
+                                    INSTANCE_IDS=$(aws ec2 describe-instances \
+                                        --region ${AWS_REGION} \
+                                        --filters "Name=vpc-id,Values=$vpc_id" "Name=instance-state-name,Values=running,stopped,stopping" \
+                                        --query "Reservations[].Instances[].InstanceId" \
+                                        --output text 2>/dev/null || echo "")
+                                    
+                                    if [ -n "$INSTANCE_IDS" ]; then
+                                        echo "    Found instances: $INSTANCE_IDS"
+                                        safe_delete "aws ec2 terminate-instances --region ${AWS_REGION} --instance-ids $INSTANCE_IDS"
+                                        echo "    Waiting for instances to terminate..."
+                                        aws ec2 wait instance-terminated --region ${AWS_REGION} --instance-ids $INSTANCE_IDS 2>/dev/null || sleep 30
+                                    else
+                                        echo "    No instances found"
+                                    fi
+                                    
+                                    # 2. Delete NAT Gateways
+                                    echo ""
+                                    echo "  2. Deleting NAT Gateways..."
+                                    NAT_GW_IDS=$(aws ec2 describe-nat-gateways \
+                                        --region ${AWS_REGION} \
+                                        --filter "Name=vpc-id,Values=$vpc_id" "Name=state,Values=available" \
+                                        --query "NatGateways[].NatGatewayId" \
+                                        --output text 2>/dev/null || echo "")
+                                    
+                                    if [ -n "$NAT_GW_IDS" ]; then
+                                        for nat_id in $NAT_GW_IDS; do
+                                            echo "    Deleting NAT Gateway: $nat_id"
+                                            safe_delete "aws ec2 delete-nat-gateway --region ${AWS_REGION} --nat-gateway-id $nat_id"
+                                        done
+                                        echo "    Waiting for NAT Gateways to delete..."
+                                        sleep 30
+                                    else
+                                        echo "    No NAT Gateways found"
+                                    fi
+                                    
+                                    # 3. Release Elastic IPs
+                                    echo ""
+                                    echo "  3. Releasing Elastic IPs..."
+                                    ALLOCATION_IDS=$(aws ec2 describe-addresses \
+                                        --region ${AWS_REGION} \
+                                        --filters "Name=domain,Values=vpc" \
+                                        --query "Addresses[].AllocationId" \
+                                        --output text 2>/dev/null || echo "")
+                                    
+                                    if [ -n "$ALLOCATION_IDS" ]; then
+                                        for alloc_id in $ALLOCATION_IDS; do
+                                            echo "    Releasing $alloc_id"
+                                            safe_delete "aws ec2 release-address --region ${AWS_REGION} --allocation-id $alloc_id"
+                                        done
+                                    else
+                                        echo "    No Elastic IPs found"
+                                    fi
+                                    
+                                    # 4. Detach and delete Internet Gateways
+                                    echo ""
+                                    echo "  4. Deleting Internet Gateways..."
                                     IGW_IDS=$(aws ec2 describe-internet-gateways \
                                         --region ${AWS_REGION} \
                                         --filters "Name=attachment.vpc-id,Values=$vpc_id" \
                                         --query "InternetGateways[].InternetGatewayId" \
                                         --output text 2>/dev/null || echo "")
                                     
-                                    for igw_id in $IGW_IDS; do
-                                        echo "    Detaching and deleting IGW: $igw_id"
-                                        safe_delete "aws ec2 detach-internet-gateway --region ${AWS_REGION} --internet-gateway-id $igw_id --vpc-id $vpc_id"
-                                        safe_delete "aws ec2 delete-internet-gateway --region ${AWS_REGION} --internet-gateway-id $igw_id"
-                                    done
-                                done
-                            fi
-                            
-                            # 4. Delete Subnets
-                            echo ""
-                            echo "4. Deleting Subnets..."
-                            SUBNET_IDS=$(aws ec2 describe-subnets \
-                                --region ${AWS_REGION} \
-                                --filters "Name=tag:project,Values=achat-app" \
-                                --query "Subnets[].SubnetId" \
-                                --output text 2>/dev/null || echo "")
-                            
-                            if [ -n "$SUBNET_IDS" ]; then
-                                for subnet_id in $SUBNET_IDS; do
-                                    echo "  Deleting subnet: $subnet_id"
-                                    safe_delete "aws ec2 delete-subnet --region ${AWS_REGION} --subnet-id $subnet_id"
-                                done
-                            else
-                                echo "  No subnets found"
-                            fi
-                            
-                            # 5. Delete Route Tables
-                            echo ""
-                            echo "5. Deleting Route Tables..."
-                            if [ -n "$VPC_IDS" ]; then
-                                for vpc_id in $VPC_IDS; do
-                                    RTB_IDS=$(aws ec2 describe-route-tables \
+                                    if [ -n "$IGW_IDS" ]; then
+                                        for igw_id in $IGW_IDS; do
+                                            echo "    Detaching and deleting IGW: $igw_id"
+                                            safe_delete "aws ec2 detach-internet-gateway --region ${AWS_REGION} --internet-gateway-id $igw_id --vpc-id $vpc_id"
+                                            safe_delete "aws ec2 delete-internet-gateway --region ${AWS_REGION} --internet-gateway-id $igw_id"
+                                        done
+                                    else
+                                        echo "    No Internet Gateways found"
+                                    fi
+                                    
+                                    # 5. Delete Subnets
+                                    echo ""
+                                    echo "  5. Deleting Subnets..."
+                                    SUBNET_IDS=$(aws ec2 describe-subnets \
                                         --region ${AWS_REGION} \
-                                        --filters "Name=vpc-id,Values=$vpc_id" "Name=tag:project,Values=achat-app" \
-                                        --query "RouteTables[].RouteTableId" \
+                                        --filters "Name=vpc-id,Values=$vpc_id" \
+                                        --query "Subnets[].SubnetId" \
                                         --output text 2>/dev/null || echo "")
                                     
-                                    for rtb_id in $RTB_IDS; do
-                                        echo "  Deleting route table: $rtb_id"
-                                        safe_delete "aws ec2 delete-route-table --region ${AWS_REGION} --route-table-id $rtb_id"
-                                    done
+                                    if [ -n "$SUBNET_IDS" ]; then
+                                        for subnet_id in $SUBNET_IDS; do
+                                            echo "    Deleting subnet: $subnet_id"
+                                            safe_delete "aws ec2 delete-subnet --region ${AWS_REGION} --subnet-id $subnet_id"
+                                        done
+                                    else
+                                        echo "    No subnets found"
+                                    fi
+                                    
+                                    # 6. Delete custom Route Tables (skip main route table)
+                                    echo ""
+                                    echo "  6. Deleting Route Tables..."
+                                    RTB_IDS=$(aws ec2 describe-route-tables \
+                                        --region ${AWS_REGION} \
+                                        --filters "Name=vpc-id,Values=$vpc_id" \
+                                        --query "RouteTables[?Associations[0].Main!=\`true\`].RouteTableId" \
+                                        --output text 2>/dev/null || echo "")
+                                    
+                                    if [ -n "$RTB_IDS" ]; then
+                                        for rtb_id in $RTB_IDS; do
+                                            echo "    Deleting route table: $rtb_id"
+                                            safe_delete "aws ec2 delete-route-table --region ${AWS_REGION} --route-table-id $rtb_id"
+                                        done
+                                    else
+                                        echo "    No custom route tables found"
+                                    fi
+                                    
+                                    # 7. Delete Security Groups (skip default)
+                                    echo ""
+                                    echo "  7. Deleting Security Groups..."
+                                    SG_IDS=$(aws ec2 describe-security-groups \
+                                        --region ${AWS_REGION} \
+                                        --filters "Name=vpc-id,Values=$vpc_id" \
+                                        --query "SecurityGroups[?GroupName!=\`default\`].GroupId" \
+                                        --output text 2>/dev/null || echo "")
+                                    
+                                    if [ -n "$SG_IDS" ]; then
+                                        for sg_id in $SG_IDS; do
+                                            echo "    Deleting security group: $sg_id"
+                                            safe_delete "aws ec2 delete-security-group --region ${AWS_REGION} --group-id $sg_id"
+                                        done
+                                    else
+                                        echo "    No custom security groups found"
+                                    fi
+                                    
+                                    # 8. Finally, delete the VPC
+                                    echo ""
+                                    echo "  8. Deleting VPC..."
+                                    echo "    Deleting VPC: $vpc_id"
+                                    if aws ec2 delete-vpc --region ${AWS_REGION} --vpc-id $vpc_id 2>/dev/null; then
+                                        echo "    ✓ VPC $vpc_id deleted successfully"
+                                    else
+                                        echo "    ✗ Failed to delete VPC $vpc_id (may have dependencies)"
+                                    fi
+                                    
+                                    echo "=========================================="
                                 done
-                            fi
-                            
-                            # 6. Delete Security Groups
-                            echo ""
-                            echo "6. Deleting Security Groups..."
-                            SG_IDS=$(aws ec2 describe-security-groups \
-                                --region ${AWS_REGION} \
-                                --filters "Name=tag:project,Values=achat-app" \
-                                --query "SecurityGroups[].GroupId" \
-                                --output text 2>/dev/null || echo "")
-                            
-                            if [ -n "$SG_IDS" ]; then
-                                for sg_id in $SG_IDS; do
-                                    echo "  Deleting security group: $sg_id"
-                                    safe_delete "aws ec2 delete-security-group --region ${AWS_REGION} --group-id $sg_id"
-                                done
-                            else
-                                echo "  No security groups found"
-                            fi
-                            
-                            # 7. Delete VPCs
-                            echo ""
-                            echo "7. Deleting VPCs..."
-                            if [ -n "$VPC_IDS" ]; then
-                                for vpc_id in $VPC_IDS; do
-                                    echo "  Deleting VPC: $vpc_id"
-                                    safe_delete "aws ec2 delete-vpc --region ${AWS_REGION} --vpc-id $vpc_id"
-                                done
-                            else
-                                echo "  No VPCs found"
                             fi
                             
                             echo ""
