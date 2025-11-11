@@ -515,10 +515,55 @@ EOF
                     echo 'Stage 11: Cleanup Previous Deployment'
                     echo '========================================='
                     echo ''
-                    echo '🧹 Searching for existing Terraform-managed VPCs...'
+
+                    // Try to use Terraform state if available
+                    if (fileExists("${TERRAFORM_STATE_DIR}/terraform.tfstate")) {
+                        echo '📦 Loading Terraform state for cleanup...'
+                        sh """
+                            cp -v ${TERRAFORM_STATE_DIR}/terraform.tfstate ${TERRAFORM_DIR}/terraform.tfstate
+                            cp -v ${TERRAFORM_STATE_DIR}/terraform.tfstate.backup ${TERRAFORM_DIR}/terraform.tfstate.backup 2>/dev/null || true
+                        """
+
+                        echo ''
+                        echo '🔥 Using Terraform destroy (state-based cleanup)...'
+                        echo ''
+
+                        dir(TERRAFORM_DIR) {
+                            sh '''
+                                export AWS_SHARED_CREDENTIALS_FILE=/var/jenkins_home/.aws/credentials
+                                export AWS_CONFIG_FILE=/var/jenkins_home/.aws/config
+                                export AWS_PAGER=""
+
+                                # Initialize Terraform
+                                terraform init -input=false
+
+                                # Destroy all resources tracked in state
+                                terraform destroy -auto-approve
+                            '''
+                        }
+
+                        echo ''
+                        echo '✅ Terraform destroy complete!'
+                        echo ''
+
+                        // Remove state files after successful destroy
+                        sh """
+                            rm -f ${TERRAFORM_STATE_DIR}/terraform.tfstate*
+                            rm -f ${TERRAFORM_DIR}/terraform.tfstate*
+                        """
+
+                        echo '🗑️  State files removed'
+
+                    } else {
+                        echo '⚠️  No Terraform state found - using AWS query-based cleanup...'
+                        echo ''
+                        echo '🧹 Searching for existing Terraform-managed VPCs...'
+                    }
                 }
 
                 script {
+                    // Fallback: AWS query-based cleanup if no state exists
+                    if (!fileExists("${TERRAFORM_STATE_DIR}/terraform.tfstate")) {
                     // Find all VPCs with Name tag = "achat-app-vpc"
                     def vpcIds = sh(
                         script: '''
@@ -647,6 +692,7 @@ EOF
                     } else {
                         echo "✓ No existing Terraform VPCs found - starting fresh deployment"
                     }
+                    } // End of if (!fileExists state) block
 
                     echo ""
                 }
@@ -677,6 +723,20 @@ EOF
                     echo '========================================='
                     echo 'Stage 12: Terraform Initialization'
                     echo '========================================='
+                    echo ''
+
+                    // Load existing Terraform state if it exists
+                    if (fileExists("${TERRAFORM_STATE_DIR}/terraform.tfstate")) {
+                        echo '📦 Loading existing Terraform state from persistent storage...'
+                        sh """
+                            cp -v ${TERRAFORM_STATE_DIR}/terraform.tfstate ${TERRAFORM_DIR}/terraform.tfstate
+                            cp -v ${TERRAFORM_STATE_DIR}/terraform.tfstate.backup ${TERRAFORM_DIR}/terraform.tfstate.backup 2>/dev/null || true
+                        """
+                        echo '✅ Existing state loaded - Terraform will detect current AWS resources'
+                    } else {
+                        echo '🆕 No existing state found - This will be a fresh deployment'
+                    }
+                    echo ''
                 }
 
                 dir(TERRAFORM_DIR) {
@@ -807,6 +867,18 @@ EOF
 
                 script {
                     echo 'Infrastructure deployed to AWS successfully'
+                    echo ''
+                    echo '💾 Saving Terraform state to persistent storage...'
+
+                    // Save state to persistent directory for next build
+                    sh """
+                        cp -v ${TERRAFORM_DIR}/terraform.tfstate ${TERRAFORM_STATE_DIR}/terraform.tfstate
+                        cp -v ${TERRAFORM_DIR}/terraform.tfstate.backup ${TERRAFORM_STATE_DIR}/terraform.tfstate.backup 2>/dev/null || true
+                        ls -lh ${TERRAFORM_STATE_DIR}/
+                    """
+
+                    echo '✅ State saved - Next build will use incremental updates'
+                    echo ''
                 }
             }
         }
@@ -953,6 +1025,21 @@ EOF
                 echo "Build Number: ${BUILD_NUMBER}"
                 echo "Build Status: ${currentBuild.currentResult}"
                 echo "Duration: ${currentBuild.durationString}"
+                echo ''
+
+                // Backup Terraform state before cleaning workspace
+                if (fileExists("${TERRAFORM_DIR}/terraform.tfstate")) {
+                    echo '💾 Backing up Terraform state before workspace cleanup...'
+                    sh """
+                        mkdir -p ${TERRAFORM_STATE_DIR}
+                        cp -v ${TERRAFORM_DIR}/terraform.tfstate ${TERRAFORM_STATE_DIR}/terraform.tfstate
+                        cp -v ${TERRAFORM_DIR}/terraform.tfstate.backup ${TERRAFORM_STATE_DIR}/terraform.tfstate.backup 2>/dev/null || true
+                    """
+                    echo '✅ State backed up to persistent storage'
+                } else {
+                    echo 'ℹ️  No Terraform state to backup'
+                }
+                echo ''
             }
 
             // Clean workspace
