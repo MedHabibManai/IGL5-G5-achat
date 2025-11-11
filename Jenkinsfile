@@ -398,7 +398,7 @@ EOF
                                     echo "  2. Deleting RDS Instances..."
                                     DB_INSTANCES=$(aws rds describe-db-instances \
                                         --region ${AWS_REGION} \
-                                        --query "DBInstances[?DBSubnetGroup.VpcId==\`$vpc_id\`].DBInstanceIdentifier" \
+                                        --query 'DBInstances[?DBSubnetGroup.VpcId==`'"$vpc_id"'`].DBInstanceIdentifier' \
                                         --output text 2>/dev/null || echo "")
                                     
                                     if [ -n "$DB_INSTANCES" ]; then
