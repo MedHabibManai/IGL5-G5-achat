@@ -191,16 +191,18 @@ locals {
     docker pull ${var.docker_image}
     
     # Run the application container
+    # Note: Application runs on port 8089 inside container, exposed on port 8080
     docker run -d \
       --name ${var.app_name} \
       --restart unless-stopped \
-      -p ${var.app_port}:${var.app_port} \
+      -p ${var.app_port}:8089 \
       ${var.docker_image}
     
     # Create a simple health check script
+    # Note: Application runs on port 8089 inside container
     cat > /usr/local/bin/health-check.sh << 'HEALTH'
     #!/bin/bash
-    curl -f http://localhost:${var.app_port}/actuator/health || exit 1
+    curl -f http://localhost:8089/actuator/health || exit 1
     HEALTH
     chmod +x /usr/local/bin/health-check.sh
     
