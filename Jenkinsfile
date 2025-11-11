@@ -461,36 +461,49 @@ EOF
 
                 dir(TERRAFORM_DIR) {
                     script {
-                        // Get outputs from Terraform
-                        def outputs = sh(
-                            script: 'terraform output -json',
+                        // Display deployment summary from Terraform
+                        def summary = sh(
+                            script: 'terraform output -raw deployment_summary 2>/dev/null || echo "Deployment completed"',
                             returnStdout: true
                         ).trim()
 
-                        echo "Terraform Outputs:"
-                        echo outputs
+                        echo ""
+                        echo summary
+                        echo ""
 
-                        // Parse and display key information
-                        def outputsJson = readJSON text: outputs
+                        // Get key outputs
+                        def appUrl = sh(
+                            script: 'terraform output -raw application_url 2>/dev/null || echo ""',
+                            returnStdout: true
+                        ).trim()
 
-                        if (outputsJson.application_url) {
-                            def appUrl = outputsJson.application_url.value
+                        def publicIp = sh(
+                            script: 'terraform output -raw public_ip 2>/dev/null || echo ""',
+                            returnStdout: true
+                        ).trim()
+
+                        def healthUrl = sh(
+                            script: 'terraform output -raw health_check_url 2>/dev/null || echo ""',
+                            returnStdout: true
+                        ).trim()
+
+                        if (appUrl) {
                             echo ""
                             echo "========================================="
                             echo "APPLICATION DEPLOYED SUCCESSFULLY!"
                             echo "========================================="
                             echo "Application URL: ${appUrl}"
-                            echo ""
 
-                            if (outputsJson.health_check_url) {
-                                echo "Health Check: ${outputsJson.health_check_url.value}"
+                            if (publicIp) {
+                                echo "Public IP: ${publicIp}"
                             }
 
-                            if (outputsJson.public_ip) {
-                                echo "Public IP: ${outputsJson.public_ip.value}"
+                            if (healthUrl) {
+                                echo "Health Check: ${healthUrl}"
                             }
 
                             echo "========================================="
+                            echo ""
                         }
                     }
                 }
