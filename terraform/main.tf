@@ -347,7 +347,7 @@ locals {
     # Create a simple health check script
     cat > /usr/local/bin/health-check.sh << 'HEALTH'
     #!/bin/bash
-    curl -f http://localhost:${var.app_port}/actuator/health || exit 1
+    curl -f http://localhost:${var.app_port}/SpringMVC/actuator/health || exit 1
     HEALTH
     chmod +x /usr/local/bin/health-check.sh
     
