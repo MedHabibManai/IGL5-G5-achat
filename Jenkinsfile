@@ -581,24 +581,51 @@ EOF
                             chmod 600 ~/.aws/credentials
                             
                             echo "======================================"
-                            echo "Finding existing EC2 instance to replace..."
+                            echo "Importing existing infrastructure state..."
                             echo "======================================"
                             
                             # Initialize Terraform first
                             terraform init -input=false
                             
-                            # Taint the EC2 instance to force recreation
-                            echo "Marking EC2 instance for recreation..."
-                            terraform taint aws_instance.app 2>/dev/null || {
-                                echo "Note: Instance might not exist yet or already tainted"
-                            }
+                            # Import existing resources (ignore errors if already in state)
+                            echo "Importing VPC and network resources..."
+                            VPC_ID=$(aws ec2 describe-vpcs --region ${AWS_REGION} --filters "Name=tag:Name,Values=achat-app-vpc" --query "Vpcs[0].VpcId" --output text 2>/dev/null || echo "")
                             
-                            # Apply only the EC2 instance and its dependencies
-                            echo "Applying changes (EC2 instance only)..."
-                            terraform apply -auto-approve \
-                              -target=aws_instance.app \
-                              -target=aws_eip.app \
+                            if [ -n "$VPC_ID" ] && [ "$VPC_ID" != "None" ]; then
+                                echo "Found existing VPC: $VPC_ID"
+                                terraform import -var="docker_image=${TF_VAR_docker_image}" aws_vpc.main $VPC_ID 2>/dev/null || echo "VPC already in state or doesn't exist"
+                                
+                                # Import other resources
+                                IGW_ID=$(aws ec2 describe-internet-gateways --region ${AWS_REGION} --filters "Name=attachment.vpc-id,Values=$VPC_ID" --query "InternetGateways[0].InternetGatewayId" --output text 2>/dev/null || echo "")
+                                [ -n "$IGW_ID" ] && terraform import -var="docker_image=${TF_VAR_docker_image}" aws_internet_gateway.main $IGW_ID 2>/dev/null || true
+                                
+                                SUBNET_ID=$(aws ec2 describe-subnets --region ${AWS_REGION} --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=achat-app-public-subnet" --query "Subnets[0].SubnetId" --output text 2>/dev/null || echo "")
+                                [ -n "$SUBNET_ID" ] && terraform import -var="docker_image=${TF_VAR_docker_image}" aws_subnet.public $SUBNET_ID 2>/dev/null || true
+                                
+                                # Import RDS
+                                DB_ID=$(aws rds describe-db-instances --region ${AWS_REGION} --query "DBInstances[?DBName=='achatdb'].DBInstanceIdentifier | [0]" --output text 2>/dev/null || echo "")
+                                [ -n "$DB_ID" ] && [ "$DB_ID" != "None" ] && terraform import -var="docker_image=${TF_VAR_docker_image}" aws_db_instance.mysql $DB_ID 2>/dev/null || echo "RDS not found or already in state"
+                            fi
+                            
+                            echo ""
+                            echo "======================================"
+                            echo "Destroying only EC2 instance..."
+                            echo "======================================"
+                            
+                            # Destroy only EC2 and EIP
+                            terraform destroy -auto-approve \
                               -target=aws_eip_association.app \
+                              -target=aws_eip.app \
+                              -target=aws_instance.app \
+                              -var="docker_image=${TF_VAR_docker_image}" 2>/dev/null || echo "EC2 resources don't exist yet"
+                            
+                            echo ""
+                            echo "======================================"
+                            echo "Creating new EC2 instance..."
+                            echo "======================================"
+                            
+                            # Apply full configuration (will reuse existing VPC/RDS, create new EC2)
+                            terraform apply -auto-approve \
                               -var="docker_image=${TF_VAR_docker_image}"
                             
                             echo "======================================"
