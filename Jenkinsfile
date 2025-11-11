@@ -474,7 +474,7 @@ EOF
                                     RTB_IDS=$(aws ec2 describe-route-tables \
                                         --region ${AWS_REGION} \
                                         --filters "Name=vpc-id,Values=$vpc_id" \
-                                        --query "RouteTables[?Associations[0].Main!=\`true\`].RouteTableId" \
+                                        --query 'RouteTables[?Associations[0].Main!=`true`].RouteTableId' \
                                         --output text 2>/dev/null || echo "")
                                     
                                     if [ -n "$RTB_IDS" ]; then
@@ -492,7 +492,7 @@ EOF
                                     SG_IDS=$(aws ec2 describe-security-groups \
                                         --region ${AWS_REGION} \
                                         --filters "Name=vpc-id,Values=$vpc_id" \
-                                        --query "SecurityGroups[?GroupName!=\`default\`].GroupId" \
+                                        --query 'SecurityGroups[?GroupName!=`default`].GroupId' \
                                         --output text 2>/dev/null || echo "")
                                     
                                     if [ -n "$SG_IDS" ]; then
