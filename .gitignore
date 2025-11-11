@@ -102,82 +102,34 @@ logs/
 *~
 
 # ============================================================================
-# PIPELINE AND DEVOPS INFRASTRUCTURE - EXCLUDE FROM VERSION CONTROL
+# PIPELINE BRANCH - DEVOPS FILES ARE TRACKED HERE
 # ============================================================================
-# Only application source code should be versioned
-# All pipeline, CI/CD, and infrastructure files are excluded
+# This is the 'pipeline' branch where DevOps infrastructure is versioned
+# The 'main' branch has a different .gitignore that excludes these files
 
-# Jenkins
-Jenkinsfile
-Jenkinsfile.*
-.jenkins/
-jenkins/
+# Environment and Credentials (NEVER commit these)
+.env*
+!.env.example
+!.env.aws.example
+application-local.properties
+application-dev.properties
+application-prod.properties
 
-# Docker
-Dockerfile
-Dockerfile.*
-docker-compose.yml
-docker-compose.*.yml
-.dockerignore
-start-jenkins.bat
-start-jenkins.sh
+# AWS Credentials and Config (NEVER commit these)
+.aws/
+credentials
+config
 
-# Terraform - All files
-terraform/
-*.tf
-*.tfvars
+# Terraform State Files (NEVER commit these)
 *.tfstate
 *.tfstate.*
 .terraform/
 .terraform.lock.hcl
 
-# Kubernetes
-k8s/
-*.yaml
-*.yml
-!src/**/*.yml
-!src/**/*.yaml
-
-# Monitoring
-monitoring/
-prometheus.yml
-grafana/
-
-# Scripts (DevOps/Pipeline related)
-scripts/
-*.sh
-*.ps1
-!src/**/*.sh
-
-# Documentation (Pipeline/DevOps related)
-SETUP.md
-QUICK-REFERENCE.md
-TEAM-CHECKLIST.md
-README-TEAM.md
-AWS_*.md
-JENKINS_*.md
-WEBHOOK_*.md
-GUIDE_*.md
-CICD_*.md
-PIPELINE_*.md
-DEPLOYMENT_*.md
-DOCKER_*.md
-TERRAFORM_*.md
-KUBERNETES_*.md
-MONITORING_*.md
-
-# Environment and Configuration
-.env*
-!.env.example
-application-local.properties
-application-dev.properties
-application-prod.properties
-
-# AWS Credentials and Config
-.aws/
-credentials
-config
-
-# SonarQube
-sonar-project.properties
+# Build Artifacts
+target/
+*.class
+*.jar
+*.war
+!.mvn/wrapper/maven-wrapper.jar
 
