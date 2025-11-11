@@ -314,6 +314,88 @@ EOF
             }
         }
 
+        stage('Verify AWS Credentials') {
+            when {
+                expression { return fileExists('terraform/main.tf') }
+            }
+            steps {
+                script {
+                    echo '========================================='
+                    echo 'Stage 10: Verify AWS Credentials'
+                    echo '========================================='
+
+                    // Check if AWS credentials file exists
+                    def awsCredsFile = '/var/jenkins_home/.aws/credentials'
+                    def awsConfigFile = '/var/jenkins_home/.aws/config'
+
+                    echo "Checking AWS credentials..."
+
+                    // Test current credentials
+                    def credentialsValid = sh(
+                        script: '''
+                            export AWS_SHARED_CREDENTIALS_FILE=/var/jenkins_home/.aws/credentials
+                            export AWS_CONFIG_FILE=/var/jenkins_home/.aws/config
+                            aws sts get-caller-identity > /dev/null 2>&1
+                            echo $?
+                        ''',
+                        returnStdout: true
+                    ).trim()
+
+                    if (credentialsValid == '0') {
+                        echo "✓ AWS credentials are valid!"
+
+                        // Display current identity
+                        sh '''
+                            export AWS_SHARED_CREDENTIALS_FILE=/var/jenkins_home/.aws/credentials
+                            export AWS_CONFIG_FILE=/var/jenkins_home/.aws/config
+                            echo ""
+                            echo "Current AWS Identity:"
+                            aws sts get-caller-identity
+                            echo ""
+                        '''
+
+                        // Check session expiration for temporary credentials
+                        def hasSessionToken = sh(
+                            script: 'grep -q "aws_session_token" /var/jenkins_home/.aws/credentials && echo "true" || echo "false"',
+                            returnStdout: true
+                        ).trim()
+
+                        if (hasSessionToken == 'true') {
+                            echo "⚠ Using temporary AWS Academy credentials"
+                            echo "  These credentials expire after a few hours"
+                            echo "  If deployment fails, update credentials from AWS Academy"
+                        }
+                    } else {
+                        echo "✗ AWS credentials are invalid or expired!"
+                        echo ""
+                        echo "========================================="
+                        echo "ACTION REQUIRED: Update AWS Credentials"
+                        echo "========================================="
+                        echo ""
+                        echo "1. Go to AWS Academy Learner Lab"
+                        echo "2. Click 'AWS Details' → 'Show' under 'AWS CLI'"
+                        echo "3. Copy the credentials"
+                        echo "4. Update the credentials file on Jenkins:"
+                        echo ""
+                        echo "   docker exec -it jenkins-cicd bash"
+                        echo "   vi ~/.aws/credentials"
+                        echo ""
+                        echo "   Paste the credentials in this format:"
+                        echo "   [default]"
+                        echo "   aws_access_key_id=YOUR_ACCESS_KEY"
+                        echo "   aws_secret_access_key=YOUR_SECRET_KEY"
+                        echo "   aws_session_token=YOUR_SESSION_TOKEN"
+                        echo ""
+                        echo "5. Save and run the pipeline again"
+                        echo ""
+                        echo "========================================="
+
+                        error("AWS credentials are invalid or expired. Please update them.")
+                    }
+                }
+            }
+        }
+
         stage('Terraform Init') {
             when {
                 expression { return fileExists('terraform/main.tf') }
@@ -321,7 +403,7 @@ EOF
             steps {
                 script {
                     echo '========================================='
-                    echo 'Stage 10: Terraform Initialization'
+                    echo 'Stage 11: Terraform Initialization'
                     echo '========================================='
                 }
 
@@ -382,7 +464,7 @@ EOF
             steps {
                 script {
                     echo '========================================='
-                    echo 'Stage 11: Terraform Plan'
+                    echo 'Stage 12: Terraform Plan'
                     echo '========================================='
                 }
 
@@ -417,7 +499,7 @@ EOF
             steps {
                 script {
                     echo '========================================='
-                    echo 'Stage 12: Terraform Apply (Deploy to AWS)'
+                    echo 'Stage 13: Terraform Apply (Deploy to AWS)'
                     echo '========================================='
                 }
 
@@ -455,7 +537,7 @@ EOF
             steps {
                 script {
                     echo '========================================='
-                    echo 'Stage 13: AWS Deployment Information'
+                    echo 'Stage 14: AWS Deployment Information'
                     echo '========================================='
                 }
 
@@ -517,7 +599,7 @@ EOF
             steps {
                 script {
                     echo '========================================='
-                    echo 'Stage 14: Health Check'
+                    echo 'Stage 15: Health Check'
                     echo '========================================='
                 }
 
