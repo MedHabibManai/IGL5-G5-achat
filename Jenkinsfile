@@ -593,18 +593,71 @@ EOF
                             
                             if [ -n "$VPC_ID" ] && [ "$VPC_ID" != "None" ]; then
                                 echo "Found existing VPC: $VPC_ID"
-                                terraform import -var="docker_image=${TF_VAR_docker_image}" aws_vpc.main $VPC_ID 2>/dev/null || echo "VPC already in state or doesn't exist"
+                                terraform import -var="docker_image=${TF_VAR_docker_image}" aws_vpc.main $VPC_ID 2>/dev/null || echo "  (already in state)"
                                 
-                                # Import other resources
+                                # Import Internet Gateway
                                 IGW_ID=$(aws ec2 describe-internet-gateways --region ${AWS_REGION} --filters "Name=attachment.vpc-id,Values=$VPC_ID" --query "InternetGateways[0].InternetGatewayId" --output text 2>/dev/null || echo "")
-                                [ -n "$IGW_ID" ] && terraform import -var="docker_image=${TF_VAR_docker_image}" aws_internet_gateway.main $IGW_ID 2>/dev/null || true
+                                if [ -n "$IGW_ID" ] && [ "$IGW_ID" != "None" ]; then
+                                    echo "Importing IGW: $IGW_ID"
+                                    terraform import -var="docker_image=${TF_VAR_docker_image}" aws_internet_gateway.main $IGW_ID 2>/dev/null || echo "  (already in state)"
+                                fi
                                 
-                                SUBNET_ID=$(aws ec2 describe-subnets --region ${AWS_REGION} --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=achat-app-public-subnet" --query "Subnets[0].SubnetId" --output text 2>/dev/null || echo "")
-                                [ -n "$SUBNET_ID" ] && terraform import -var="docker_image=${TF_VAR_docker_image}" aws_subnet.public $SUBNET_ID 2>/dev/null || true
+                                # Import public subnet
+                                PUBLIC_SUBNET_ID=$(aws ec2 describe-subnets --region ${AWS_REGION} --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=achat-app-public-subnet" --query "Subnets[0].SubnetId" --output text 2>/dev/null || echo "")
+                                if [ -n "$PUBLIC_SUBNET_ID" ] && [ "$PUBLIC_SUBNET_ID" != "None" ]; then
+                                    echo "Importing public subnet: $PUBLIC_SUBNET_ID"
+                                    terraform import -var="docker_image=${TF_VAR_docker_image}" aws_subnet.public $PUBLIC_SUBNET_ID 2>/dev/null || echo "  (already in state)"
+                                fi
+                                
+                                # Import private subnet
+                                PRIVATE_SUBNET_ID=$(aws ec2 describe-subnets --region ${AWS_REGION} --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=achat-app-private-subnet" --query "Subnets[0].SubnetId" --output text 2>/dev/null || echo "")
+                                if [ -n "$PRIVATE_SUBNET_ID" ] && [ "$PRIVATE_SUBNET_ID" != "None" ]; then
+                                    echo "Importing private subnet: $PRIVATE_SUBNET_ID"
+                                    terraform import -var="docker_image=${TF_VAR_docker_image}" aws_subnet.private $PRIVATE_SUBNET_ID 2>/dev/null || echo "  (already in state)"
+                                fi
+                                
+                                # Import route table
+                                RTB_ID=$(aws ec2 describe-route-tables --region ${AWS_REGION} --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=achat-app-public-rt" --query "RouteTables[0].RouteTableId" --output text 2>/dev/null || echo "")
+                                if [ -n "$RTB_ID" ] && [ "$RTB_ID" != "None" ]; then
+                                    echo "Importing route table: $RTB_ID"
+                                    terraform import -var="docker_image=${TF_VAR_docker_image}" aws_route_table.public $RTB_ID 2>/dev/null || echo "  (already in state)"
+                                    
+                                    # Import route table association
+                                    if [ -n "$PUBLIC_SUBNET_ID" ]; then
+                                        RTB_ASSOC_ID=$(aws ec2 describe-route-tables --region ${AWS_REGION} --route-table-id $RTB_ID --query "RouteTables[0].Associations[?SubnetId=='$PUBLIC_SUBNET_ID'].RouteTableAssociationId | [0]" --output text 2>/dev/null || echo "")
+                                        if [ -n "$RTB_ASSOC_ID" ] && [ "$RTB_ASSOC_ID" != "None" ]; then
+                                            echo "Importing route table association: $RTB_ASSOC_ID"
+                                            terraform import -var="docker_image=${TF_VAR_docker_image}" aws_route_table_association.public $RTB_ASSOC_ID 2>/dev/null || echo "  (already in state)"
+                                        fi
+                                    fi
+                                fi
+                                
+                                # Import security groups
+                                APP_SG_ID=$(aws ec2 describe-security-groups --region ${AWS_REGION} --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=achat-app-app-sg" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || echo "")
+                                if [ -n "$APP_SG_ID" ] && [ "$APP_SG_ID" != "None" ]; then
+                                    echo "Importing app security group: $APP_SG_ID"
+                                    terraform import -var="docker_image=${TF_VAR_docker_image}" aws_security_group.app $APP_SG_ID 2>/dev/null || echo "  (already in state)"
+                                fi
+                                
+                                RDS_SG_ID=$(aws ec2 describe-security-groups --region ${AWS_REGION} --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=achat-app-rds-sg" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || echo "")
+                                if [ -n "$RDS_SG_ID" ] && [ "$RDS_SG_ID" != "None" ]; then
+                                    echo "Importing RDS security group: $RDS_SG_ID"
+                                    terraform import -var="docker_image=${TF_VAR_docker_image}" aws_security_group.rds $RDS_SG_ID 2>/dev/null || echo "  (already in state)"
+                                fi
                                 
                                 # Import RDS
                                 DB_ID=$(aws rds describe-db-instances --region ${AWS_REGION} --query "DBInstances[?DBName=='achatdb'].DBInstanceIdentifier | [0]" --output text 2>/dev/null || echo "")
-                                [ -n "$DB_ID" ] && [ "$DB_ID" != "None" ] && terraform import -var="docker_image=${TF_VAR_docker_image}" aws_db_instance.mysql $DB_ID 2>/dev/null || echo "RDS not found or already in state"
+                                if [ -n "$DB_ID" ] && [ "$DB_ID" != "None" ]; then
+                                    echo "Importing RDS instance: $DB_ID"
+                                    terraform import -var="docker_image=${TF_VAR_docker_image}" aws_db_instance.mysql $DB_ID 2>/dev/null || echo "  (already in state)"
+                                fi
+                                
+                                # Import DB subnet group
+                                DB_SUBNET_GROUP=$(aws rds describe-db-subnet-groups --region ${AWS_REGION} --query "DBSubnetGroups[?DBSubnetGroupName=='achat-app-db-subnet-group'].DBSubnetGroupName | [0]" --output text 2>/dev/null || echo "")
+                                if [ -n "$DB_SUBNET_GROUP" ] && [ "$DB_SUBNET_GROUP" != "None" ]; then
+                                    echo "Importing DB subnet group: $DB_SUBNET_GROUP"
+                                    terraform import -var="docker_image=${TF_VAR_docker_image}" aws_db_subnet_group.main $DB_SUBNET_GROUP 2>/dev/null || echo "  (already in state)"
+                                fi
                             fi
                             
                             echo ""
