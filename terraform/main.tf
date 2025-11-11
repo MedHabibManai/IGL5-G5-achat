@@ -192,10 +192,17 @@ locals {
     
     # Run the application container
     # Note: Application runs on port 8089 inside container, exposed on port 8080
+    # Using H2 in-memory database instead of MySQL
     docker run -d \
       --name ${var.app_name} \
       --restart unless-stopped \
       -p ${var.app_port}:8089 \
+      -e SPRING_DATASOURCE_URL='jdbc:h2:mem:achatdb;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE' \
+      -e SPRING_DATASOURCE_DRIVER_CLASS_NAME='org.h2.Driver' \
+      -e SPRING_DATASOURCE_USERNAME='sa' \
+      -e SPRING_DATASOURCE_PASSWORD='' \
+      -e SPRING_JPA_HIBERNATE_DDL_AUTO='create-drop' \
+      -e SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT='org.hibernate.dialect.H2Dialect' \
       ${var.docker_image}
     
     # Create a simple health check script
