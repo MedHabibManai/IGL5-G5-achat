@@ -12,7 +12,7 @@ pipeline {
         
         // Project information from pom.xml
         PROJECT_NAME = 'achat'
-        PROJECT_VERSION = '1.0'
+        PROJECT_VERSION = '1.0-SNAPSHOT'
         
         // Artifact naming
         ARTIFACT_NAME = "${PROJECT_NAME}-${PROJECT_VERSION}-${BUILD_NUMBER}.jar"
@@ -24,7 +24,7 @@ pipeline {
         
         // Nexus (Phase 3)
         NEXUS_URL = 'nexus-repository:8081'
-        NEXUS_REPOSITORY = 'maven-releases'
+        NEXUS_REPOSITORY = 'maven-snapshots'
         NEXUS_CREDENTIAL_ID = 'nexus-credentials'
         
         // Docker (Phase 4)
