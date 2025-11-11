@@ -933,16 +933,39 @@ EOF
                                 echo "Instance ID: $INSTANCE_ID"
                                 echo ""
                                 
+                                # Wait for instance to initialize
+                                echo "Waiting for instance to initialize (60 seconds)..."
+                                sleep 60
+                                
                                 # Get instance status
                                 echo "Instance Status:"
                                 aws ec2 describe-instance-status --region ${AWS_REGION} --instance-ids $INSTANCE_ID || echo "Status not available yet"
                                 echo ""
                                 
-                                # Get console output (last 50 lines for readability)
+                                # Try to get console output multiple times
                                 echo "======================================"
-                                echo "EC2 Console Output (Last 50 lines):"
+                                echo "EC2 Console Output (Last 100 lines):"
                                 echo "======================================"
-                                aws ec2 get-console-output --region ${AWS_REGION} --instance-id $INSTANCE_ID --output text 2>/dev/null | tail -n 50 || echo "Console output not available yet"
+                                
+                                MAX_ATTEMPTS=3
+                                for i in $(seq 1 $MAX_ATTEMPTS); do
+                                    echo "Attempt $i of $MAX_ATTEMPTS to fetch console output..."
+                                    CONSOLE_OUTPUT=$(aws ec2 get-console-output --region ${AWS_REGION} --instance-id $INSTANCE_ID --output text 2>/dev/null | tail -n 100)
+                                    
+                                    if [ -n "$CONSOLE_OUTPUT" ] && [ "$CONSOLE_OUTPUT" != "$INSTANCE_ID" ]; then
+                                        echo "$CONSOLE_OUTPUT"
+                                        break
+                                    else
+                                        echo "Console output not available yet, waiting 30 seconds..."
+                                        sleep 30
+                                    fi
+                                done
+                                
+                                if [ -z "$CONSOLE_OUTPUT" ] || [ "$CONSOLE_OUTPUT" = "$INSTANCE_ID" ]; then
+                                    echo "WARNING: Console output is still not available after $MAX_ATTEMPTS attempts"
+                                    echo "This is normal for new instances. Logs will be available in a few minutes."
+                                fi
+                                
                                 echo ""
                                 echo "======================================"
                             else
@@ -974,18 +997,19 @@ EOF
                         ).trim()
 
                         if (appUrl) {
-                            echo "Waiting for application to start (120 seconds)..."
+                            echo "Waiting for application to start (5 minutes)..."
                             echo "This includes time for:"
-                            echo "  - Docker to start"
-                            echo "  - Database connectivity check (up to 10 minutes)"
-                            echo "  - Application startup"
-                            sleep(120)
+                            echo "  - EC2 instance initialization"
+                            echo "  - Docker installation and startup"
+                            echo "  - Database connectivity check (up to 10 minutes timeout)"
+                            echo "  - Application container startup"
+                            sleep(300)  // 5 minutes
 
                             echo "Checking application health..."
                             def healthUrl = "${appUrl}/actuator/health"
 
-                            retry(10) {
-                                sleep(15)
+                            retry(12) {
+                                sleep(20)
                                 sh """
                                     curl -f ${healthUrl} || exit 1
                                 """
