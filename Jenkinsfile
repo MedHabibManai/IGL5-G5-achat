@@ -396,6 +396,63 @@ EOF
             }
         }
 
+        stage('Cleanup Previous Deployment') {
+            when {
+                expression { return fileExists('terraform/main.tf') }
+            }
+            steps {
+                script {
+                    echo '========================================='
+                    echo 'Stage 11: Cleanup Previous Deployment'
+                    echo '========================================='
+                }
+
+                dir(TERRAFORM_DIR) {
+                    script {
+                        echo "Checking for existing Terraform state..."
+
+                        def stateExists = sh(
+                            script: 'test -f terraform.tfstate && echo "true" || echo "false"',
+                            returnStdout: true
+                        ).trim()
+
+                        if (stateExists == 'true') {
+                            echo "⚠ Found existing Terraform state - destroying previous deployment..."
+                            echo ""
+
+                            sh '''
+                                # Set AWS credentials path
+                                export AWS_SHARED_CREDENTIALS_FILE=/var/jenkins_home/.aws/credentials
+                                export AWS_CONFIG_FILE=/var/jenkins_home/.aws/config
+
+                                echo "Initializing Terraform for cleanup..."
+                                terraform init -input=false
+
+                                echo ""
+                                echo "Destroying previous deployment..."
+                                terraform destroy -auto-approve
+
+                                echo ""
+                                echo "✓ Previous deployment destroyed successfully!"
+                            '''
+
+                            echo ""
+                            echo "Cleaning up Terraform state files..."
+                            sh '''
+                                rm -f terraform.tfstate*
+                                rm -f tfplan
+                                rm -rf .terraform/
+                            '''
+
+                            echo "✓ Cleanup complete!"
+                        } else {
+                            echo "No existing Terraform state found - skipping cleanup"
+                        }
+                    }
+                }
+            }
+        }
+
         stage('Terraform Init') {
             when {
                 expression { return fileExists('terraform/main.tf') }
@@ -403,7 +460,7 @@ EOF
             steps {
                 script {
                     echo '========================================='
-                    echo 'Stage 11: Terraform Initialization'
+                    echo 'Stage 12: Terraform Initialization'
                     echo '========================================='
                 }
 
@@ -464,7 +521,7 @@ EOF
             steps {
                 script {
                     echo '========================================='
-                    echo 'Stage 12: Terraform Plan'
+                    echo 'Stage 13: Terraform Plan'
                     echo '========================================='
                 }
 
@@ -499,7 +556,7 @@ EOF
             steps {
                 script {
                     echo '========================================='
-                    echo 'Stage 13: Terraform Apply (Deploy to AWS)'
+                    echo 'Stage 14: Terraform Apply (Deploy to AWS)'
                     echo '========================================='
                 }
 
@@ -537,7 +594,7 @@ EOF
             steps {
                 script {
                     echo '========================================='
-                    echo 'Stage 14: AWS Deployment Information'
+                    echo 'Stage 15: AWS Deployment Information'
                     echo '========================================='
                 }
 
@@ -599,7 +656,7 @@ EOF
             steps {
                 script {
                     echo '========================================='
-                    echo 'Stage 15: Health Check'
+                    echo 'Stage 16: Health Check'
                     echo '========================================='
                 }
 
