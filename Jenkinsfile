@@ -1216,7 +1216,8 @@ EOF
                             sleep(60)
 
                             echo "Checking application health..."
-                            def healthUrl = "${appUrl}/actuator/health"
+                            // Application runs with context path /SpringMVC
+                            def healthUrl = "${appUrl}/SpringMVC/actuator/health"
 
                             retry(5) {
                                 sleep(10)
