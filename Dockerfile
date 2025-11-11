@@ -4,6 +4,10 @@
 
 FROM eclipse-temurin:8-jre-alpine
 
+# Build arguments
+ARG JAR_FILE=target/achat-1.0-SNAPSHOT.jar
+ARG BUILD_NUMBER=latest
+
 # Set working directory
 WORKDIR /app
 
@@ -11,10 +15,11 @@ WORKDIR /app
 LABEL maintainer="IGL5-G5-Achat Team"
 LABEL description="Achat E-commerce Application"
 LABEL version="1.0"
+LABEL build_number="${BUILD_NUMBER}"
 
 # Copy the JAR file from target directory
 # In Jenkins, this will be the JAR built by Maven
-COPY target/achat-1.0.jar app.jar
+COPY ${JAR_FILE} app.jar
 
 # Expose the application port
 EXPOSE 8089
