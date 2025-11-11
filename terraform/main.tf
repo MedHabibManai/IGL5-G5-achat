@@ -147,47 +147,18 @@ resource "aws_security_group" "app" {
 }
 
 # ============================================================================
-# IAM Role for EC2 (for CloudWatch, SSM, etc.)
+# IAM Role for EC2 - Use existing LabRole from AWS Learner Lab
 # ============================================================================
 
-# IAM Role
-resource "aws_iam_role" "ec2_role" {
-  name = "${var.project_name}-ec2-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        }
-      }
-    ]
-  })
-
-  tags = var.common_tags
+# Use the existing LabRole provided by AWS Learner Lab
+data "aws_iam_role" "lab_role" {
+  name = "LabRole"
 }
 
-# Attach SSM policy (for Session Manager - no SSH key needed)
-resource "aws_iam_role_policy_attachment" "ssm" {
-  role       = aws_iam_role.ec2_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-}
-
-# Attach CloudWatch policy (for logs and metrics)
-resource "aws_iam_role_policy_attachment" "cloudwatch" {
-  role       = aws_iam_role.ec2_role.name
-  policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
-}
-
-# Instance Profile
-resource "aws_iam_instance_profile" "ec2_profile" {
-  name = "${var.project_name}-ec2-profile"
-  role = aws_iam_role.ec2_role.name
-
-  tags = var.common_tags
+# Use existing LabInstanceProfile from AWS Learner Lab
+# Most learner labs provide this pre-configured instance profile
+data "aws_iam_instance_profile" "lab_profile" {
+  name = "LabInstanceProfile"
 }
 
 # ============================================================================
@@ -244,7 +215,7 @@ resource "aws_instance" "app" {
   instance_type          = var.instance_type
   subnet_id              = aws_subnet.public.id
   vpc_security_group_ids = [aws_security_group.app.id]
-  iam_instance_profile   = aws_iam_instance_profile.ec2_profile.name
+  iam_instance_profile   = data.aws_iam_instance_profile.lab_profile.name
   key_name               = var.key_name != "" ? var.key_name : null
   
   user_data = local.user_data
