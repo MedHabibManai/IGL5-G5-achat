@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: achat-app-config
+  namespace: achat-app
+  labels:
+    app: achat-app
+data:
+  # Application configuration
+  SPRING_PROFILES_ACTIVE: "prod"
+  SERVER_PORT: "8089"
+  SPRING_SERVLET_CONTEXT_PATH: "/SpringMVC"
+  
+  # Database configuration (non-sensitive)
+  SPRING_DATASOURCE_DRIVER_CLASS_NAME: "com.mysql.cj.jdbc.Driver"
+  SPRING_JPA_HIBERNATE_DDL_AUTO: "update"
+  SPRING_JPA_SHOW_SQL: "false"
+  SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: "org.hibernate.dialect.MySQL8Dialect"
+  
+  # Actuator configuration
+  MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: "health,info,metrics,prometheus"
+  MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: "always"
+  MANAGEMENT_HEALTH_DB_ENABLED: "true"
