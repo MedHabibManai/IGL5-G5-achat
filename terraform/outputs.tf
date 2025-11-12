@@ -151,8 +151,8 @@ output "kubectl_config_command" {
 
 output "deployment_summary" {
   description = "Summary of the deployment"
-  value = var.deploy_mode == "k8s" ? <<-EOT
-╔════════════════════════════════════════════════════════╗
+  value = <<-EOT
+%{if var.deploy_mode == "k8s"}╔════════════════════════════════════════════════════════╗
 ║  KUBERNETES DEPLOYMENT SUCCESSFUL                      ║
 ╚════════════════════════════════════════════════════════╝
 
@@ -180,11 +180,7 @@ Kubernetes Commands (run on instance):
 
 Docker Image:
   → ${var.docker_image}
-
-════════════════════════════════════════════════════════
-EOT
- : <<-EOT
-╔════════════════════════════════════════════════════════╗
+%{else}╔════════════════════════════════════════════════════════╗
 ║  EC2 DEPLOYMENT SUCCESSFUL                             ║
 ╚════════════════════════════════════════════════════════╝
 
@@ -206,7 +202,7 @@ Connect to Instance:
 
 Docker Image:
   → ${var.docker_image}
-
+%{endif}
 ════════════════════════════════════════════════════════
 EOT
 }
