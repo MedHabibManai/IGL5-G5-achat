@@ -733,6 +733,8 @@ EOF
                     expression { return params.DEPLOY_ACTION == 'deploy' }
                     expression { return params.IMPORT_EXISTING_RESOURCES }
                     expression { return !fileExists("${TERRAFORM_STATE_DIR}/terraform.tfstate") }
+                    // DISABLED: AWS Academy does not allow EC2 describe operations
+                    expression { return false }
                 }
             }
             steps {
