@@ -24,6 +24,13 @@ resource "aws_eks_cluster" "main" {
     Project     = var.project_name
   }
 
+  # Prevent replacement due to bootstrap_self_managed_addons difference
+  lifecycle {
+    ignore_changes = [
+      bootstrap_self_managed_addons
+    ]
+  }
+
   depends_on = [
     aws_subnet.public,
     aws_subnet.private
