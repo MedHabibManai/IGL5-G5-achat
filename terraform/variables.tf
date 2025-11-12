@@ -155,3 +155,38 @@ variable "create_rds" {
   default     = false  # For future enhancement
 }
 
+# ============================================================================
+# EKS Configuration
+# ============================================================================
+
+variable "create_eks" {
+  description = "Create EKS cluster"
+  type        = bool
+  default     = true
+}
+
+variable "eks_node_instance_type" {
+  description = "Instance type for EKS worker nodes"
+  type        = string
+  default     = "t3.small"
+}
+
+variable "eks_desired_nodes" {
+  description = "Desired number of EKS worker nodes"
+  type        = number
+  default     = 2
+}
+
+variable "eks_min_nodes" {
+  description = "Minimum number of EKS worker nodes"
+  type        = number
+  default     = 1
+}
+
+variable "eks_max_nodes" {
+  description = "Maximum number of EKS worker nodes"
+  type        = number
+  default     = 3
+}
+
+

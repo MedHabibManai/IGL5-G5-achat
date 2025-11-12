@@ -54,13 +54,12 @@ metadata:
     app: achat-frontend
     tier: frontend
 spec:
-  type: NodePort
+  type: LoadBalancer  # Changed from NodePort to LoadBalancer for EKS
   selector:
     app: achat-frontend
     tier: frontend
   ports:
   - port: 80
     targetPort: 80
-    nodePort: 30080
     protocol: TCP
     name: http
