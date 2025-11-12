@@ -84,17 +84,17 @@ output "public_dns" {
 
 output "application_url" {
   description = "URL to access the application"
-  value       = "http://${aws_eip.app.public_ip}:${var.app_port}"
+  value       = "http://${aws_eip.app.public_ip}:${var.app_port}/SpringMVC"
 }
 
 output "health_check_url" {
   description = "URL for application health check"
-  value       = "http://${aws_eip.app.public_ip}:${var.app_port}/actuator/health"
+  value       = "http://${aws_eip.app.public_ip}:${var.app_port}/SpringMVC/actuator/health"
 }
 
 output "swagger_url" {
   description = "URL for Swagger UI (if enabled)"
-  value       = "http://${aws_eip.app.public_ip}:${var.app_port}/swagger-ui.html"
+  value       = "http://${aws_eip.app.public_ip}:${var.app_port}/SpringMVC/swagger-ui.html"
 }
 
 # ============================================================================
@@ -167,10 +167,10 @@ output "deployment_summary" {
     ╚════════════════════════════════════════════════════════╝
     
     Application URL:
-      → http://${aws_eip.app.public_ip}:${var.app_port}
+      → http://${aws_eip.app.public_ip}:${var.app_port}/SpringMVC
     
     Health Check:
-      → http://${aws_eip.app.public_ip}:${var.app_port}/actuator/health
+      → http://${aws_eip.app.public_ip}:${var.app_port}/SpringMVC/actuator/health
     
     Instance Details:
       • Instance ID: ${aws_instance.app.id}
