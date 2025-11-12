@@ -200,37 +200,37 @@ output "deployment_summary" {
 
 output "eks_cluster_name" {
   description = "Name of the EKS cluster"
-  value       = try(aws_eks_cluster.main.name, "")
+  value       = var.create_eks ? try(aws_eks_cluster.main[0].name, "") : ""
 }
 
 output "eks_cluster_endpoint" {
   description = "Endpoint for EKS cluster"
-  value       = try(aws_eks_cluster.main.endpoint, "")
+  value       = var.create_eks ? try(aws_eks_cluster.main[0].endpoint, "") : ""
 }
 
 output "eks_cluster_version" {
   description = "Kubernetes version of the EKS cluster"
-  value       = try(aws_eks_cluster.main.version, "")
+  value       = var.create_eks ? try(aws_eks_cluster.main[0].version, "") : ""
 }
 
 output "eks_cluster_security_group_id" {
   description = "Security group ID attached to the EKS cluster"
-  value       = try(aws_security_group.eks_cluster.id, "")
+  value       = var.create_eks ? try(aws_security_group.eks_cluster[0].id, "") : ""
 }
 
 output "eks_node_group_name" {
   description = "Name of the EKS node group"
-  value       = try(aws_eks_node_group.main.node_group_name, "")
+  value       = var.create_eks ? try(aws_eks_node_group.main[0].node_group_name, "") : ""
 }
 
 output "eks_node_group_status" {
   description = "Status of the EKS node group"
-  value       = try(aws_eks_node_group.main.status, "")
+  value       = var.create_eks ? try(aws_eks_node_group.main[0].status, "") : ""
 }
 
 output "eks_kubeconfig_command" {
   description = "Command to update kubeconfig for EKS cluster"
-  value       = try("aws eks update-kubeconfig --region ${var.aws_region} --name ${aws_eks_cluster.main.name}", "")
+  value       = var.create_eks ? try("aws eks update-kubeconfig --region ${var.aws_region} --name ${aws_eks_cluster.main[0].name}", "") : "EKS not enabled"
 }
 
 

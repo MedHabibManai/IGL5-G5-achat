@@ -160,9 +160,9 @@ variable "create_rds" {
 # ============================================================================
 
 variable "create_eks" {
-  description = "Create EKS cluster"
+  description = "Create EKS cluster (WARNING: ~$168/month cost!)"
   type        = bool
-  default     = true
+  default     = false  # Disabled by default to save costs
 }
 
 variable "eks_node_instance_type" {

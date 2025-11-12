@@ -4,15 +4,16 @@
 
 # EKS Cluster
 resource "aws_eks_cluster" "main" {
+  count    = var.create_eks ? 1 : 0
   name     = "${var.project_name}-eks-cluster"
   role_arn = data.aws_iam_role.lab_role.arn
   version  = "1.28"
 
   vpc_config {
-    subnet_ids              = [aws_subnet.public.id, aws_subnet.private.id]
+    subnet_ids              = [aws_subnet.public.id, aws_subnet.private[0].id]
     endpoint_private_access = false
     endpoint_public_access  = true
-    security_group_ids      = [aws_security_group.eks_cluster.id]
+    security_group_ids      = [aws_security_group.eks_cluster[0].id]
   }
 
   enabled_cluster_log_types = ["api", "audit", "authenticator"]
@@ -31,10 +32,11 @@ resource "aws_eks_cluster" "main" {
 
 # EKS Node Group
 resource "aws_eks_node_group" "main" {
-  cluster_name    = aws_eks_cluster.main.name
+  count           = var.create_eks ? 1 : 0
+  cluster_name    = aws_eks_cluster.main[0].name
   node_group_name = "${var.project_name}-node-group"
   node_role_arn   = data.aws_iam_role.lab_role.arn
-  subnet_ids      = [aws_subnet.public.id, aws_subnet.private.id]
+  subnet_ids      = [aws_subnet.public.id, aws_subnet.private[0].id]
 
   scaling_config {
     desired_size = 2
@@ -57,12 +59,13 @@ resource "aws_eks_node_group" "main" {
   }
 
   depends_on = [
-    aws_eks_cluster.main
+    aws_eks_cluster.main[0]
   ]
 }
 
 # Security Group for EKS Cluster
 resource "aws_security_group" "eks_cluster" {
+  count       = var.create_eks ? 1 : 0
   name        = "${var.project_name}-eks-cluster-sg"
   description = "Security group for EKS cluster"
   vpc_id      = aws_vpc.main.id
@@ -92,6 +95,7 @@ resource "aws_security_group" "eks_cluster" {
 
 # Security Group for EKS Nodes
 resource "aws_security_group" "eks_nodes" {
+  count       = var.create_eks ? 1 : 0
   name        = "${var.project_name}-eks-nodes-sg"
   description = "Security group for EKS worker nodes"
   vpc_id      = aws_vpc.main.id
@@ -111,7 +115,7 @@ resource "aws_security_group" "eks_nodes" {
     from_port       = 443
     to_port         = 443
     protocol        = "tcp"
-    security_groups = [aws_security_group.eks_cluster.id]
+    security_groups = var.create_eks ? [aws_security_group.eks_cluster[0].id] : []
   }
 
   # Allow NodePort services (30000-32767)
@@ -158,6 +162,7 @@ resource "aws_security_group" "eks_nodes" {
 
 # Private Subnet for EKS (needed for multi-AZ)
 resource "aws_subnet" "private" {
+  count                   = var.create_eks ? 1 : 0
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.2.0/24"
   availability_zone       = data.aws_availability_zones.available.names[1]
@@ -173,6 +178,7 @@ resource "aws_subnet" "private" {
 
 # NAT Gateway for private subnet (needed for nodes to pull images)
 resource "aws_eip" "nat" {
+  count  = var.create_eks ? 1 : 0
   domain = "vpc"
 
   tags = {
@@ -182,7 +188,8 @@ resource "aws_eip" "nat" {
 }
 
 resource "aws_nat_gateway" "main" {
-  allocation_id = aws_eip.nat.id
+  count         = var.create_eks ? 1 : 0
+  allocation_id = aws_eip.nat[0].id
   subnet_id     = aws_subnet.public.id
 
   tags = {
@@ -195,11 +202,12 @@ resource "aws_nat_gateway" "main" {
 
 # Route Table for Private Subnet
 resource "aws_route_table" "private" {
+  count  = var.create_eks ? 1 : 0
   vpc_id = aws_vpc.main.id
 
   route {
     cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.main.id
+    nat_gateway_id = aws_nat_gateway.main[0].id
   }
 
   tags = {
@@ -209,18 +217,21 @@ resource "aws_route_table" "private" {
 }
 
 resource "aws_route_table_association" "private" {
-  subnet_id      = aws_subnet.private.id
-  route_table_id = aws_route_table.private.id
+  count          = var.create_eks ? 1 : 0
+  subnet_id      = aws_subnet.private[0].id
+  route_table_id = aws_route_table.private[0].id
 }
 
 # Update public subnet tags for EKS
 resource "aws_ec2_tag" "public_subnet_eks" {
+  count       = var.create_eks ? 1 : 0
   resource_id = aws_subnet.public.id
   key         = "kubernetes.io/cluster/${var.project_name}-eks-cluster"
   value       = "shared"
 }
 
 resource "aws_ec2_tag" "public_subnet_elb" {
+  count       = var.create_eks ? 1 : 0
   resource_id = aws_subnet.public.id
   key         = "kubernetes.io/role/elb"
   value       = "1"
