@@ -2,19 +2,7 @@
 # This file defines a lightweight Kubernetes cluster using k3s
 # k3s is a certified Kubernetes distribution perfect for AWS Academy constraints
 
-# ============================================================================
-# Data Sources for Existing IAM Resources
-# ============================================================================
-
-# Use existing AWS Academy LabRole
-data "aws_iam_role" "lab_role" {
-  name = "LabRole"
-}
-
-# Use existing AWS Academy LabInstanceProfile
-data "aws_iam_instance_profile" "lab_profile" {
-  name = "LabInstanceProfile"
-}
+# Note: IAM data sources (lab_role, lab_profile) are defined in main.tf
 
 # ============================================================================
 # Security Group for Kubernetes Cluster

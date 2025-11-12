@@ -151,7 +151,7 @@ output "kubectl_config_command" {
 
 output "deployment_summary" {
   description = "Summary of the deployment"
-  value = var.deploy_mode == "k8s" ? <<-EOT
+  value = var.deploy_mode == "k8s" ? <<-EOTK8S
     ╔════════════════════════════════════════════════════════╗
     ║  KUBERNETES DEPLOYMENT SUCCESSFUL                      ║
     ╚════════════════════════════════════════════════════════╝
@@ -182,8 +182,7 @@ output "deployment_summary" {
       → ${var.docker_image}
 
     ════════════════════════════════════════════════════════
-  EOT
-  : <<-EOT
+  EOTK8S : <<-EOTEC2
     ╔════════════════════════════════════════════════════════╗
     ║  EC2 DEPLOYMENT SUCCESSFUL                             ║
     ╚════════════════════════════════════════════════════════╝
@@ -208,6 +207,6 @@ output "deployment_summary" {
       → ${var.docker_image}
 
     ════════════════════════════════════════════════════════
-  EOT
+  EOTEC2
 }
 
