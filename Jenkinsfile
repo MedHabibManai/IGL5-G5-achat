@@ -90,7 +90,7 @@ pipeline {
         AWS_CREDENTIAL_ID = 'aws-sandbox-credentials'
         TERRAFORM_DIR = 'terraform'
         TF_VAR_docker_image = "${DOCKER_REGISTRY}/rayenslouma/${DOCKER_IMAGE}"
-        TF_VAR_deploy_mode = 'k8s'  // Deployment mode: 'ec2' or 'k8s'
+        TF_VAR_deploy_mode = 'eks'  // Deployment mode: 'ec2', 'k8s', or 'eks'
 
         // Terraform State Management
         // Store state in persistent Jenkins location (outside workspace)
@@ -119,7 +119,7 @@ pipeline {
                     echo "   Job Name:         ${JOB_NAME}"
                     echo "   AWS Region:       ${AWS_REGION}"
                     echo "   Docker Image:     ${TF_VAR_docker_image}"
-                    echo "   Deploy Mode:      ${TF_VAR_deploy_mode} (${TF_VAR_deploy_mode == 'k8s' ? 'Kubernetes cluster' : 'Standalone EC2'})"
+                    echo "   Deploy Mode:      ${TF_VAR_deploy_mode} (${TF_VAR_deploy_mode == 'eks' ? 'AWS EKS' : (TF_VAR_deploy_mode == 'k8s' ? 'k3s on EC2' : 'Standalone EC2')})"
                     echo ''
 
                     // Set up Terraform state directory
@@ -1199,14 +1199,123 @@ EOF
             }
         }
 
-        stage('Health Check AWS Deployment') {
+        stage('Deploy Application to EKS') {
             when {
-                expression { return fileExists('terraform/main.tf') }
+                expression { return env.TF_VAR_deploy_mode == 'eks' }
             }
             steps {
                 script {
                     echo '========================================='
-                    echo 'Stage 16: Health Check'
+                    echo 'Stage 15: Deploy Application to EKS'
+                    echo '========================================='
+                }
+
+                dir(TERRAFORM_DIR) {
+                    script {
+                        // Get EKS cluster name
+                        def clusterName = sh(
+                            script: 'terraform output -raw eks_cluster_id 2>/dev/null || echo ""',
+                            returnStdout: true
+                        ).trim()
+
+                        if (clusterName && clusterName != "N/A") {
+                            echo "EKS Cluster: ${clusterName}"
+                            echo "Configuring kubectl for EKS..."
+
+                            sh """
+                                export AWS_SHARED_CREDENTIALS_FILE=/var/jenkins_home/.aws/credentials
+                                export AWS_CONFIG_FILE=/var/jenkins_home/.aws/config
+                                export AWS_PAGER=''
+
+                                # Configure kubectl for EKS
+                                aws eks update-kubeconfig --region ${AWS_REGION} --name ${clusterName}
+
+                                # Verify connection
+                                kubectl get nodes
+
+                                echo ""
+                                echo "EKS cluster configured successfully!"
+                            """
+
+                            echo ""
+                            echo "Deploying application to EKS..."
+
+                            // Create namespace
+                            sh """
+                                kubectl apply -f ../k8s/namespace.yaml
+                            """
+
+                            // Replace image placeholder in deployment
+                            sh """
+                                export DOCKER_IMAGE="${TF_VAR_docker_image}"
+                                envsubst < ../k8s/deployment.yaml | kubectl apply -f -
+                            """
+
+                            // Apply LoadBalancer service for EKS
+                            sh """
+                                kubectl apply -f ../k8s/service-eks.yaml
+                            """
+
+                            echo ""
+                            echo "Waiting for deployment to be ready..."
+                            sh """
+                                kubectl wait --for=condition=available --timeout=300s deployment/achat-app -n achat-app || true
+                            """
+
+                            echo ""
+                            echo "Getting deployment status..."
+                            sh """
+                                kubectl get all -n achat-app
+                            """
+
+                            echo ""
+                            echo "Waiting for LoadBalancer to be provisioned..."
+                            echo "This may take 2-3 minutes..."
+                            sleep(30)
+
+                            // Get LoadBalancer URL
+                            def lbUrl = sh(
+                                script: '''
+                                    kubectl get svc achat-app-service -n achat-app -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo ""
+                                ''',
+                                returnStdout: true
+                            ).trim()
+
+                            if (lbUrl) {
+                                echo ""
+                                echo "========================================="
+                                echo "APPLICATION DEPLOYED TO EKS!"
+                                echo "========================================="
+                                echo "LoadBalancer URL: http://${lbUrl}"
+                                echo "Main App: http://${lbUrl}/SpringMVC/"
+                                echo "Health Check: http://${lbUrl}/SpringMVC/actuator/health"
+                                echo "Swagger UI: http://${lbUrl}/SpringMVC/swagger-ui/"
+                                echo "========================================="
+                                echo ""
+                                echo "Note: It may take a few minutes for the LoadBalancer DNS to propagate"
+                                echo "      and for the application to be fully ready."
+                            } else {
+                                echo ""
+                                echo "LoadBalancer is being provisioned..."
+                                echo "Run this command to get the URL once ready:"
+                                echo "kubectl get svc achat-app-service -n achat-app"
+                            }
+                        } else {
+                            echo "EKS cluster not found. Skipping application deployment."
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Health Check AWS Deployment') {
+            when {
+                expression { return fileExists('terraform/main.tf') && env.TF_VAR_deploy_mode != 'eks' }
+            }
+            steps {
+                script {
+                    echo '========================================='
+                    echo 'Stage 16: Health Check (EC2/k3s)'
                     echo '========================================='
                 }
 
@@ -1243,6 +1352,58 @@ EOF
                         } else {
                             echo "Could not retrieve application URL"
                         }
+                    }
+                }
+            }
+        }
+
+        stage('Health Check EKS Deployment') {
+            when {
+                expression { return env.TF_VAR_deploy_mode == 'eks' }
+            }
+            steps {
+                script {
+                    echo '========================================='
+                    echo 'Stage 16: Health Check (EKS)'
+                    echo '========================================='
+                }
+
+                script {
+                    echo "Waiting for LoadBalancer and application to be ready (3 minutes)..."
+                    sleep(180)
+
+                    // Get LoadBalancer URL
+                    def lbUrl = sh(
+                        script: '''
+                            kubectl get svc achat-app-service -n achat-app -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo ""
+                        ''',
+                        returnStdout: true
+                    ).trim()
+
+                    if (lbUrl) {
+                        echo "LoadBalancer URL: ${lbUrl}"
+                        def healthUrl = "http://${lbUrl}/SpringMVC/actuator/health"
+
+                        echo "Checking application health..."
+                        retry(10) {
+                            sleep(15)
+                            sh """
+                                curl -f ${healthUrl} || exit 1
+                            """
+                        }
+
+                        echo ""
+                        echo "========================================="
+                        echo "EKS APPLICATION IS HEALTHY!"
+                        echo "========================================="
+                        echo "Main App: http://${lbUrl}/SpringMVC/"
+                        echo "Health Check: http://${lbUrl}/SpringMVC/actuator/health"
+                        echo "Swagger UI: http://${lbUrl}/SpringMVC/swagger-ui/"
+                        echo "========================================="
+                    } else {
+                        echo "Warning: Could not retrieve LoadBalancer URL"
+                        echo "The LoadBalancer may still be provisioning."
+                        echo "Run: kubectl get svc achat-app-service -n achat-app"
                     }
                 }
             }

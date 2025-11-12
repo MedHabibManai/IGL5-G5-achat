@@ -71,6 +71,9 @@ resource "aws_subnet" "public" {
     {
       Name = "${var.project_name}-public-subnet"
       Type = "Public"
+      # EKS LoadBalancer tags for automatic subnet discovery
+      "kubernetes.io/role/elb" = "1"
+      "kubernetes.io/cluster/${var.project_name}-eks-cluster" = "shared"
     }
   )
 }

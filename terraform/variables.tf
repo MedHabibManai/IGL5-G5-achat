@@ -84,9 +84,47 @@ variable "k8s_instance_type" {
 }
 
 variable "deploy_mode" {
-  description = "Deployment mode: 'ec2' for standalone EC2, 'k8s' for Kubernetes cluster"
+  description = "Deployment mode: 'ec2' for standalone EC2, 'k8s' for k3s on EC2, 'eks' for AWS EKS"
   type        = string
-  default     = "k8s"
+  default     = "eks"
+  validation {
+    condition     = contains(["ec2", "k8s", "eks"], var.deploy_mode)
+    error_message = "deploy_mode must be one of: ec2, k8s, eks"
+  }
+}
+
+# ============================================================================
+# EKS Configuration
+# ============================================================================
+
+variable "eks_cluster_version" {
+  description = "Kubernetes version for EKS cluster"
+  type        = string
+  default     = "1.28"
+}
+
+variable "eks_node_instance_type" {
+  description = "EC2 instance type for EKS worker nodes"
+  type        = string
+  default     = "t3.medium"
+}
+
+variable "eks_node_desired_size" {
+  description = "Desired number of EKS worker nodes"
+  type        = number
+  default     = 2
+}
+
+variable "eks_node_min_size" {
+  description = "Minimum number of EKS worker nodes"
+  type        = number
+  default     = 1
+}
+
+variable "eks_node_max_size" {
+  description = "Maximum number of EKS worker nodes"
+  type        = number
+  default     = 3
 }
 
 # ============================================================================

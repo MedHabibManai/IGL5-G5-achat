@@ -49,8 +49,47 @@ output "iam_instance_profile" {
 # ============================================================================
 
 output "deploy_mode" {
-  description = "Current deployment mode (ec2 or k8s)"
+  description = "Current deployment mode (ec2, k8s, or eks)"
   value       = var.deploy_mode
+}
+
+# ============================================================================
+# EKS Cluster Outputs (when deploy_mode = "eks")
+# ============================================================================
+
+output "eks_cluster_id" {
+  description = "ID of the EKS cluster"
+  value       = var.deploy_mode == "eks" ? aws_eks_cluster.main[0].id : "N/A"
+}
+
+output "eks_cluster_endpoint" {
+  description = "Endpoint for EKS cluster API server"
+  value       = var.deploy_mode == "eks" ? aws_eks_cluster.main[0].endpoint : "N/A"
+}
+
+output "eks_cluster_version" {
+  description = "Kubernetes version of the EKS cluster"
+  value       = var.deploy_mode == "eks" ? aws_eks_cluster.main[0].version : "N/A"
+}
+
+output "eks_cluster_arn" {
+  description = "ARN of the EKS cluster"
+  value       = var.deploy_mode == "eks" ? aws_eks_cluster.main[0].arn : "N/A"
+}
+
+output "eks_cluster_security_group_id" {
+  description = "Security group ID attached to the EKS cluster"
+  value       = var.deploy_mode == "eks" ? aws_eks_cluster.main[0].vpc_config[0].cluster_security_group_id : "N/A"
+}
+
+output "eks_node_group_id" {
+  description = "ID of the EKS node group"
+  value       = var.deploy_mode == "eks" ? aws_eks_node_group.main[0].id : "N/A"
+}
+
+output "eks_node_group_status" {
+  description = "Status of the EKS node group"
+  value       = var.deploy_mode == "eks" ? aws_eks_node_group.main[0].status : "N/A"
 }
 
 # ============================================================================
@@ -58,33 +97,33 @@ output "deploy_mode" {
 # ============================================================================
 
 output "instance_id" {
-  description = "ID of the EC2 instance"
-  value       = var.deploy_mode == "ec2" ? aws_instance.app[0].id : (var.deploy_mode == "k8s" ? aws_instance.k8s.id : "N/A")
+  description = "ID of the EC2 instance (N/A for EKS)"
+  value       = var.deploy_mode == "ec2" ? aws_instance.app[0].id : (var.deploy_mode == "k8s" ? aws_instance.k8s.id : "N/A - Using EKS")
 }
 
 output "instance_type" {
-  description = "Type of the EC2 instance"
-  value       = var.deploy_mode == "ec2" ? aws_instance.app[0].instance_type : (var.deploy_mode == "k8s" ? aws_instance.k8s.instance_type : "N/A")
+  description = "Type of the EC2 instance (N/A for EKS)"
+  value       = var.deploy_mode == "ec2" ? aws_instance.app[0].instance_type : (var.deploy_mode == "k8s" ? aws_instance.k8s.instance_type : "N/A - Using EKS")
 }
 
 output "instance_state" {
-  description = "State of the EC2 instance"
-  value       = var.deploy_mode == "ec2" ? aws_instance.app[0].instance_state : (var.deploy_mode == "k8s" ? aws_instance.k8s.instance_state : "N/A")
+  description = "State of the EC2 instance (N/A for EKS)"
+  value       = var.deploy_mode == "ec2" ? aws_instance.app[0].instance_state : (var.deploy_mode == "k8s" ? aws_instance.k8s.instance_state : "N/A - Using EKS")
 }
 
 output "private_ip" {
-  description = "Private IP address of the EC2 instance"
-  value       = var.deploy_mode == "ec2" ? aws_instance.app[0].private_ip : (var.deploy_mode == "k8s" ? aws_instance.k8s.private_ip : "N/A")
+  description = "Private IP address of the EC2 instance (N/A for EKS)"
+  value       = var.deploy_mode == "ec2" ? aws_instance.app[0].private_ip : (var.deploy_mode == "k8s" ? aws_instance.k8s.private_ip : "N/A - Using EKS")
 }
 
 output "public_ip" {
-  description = "Public IP address of the EC2 instance"
-  value       = var.deploy_mode == "ec2" ? aws_eip.app[0].public_ip : (var.deploy_mode == "k8s" ? aws_instance.k8s.public_ip : "N/A")
+  description = "Public IP address (N/A for EKS - use LoadBalancer service)"
+  value       = var.deploy_mode == "ec2" ? aws_eip.app[0].public_ip : (var.deploy_mode == "k8s" ? aws_instance.k8s.public_ip : "N/A - Using EKS LoadBalancer")
 }
 
 output "public_dns" {
-  description = "Public DNS name of the EC2 instance"
-  value       = var.deploy_mode == "ec2" ? aws_eip.app[0].public_dns : (var.deploy_mode == "k8s" ? aws_instance.k8s.public_dns : "N/A")
+  description = "Public DNS name (N/A for EKS - use LoadBalancer service)"
+  value       = var.deploy_mode == "ec2" ? aws_eip.app[0].public_dns : (var.deploy_mode == "k8s" ? aws_instance.k8s.public_dns : "N/A - Using EKS LoadBalancer")
 }
 
 # ============================================================================
@@ -92,23 +131,23 @@ output "public_dns" {
 # ============================================================================
 
 output "application_url" {
-  description = "URL to access the application"
-  value       = var.deploy_mode == "ec2" ? "http://${aws_eip.app[0].public_ip}:${var.app_port}" : "http://${aws_instance.k8s.public_ip}"
+  description = "URL to access the application (for EKS, deploy app first to get LoadBalancer URL)"
+  value       = var.deploy_mode == "ec2" ? "http://${aws_eip.app[0].public_ip}:${var.app_port}" : (var.deploy_mode == "k8s" ? "http://${aws_instance.k8s.public_ip}" : "Deploy application to get LoadBalancer URL")
 }
 
 output "health_check_url" {
-  description = "URL for application health check"
-  value       = var.deploy_mode == "ec2" ? "http://${aws_eip.app[0].public_ip}:${var.app_port}/SpringMVC/actuator/health" : "http://${aws_instance.k8s.public_ip}/SpringMVC/actuator/health"
+  description = "URL for application health check (for EKS, deploy app first)"
+  value       = var.deploy_mode == "ec2" ? "http://${aws_eip.app[0].public_ip}:${var.app_port}/SpringMVC/actuator/health" : (var.deploy_mode == "k8s" ? "http://${aws_instance.k8s.public_ip}/SpringMVC/actuator/health" : "Deploy application to get LoadBalancer URL")
 }
 
 output "swagger_url" {
-  description = "URL for Swagger UI"
-  value       = var.deploy_mode == "ec2" ? "http://${aws_eip.app[0].public_ip}:${var.app_port}/SpringMVC/swagger-ui/" : "http://${aws_instance.k8s.public_ip}/SpringMVC/swagger-ui/"
+  description = "URL for Swagger UI (for EKS, deploy app first)"
+  value       = var.deploy_mode == "ec2" ? "http://${aws_eip.app[0].public_ip}:${var.app_port}/SpringMVC/swagger-ui/" : (var.deploy_mode == "k8s" ? "http://${aws_instance.k8s.public_ip}/SpringMVC/swagger-ui/" : "Deploy application to get LoadBalancer URL")
 }
 
-output "kubernetes_dashboard_url" {
-  description = "URL for Kubernetes dashboard (k8s mode only)"
-  value       = var.deploy_mode == "k8s" ? "http://${aws_instance.k8s.public_ip}:6443" : "N/A - Not in Kubernetes mode"
+output "kubectl_config_command" {
+  description = "Command to configure kubectl for EKS cluster"
+  value       = var.deploy_mode == "eks" ? "aws eks update-kubeconfig --region ${var.aws_region} --name ${aws_eks_cluster.main[0].name}" : "N/A - Not using EKS"
 }
 
 # ============================================================================
@@ -152,6 +191,38 @@ output "kubectl_config_command" {
 output "deployment_summary" {
   description = "Summary of the deployment"
   value = <<-EOT
+%{if var.deploy_mode == "eks"}╔════════════════════════════════════════════════════════╗
+║  AWS EKS DEPLOYMENT SUCCESSFUL                         ║
+╚════════════════════════════════════════════════════════╝
+
+Deployment Mode: AWS EKS (Elastic Kubernetes Service)
+
+EKS Cluster Information:
+  • Cluster Name: ${aws_eks_cluster.main[0].name}
+  • Cluster Endpoint: ${aws_eks_cluster.main[0].endpoint}
+  • Kubernetes Version: ${aws_eks_cluster.main[0].version}
+  • Region: ${var.aws_region}
+  • Node Group: ${aws_eks_node_group.main[0].id}
+  • Node Instance Type: ${var.eks_node_instance_type}
+  • Desired Nodes: ${var.eks_node_desired_size}
+
+Configure kubectl:
+  aws eks update-kubeconfig --region ${var.aws_region} --name ${aws_eks_cluster.main[0].name}
+
+Next Steps:
+  1. Configure kubectl using the command above
+  2. Deploy application: kubectl apply -f k8s/
+  3. Get LoadBalancer URL: kubectl get svc -n achat-app
+
+Kubernetes Commands:
+  • kubectl get nodes
+  • kubectl get pods -n achat-app
+  • kubectl get svc -n achat-app
+  • kubectl logs -n achat-app -l app=achat-app
+
+Docker Image:
+  → ${var.docker_image}
+%{~endif~}
 %{if var.deploy_mode == "k8s"}╔════════════════════════════════════════════════════════╗
 ║  KUBERNETES DEPLOYMENT SUCCESSFUL                      ║
 ╚════════════════════════════════════════════════════════╝
@@ -180,7 +251,8 @@ Kubernetes Commands (run on instance):
 
 Docker Image:
   → ${var.docker_image}
-%{else}╔════════════════════════════════════════════════════════╗
+%{~endif~}
+%{if var.deploy_mode == "ec2"}╔════════════════════════════════════════════════════════╗
 ║  EC2 DEPLOYMENT SUCCESSFUL                             ║
 ╚════════════════════════════════════════════════════════╝
 

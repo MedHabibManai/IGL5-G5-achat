@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
       - name: achat-app
-        image: rayenslouma/achat-app:latest
+        image: ${DOCKER_IMAGE}
         imagePullPolicy: Always
         ports:
         - containerPort: 8089
