@@ -92,7 +92,8 @@ resource "aws_instance" "k8s" {
     )
   }
 
-  user_data = base64encode(local.k8s_user_data)
+  # user_data expects plain text - Terraform will base64 encode it automatically
+  user_data = local.k8s_user_data
 
   tags = merge(
     var.common_tags,
