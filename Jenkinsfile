@@ -1059,7 +1059,6 @@ EOF
 
         stage('Deploy to Kubernetes') {
             when {
-                branch 'main'
                 expression { return fileExists('k8s/deployment.yaml') }
             }
             steps {
