@@ -151,62 +151,63 @@ output "kubectl_config_command" {
 
 output "deployment_summary" {
   description = "Summary of the deployment"
-  value = var.deploy_mode == "k8s" ? <<-EOTK8S
-    ╔════════════════════════════════════════════════════════╗
-    ║  KUBERNETES DEPLOYMENT SUCCESSFUL                      ║
-    ╚════════════════════════════════════════════════════════╝
+  value = var.deploy_mode == "k8s" ? <<-EOT
+╔════════════════════════════════════════════════════════╗
+║  KUBERNETES DEPLOYMENT SUCCESSFUL                      ║
+╚════════════════════════════════════════════════════════╝
 
-    Deployment Mode: Kubernetes (k3s)
+Deployment Mode: Kubernetes (k3s)
 
-    Application URLs:
-      → Main: http://${aws_instance.k8s.public_ip}/SpringMVC/
-      → Health: http://${aws_instance.k8s.public_ip}/SpringMVC/actuator/health
-      → Swagger: http://${aws_instance.k8s.public_ip}/SpringMVC/swagger-ui/
+Application URLs:
+  → Main: http://${aws_instance.k8s.public_ip}/SpringMVC/
+  → Health: http://${aws_instance.k8s.public_ip}/SpringMVC/actuator/health
+  → Swagger: http://${aws_instance.k8s.public_ip}/SpringMVC/swagger-ui/
 
-    Kubernetes Cluster:
-      • Instance ID: ${aws_instance.k8s.id}
-      • Instance Type: ${aws_instance.k8s.instance_type}
-      • Public IP: ${aws_instance.k8s.public_ip}
-      • Region: ${var.aws_region}
-      • K8s Distribution: k3s (lightweight Kubernetes)
+Kubernetes Cluster:
+  • Instance ID: ${aws_instance.k8s.id}
+  • Instance Type: ${aws_instance.k8s.instance_type}
+  • Public IP: ${aws_instance.k8s.public_ip}
+  • Region: ${var.aws_region}
+  • K8s Distribution: k3s (lightweight Kubernetes)
 
-    Connect to Cluster:
-      SSM: aws ssm start-session --target ${aws_instance.k8s.id} --region ${var.aws_region}
+Connect to Cluster:
+  SSM: aws ssm start-session --target ${aws_instance.k8s.id} --region ${var.aws_region}
 
-    Kubernetes Commands (run on instance):
-      • kubectl get pods -n achat-app
-      • kubectl get svc -n achat-app
-      • kubectl logs -n achat-app -l app=achat-app
+Kubernetes Commands (run on instance):
+  • kubectl get pods -n achat-app
+  • kubectl get svc -n achat-app
+  • kubectl logs -n achat-app -l app=achat-app
 
-    Docker Image:
-      → ${var.docker_image}
+Docker Image:
+  → ${var.docker_image}
 
-    ════════════════════════════════════════════════════════
-  EOTK8S : <<-EOTEC2
-    ╔════════════════════════════════════════════════════════╗
-    ║  EC2 DEPLOYMENT SUCCESSFUL                             ║
-    ╚════════════════════════════════════════════════════════╝
+════════════════════════════════════════════════════════
+EOT
+ : <<-EOT
+╔════════════════════════════════════════════════════════╗
+║  EC2 DEPLOYMENT SUCCESSFUL                             ║
+╚════════════════════════════════════════════════════════╝
 
-    Deployment Mode: Standalone EC2
+Deployment Mode: Standalone EC2
 
-    Application URLs:
-      → Main: http://${aws_eip.app[0].public_ip}:${var.app_port}/SpringMVC/
-      → Health: http://${aws_eip.app[0].public_ip}:${var.app_port}/SpringMVC/actuator/health
-      → Swagger: http://${aws_eip.app[0].public_ip}:${var.app_port}/SpringMVC/swagger-ui/
+Application URLs:
+  → Main: http://${aws_eip.app[0].public_ip}:${var.app_port}/SpringMVC/
+  → Health: http://${aws_eip.app[0].public_ip}:${var.app_port}/SpringMVC/actuator/health
+  → Swagger: http://${aws_eip.app[0].public_ip}:${var.app_port}/SpringMVC/swagger-ui/
 
-    Instance Details:
-      • Instance ID: ${aws_instance.app[0].id}
-      • Instance Type: ${aws_instance.app[0].instance_type}
-      • Public IP: ${aws_eip.app[0].public_ip}
-      • Region: ${var.aws_region}
+Instance Details:
+  • Instance ID: ${aws_instance.app[0].id}
+  • Instance Type: ${aws_instance.app[0].instance_type}
+  • Public IP: ${aws_eip.app[0].public_ip}
+  • Region: ${var.aws_region}
 
-    Connect to Instance:
-      SSM: aws ssm start-session --target ${aws_instance.app[0].id} --region ${var.aws_region}
+Connect to Instance:
+  SSM: aws ssm start-session --target ${aws_instance.app[0].id} --region ${var.aws_region}
 
-    Docker Image:
-      → ${var.docker_image}
+Docker Image:
+  → ${var.docker_image}
 
-    ════════════════════════════════════════════════════════
-  EOTEC2
+════════════════════════════════════════════════════════
+EOT
 }
 
