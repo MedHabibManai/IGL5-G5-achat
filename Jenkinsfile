@@ -410,12 +410,32 @@ EOF
                                             safe_delete "aws rds delete-db-instance --region ${AWS_REGION} --db-instance-identifier $db_id --skip-final-snapshot"
                                         done
                                         echo "    Waiting for RDS instances to delete (this may take 5-10 minutes)..."
-                                        sleep 60
+                                        echo "    Checking deletion status every 30 seconds..."
+                                        for db_id in $DB_INSTANCES; do
+                                            WAIT_COUNT=0
+                                            MAX_WAIT=20  # 20 * 30 seconds = 10 minutes max
+                                            while [ \$WAIT_COUNT -lt \$MAX_WAIT ]; do
+                                                DB_STATUS=\$(aws rds describe-db-instances \
+                                                    --region ${AWS_REGION} \
+                                                    --db-instance-identifier \$db_id \
+                                                    --query 'DBInstances[0].DBInstanceStatus' \
+                                                    --output text 2>/dev/null || echo "deleted")
+                                                
+                                                if [ "\$DB_STATUS" = "deleted" ] || [ "\$DB_STATUS" = "None" ]; then
+                                                    echo "      ✓ RDS instance \$db_id fully deleted"
+                                                    break
+                                                else
+                                                    echo "      Status: \$DB_STATUS (waiting...)"
+                                                    sleep 30
+                                                    WAIT_COUNT=\$((WAIT_COUNT + 1))
+                                                fi
+                                            done
+                                        done
                                     else
                                         echo "    No RDS instances found"
                                     fi
                                     
-                                    # 2.5. Delete DB Subnet Groups
+                                    # 2.5. Delete DB Subnet Groups (only after RDS is fully deleted)
                                     echo ""
                                     echo "  2.5. Deleting DB Subnet Groups..."
                                     DB_SUBNET_GROUPS=$(aws rds describe-db-subnet-groups \
