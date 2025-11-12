@@ -1071,10 +1071,18 @@ EOF
                 
                 // Deploy to Kubernetes
                 withKubeConfig([credentialsId: 'kubeconfig-credentials']) {
-                    sh '''
+                    sh """
+                        # Update deployment image to use current build number
+                        kubectl set image deployment/achat-app -n achat-app \\
+                            achat-app=${DOCKER_REGISTRY}/habibmanai/${DOCKER_IMAGE_NAME}:${BUILD_NUMBER} \\
+                            --record || echo "Deployment doesn't exist yet, applying manifests..."
+                        
+                        # Apply all manifests
                         kubectl apply -f k8s/
-                        kubectl rollout status deployment/achat-app
-                    '''
+                        
+                        # Wait for rollout to complete
+                        kubectl rollout status deployment/achat-app -n achat-app
+                    """
                 }
                 
                 script {
