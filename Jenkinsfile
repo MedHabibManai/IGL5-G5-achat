@@ -741,10 +741,13 @@ EOF
                                         
                                         # Import private route table association
                                         if [ -n "$PRIVATE_SUBNET_ID" ]; then
-                                            PRIVATE_RTB_ASSOC=$(aws ec2 describe-route-tables --region ${AWS_REGION} --route-table-id $PRIVATE_RTB --query "RouteTables[0].Associations[?SubnetId=='$PRIVATE_SUBNET_ID'].RouteTableAssociationId | [0]" --output text 2>/dev/null || echo "")
+                                            # Get association ID without using JMESPath filter (more reliable)
+                                            PRIVATE_RTB_ASSOC=$(aws ec2 describe-route-tables --region ${AWS_REGION} --route-table-ids $PRIVATE_RTB --query "RouteTables[0].Associations[?SubnetId==\`$PRIVATE_SUBNET_ID\`].RouteTableAssociationId" --output text 2>/dev/null | awk '{print $1}')
                                             if [ -n "$PRIVATE_RTB_ASSOC" ] && [ "$PRIVATE_RTB_ASSOC" != "None" ]; then
                                                 echo "Importing private route table association: $PRIVATE_RTB_ASSOC"
                                                 terraform import -var="docker_image=${TF_VAR_docker_image}" 'aws_route_table_association.private[0]' $PRIVATE_RTB_ASSOC 2>/dev/null || echo "  (already in state)"
+                                            else
+                                                echo "No private route table association found (will be created)"
                                             fi
                                         fi
                                     fi
