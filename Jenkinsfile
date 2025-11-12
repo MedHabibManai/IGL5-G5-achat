@@ -741,8 +741,8 @@ EOF
                                         
                                         # Import private route table association
                                         if [ -n "$PRIVATE_SUBNET_ID" ]; then
-                                            # Get association ID using grep instead of JMESPath to avoid escaping issues
-                                            PRIVATE_RTB_ASSOC=$(aws ec2 describe-route-tables --region ${AWS_REGION} --route-table-ids $PRIVATE_RTB --output json 2>/dev/null | grep -A5 "SubnetId.*$PRIVATE_SUBNET_ID" | grep "RouteTableAssociationId" | head -1 | cut -d'"' -f4)
+                                            # Get association ID using simpler approach
+                                            PRIVATE_RTB_ASSOC=$(aws ec2 describe-route-tables --region ${AWS_REGION} --route-table-ids $PRIVATE_RTB --output json 2>/dev/null | grep -A2 "$PRIVATE_SUBNET_ID" | grep "RouteTableAssociationId" | cut -d':' -f2 | tr -d ' ",' | head -1)
                                             if [ -n "$PRIVATE_RTB_ASSOC" ] && [ "$PRIVATE_RTB_ASSOC" != "None" ]; then
                                                 echo "Importing private route table association: $PRIVATE_RTB_ASSOC"
                                                 terraform import -var="docker_image=${TF_VAR_docker_image}" 'aws_route_table_association.private[0]' $PRIVATE_RTB_ASSOC 2>/dev/null || echo "  (already in state)"
@@ -767,6 +767,23 @@ EOF
                             echo "======================================"
                             echo "Destroying only EC2 instance..."
                             echo "======================================"
+                            
+                            # Import existing EIP if it exists (from previous build)
+                            echo "Checking for existing EIP from previous build..."
+                            EXISTING_EIP=$(aws ec2 describe-addresses --region ${AWS_REGION} --filters "Name=tag:Name,Values=achat-app-eip" --query "Addresses[0].AllocationId" --output text 2>/dev/null || echo "")
+                            if [ -n "$EXISTING_EIP" ] && [ "$EXISTING_EIP" != "None" ]; then
+                                echo "Found existing EIP: $EXISTING_EIP - importing to destroy it"
+                                terraform import -var="docker_image=${TF_VAR_docker_image}" aws_eip.app $EXISTING_EIP 2>/dev/null || echo "  (already in state or doesn't exist)"
+                                
+                                # Also import EIP association if it exists
+                                EXISTING_EIP_ASSOC=$(aws ec2 describe-addresses --region ${AWS_REGION} --allocation-ids $EXISTING_EIP --query "Addresses[0].AssociationId" --output text 2>/dev/null || echo "")
+                                if [ -n "$EXISTING_EIP_ASSOC" ] && [ "$EXISTING_EIP_ASSOC" != "None" ]; then
+                                    echo "Found existing EIP association: $EXISTING_EIP_ASSOC - importing to destroy it"
+                                    terraform import -var="docker_image=${TF_VAR_docker_image}" aws_eip_association.app $EXISTING_EIP_ASSOC 2>/dev/null || echo "  (already in state or doesn't exist)"
+                                fi
+                            else
+                                echo "No existing EIP found from previous build"
+                            fi
                             
                             # Destroy only EC2 and EIP
                             terraform destroy -auto-approve \
