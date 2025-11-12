@@ -447,6 +447,68 @@ EOF
                                         echo "    No DB subnet groups found"
                                     fi
                                     
+                                    # 2.6. Delete EKS Resources
+                                    echo ""
+                                    echo "  2.6. Deleting EKS Resources..."
+                                    
+                                    # Check if EKS cluster exists
+                                    EKS_CLUSTER=$(aws eks describe-cluster --region ${AWS_REGION} --name achat-app-eks-cluster --query "cluster.name" --output text 2>/dev/null || echo "")
+                                    if [ -n "$EKS_CLUSTER" ] && [ "$EKS_CLUSTER" != "None" ]; then
+                                        echo "    Found EKS cluster: $EKS_CLUSTER"
+                                        
+                                        # Delete node groups first
+                                        echo "    Checking for EKS node groups..."
+                                        NODE_GROUPS=$(aws eks list-nodegroups --region ${AWS_REGION} --cluster-name achat-app-eks-cluster --query "nodegroups[*]" --output text 2>/dev/null || echo "")
+                                        if [ -n "$NODE_GROUPS" ]; then
+                                            for node_group in $NODE_GROUPS; do
+                                                echo "      Deleting node group: $node_group"
+                                                safe_delete "aws eks delete-nodegroup --region ${AWS_REGION} --cluster-name achat-app-eks-cluster --nodegroup-name $node_group"
+                                            done
+                                            
+                                            echo "    Waiting for node groups to delete (may take 3-5 minutes)..."
+                                            echo "    Checking deletion status every 30 seconds..."
+                                            WAIT_COUNT=0
+                                            MAX_WAIT=10  # 10 * 30 seconds = 5 minutes max
+                                            while [ \$WAIT_COUNT -lt \$MAX_WAIT ]; do
+                                                REMAINING=$(aws eks list-nodegroups --region ${AWS_REGION} --cluster-name achat-app-eks-cluster --query "nodegroups[*]" --output text 2>/dev/null | wc -w || echo "0")
+                                                
+                                                if [ "\$REMAINING" = "0" ]; then
+                                                    echo "      ✓ All node groups deleted"
+                                                    break
+                                                else
+                                                    echo "      Still \$REMAINING node group(s) deleting..."
+                                                    sleep 30
+                                                    WAIT_COUNT=\$((WAIT_COUNT + 1))
+                                                fi
+                                            done
+                                        else
+                                            echo "      No node groups found"
+                                        fi
+                                        
+                                        # Now delete the cluster
+                                        echo "    Deleting EKS cluster: $EKS_CLUSTER"
+                                        safe_delete "aws eks delete-cluster --region ${AWS_REGION} --name achat-app-eks-cluster"
+                                        
+                                        echo "    Waiting for cluster deletion (may take 10-15 minutes)..."
+                                        echo "    Checking status every 30 seconds..."
+                                        WAIT_COUNT=0
+                                        MAX_WAIT=30  # 30 * 30 seconds = 15 minutes max
+                                        while [ \$WAIT_COUNT -lt \$MAX_WAIT ]; do
+                                            CLUSTER_STATUS=$(aws eks describe-cluster --region ${AWS_REGION} --name achat-app-eks-cluster --query "cluster.status" --output text 2>/dev/null || echo "DELETED")
+                                            
+                                            if [ "\$CLUSTER_STATUS" = "DELETED" ] || [ -z "\$CLUSTER_STATUS" ]; then
+                                                echo "      ✓ EKS cluster deleted"
+                                                break
+                                            else
+                                                echo "      Status: \$CLUSTER_STATUS (waiting...)"
+                                                sleep 30
+                                                WAIT_COUNT=\$((WAIT_COUNT + 1))
+                                            fi
+                                        done
+                                    else
+                                        echo "    No EKS cluster found"
+                                    fi
+                                    
                                     # 3. Delete NAT Gateways
                                     echo ""
                                     echo "  3. Deleting NAT Gateways..."
