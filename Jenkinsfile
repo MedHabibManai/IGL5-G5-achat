@@ -690,6 +690,74 @@ EOF
                                     echo "Importing DB subnet group: $DB_SUBNET_GROUP"
                                     terraform import -var="docker_image=${TF_VAR_docker_image}" aws_db_subnet_group.main $DB_SUBNET_GROUP 2>/dev/null || echo "  (already in state)"
                                 fi
+                                
+                                # Import EKS resources if they exist
+                                echo "Checking for existing EKS resources..."
+                                EKS_CLUSTER=$(aws eks describe-cluster --region ${AWS_REGION} --name achat-app-eks-cluster --query "cluster.name" --output text 2>/dev/null || echo "")
+                                if [ -n "$EKS_CLUSTER" ] && [ "$EKS_CLUSTER" != "None" ]; then
+                                    echo "Found existing EKS cluster: $EKS_CLUSTER"
+                                    echo "Importing EKS cluster..."
+                                    terraform import -var="docker_image=${TF_VAR_docker_image}" 'aws_eks_cluster.main[0]' $EKS_CLUSTER 2>/dev/null || echo "  (already in state)"
+                                    
+                                    # Import EKS node group
+                                    NODE_GROUP=$(aws eks describe-nodegroup --region ${AWS_REGION} --cluster-name achat-app-eks-cluster --nodegroup-name achat-app-node-group --query "nodegroup.nodegroupName" --output text 2>/dev/null || echo "")
+                                    if [ -n "$NODE_GROUP" ] && [ "$NODE_GROUP" != "None" ]; then
+                                        echo "Importing EKS node group: $NODE_GROUP"
+                                        terraform import -var="docker_image=${TF_VAR_docker_image}" 'aws_eks_node_group.main[0]' "achat-app-eks-cluster:achat-app-node-group" 2>/dev/null || echo "  (already in state)"
+                                    fi
+                                    
+                                    # Import EKS security groups
+                                    EKS_CLUSTER_SG=$(aws ec2 describe-security-groups --region ${AWS_REGION} --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=achat-app-eks-cluster-sg" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || echo "")
+                                    if [ -n "$EKS_CLUSTER_SG" ] && [ "$EKS_CLUSTER_SG" != "None" ]; then
+                                        echo "Importing EKS cluster security group: $EKS_CLUSTER_SG"
+                                        terraform import -var="docker_image=${TF_VAR_docker_image}" 'aws_security_group.eks_cluster[0]' $EKS_CLUSTER_SG 2>/dev/null || echo "  (already in state)"
+                                    fi
+                                    
+                                    EKS_NODES_SG=$(aws ec2 describe-security-groups --region ${AWS_REGION} --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=achat-app-eks-nodes-sg" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || echo "")
+                                    if [ -n "$EKS_NODES_SG" ] && [ "$EKS_NODES_SG" != "None" ]; then
+                                        echo "Importing EKS nodes security group: $EKS_NODES_SG"
+                                        terraform import -var="docker_image=${TF_VAR_docker_image}" 'aws_security_group.eks_nodes[0]' $EKS_NODES_SG 2>/dev/null || echo "  (already in state)"
+                                    fi
+                                    
+                                    # Import NAT Gateway and EIP
+                                    NAT_GW=$(aws ec2 describe-nat-gateways --region ${AWS_REGION} --filter "Name=vpc-id,Values=$VPC_ID" "Name=state,Values=available" --query "NatGateways[0].NatGatewayId" --output text 2>/dev/null || echo "")
+                                    if [ -n "$NAT_GW" ] && [ "$NAT_GW" != "None" ]; then
+                                        echo "Importing NAT Gateway: $NAT_GW"
+                                        terraform import -var="docker_image=${TF_VAR_docker_image}" 'aws_nat_gateway.main[0]' $NAT_GW 2>/dev/null || echo "  (already in state)"
+                                        
+                                        # Get NAT EIP
+                                        NAT_EIP=$(aws ec2 describe-nat-gateways --region ${AWS_REGION} --nat-gateway-ids $NAT_GW --query "NatGateways[0].NatGatewayAddresses[0].AllocationId" --output text 2>/dev/null || echo "")
+                                        if [ -n "$NAT_EIP" ] && [ "$NAT_EIP" != "None" ]; then
+                                            echo "Importing NAT EIP: $NAT_EIP"
+                                            terraform import -var="docker_image=${TF_VAR_docker_image}" 'aws_eip.nat[0]' $NAT_EIP 2>/dev/null || echo "  (already in state)"
+                                        fi
+                                    fi
+                                    
+                                    # Import private route table
+                                    PRIVATE_RTB=$(aws ec2 describe-route-tables --region ${AWS_REGION} --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=achat-app-private-rt" --query "RouteTables[0].RouteTableId" --output text 2>/dev/null || echo "")
+                                    if [ -n "$PRIVATE_RTB" ] && [ "$PRIVATE_RTB" != "None" ]; then
+                                        echo "Importing private route table: $PRIVATE_RTB"
+                                        terraform import -var="docker_image=${TF_VAR_docker_image}" 'aws_route_table.private[0]' $PRIVATE_RTB 2>/dev/null || echo "  (already in state)"
+                                        
+                                        # Import private route table association
+                                        if [ -n "$PRIVATE_SUBNET_ID" ]; then
+                                            PRIVATE_RTB_ASSOC=$(aws ec2 describe-route-tables --region ${AWS_REGION} --route-table-id $PRIVATE_RTB --query "RouteTables[0].Associations[?SubnetId=='$PRIVATE_SUBNET_ID'].RouteTableAssociationId | [0]" --output text 2>/dev/null || echo "")
+                                            if [ -n "$PRIVATE_RTB_ASSOC" ] && [ "$PRIVATE_RTB_ASSOC" != "None" ]; then
+                                                echo "Importing private route table association: $PRIVATE_RTB_ASSOC"
+                                                terraform import -var="docker_image=${TF_VAR_docker_image}" 'aws_route_table_association.private[0]' $PRIVATE_RTB_ASSOC 2>/dev/null || echo "  (already in state)"
+                                            fi
+                                        fi
+                                    fi
+                                    
+                                    # Import subnet tags for EKS
+                                    if [ -n "$PUBLIC_SUBNET_ID" ]; then
+                                        echo "Importing EKS subnet tags..."
+                                        terraform import -var="docker_image=${TF_VAR_docker_image}" 'aws_ec2_tag.public_subnet_eks[0]' "$PUBLIC_SUBNET_ID,kubernetes.io/cluster/achat-app-eks-cluster" 2>/dev/null || echo "  (already in state)"
+                                        terraform import -var="docker_image=${TF_VAR_docker_image}" 'aws_ec2_tag.public_subnet_elb[0]' "$PUBLIC_SUBNET_ID,kubernetes.io/role/elb" 2>/dev/null || echo "  (already in state)"
+                                    fi
+                                else
+                                    echo "No EKS cluster found - will be created if terraform.tfvars has create_eks=true"
+                                fi
                             fi
                             
                             echo ""
