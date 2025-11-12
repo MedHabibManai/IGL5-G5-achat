@@ -179,7 +179,7 @@ output "ssm_connect_command" {
   value       = var.deploy_mode == "ec2" ? "aws ssm start-session --target ${aws_instance.app[0].id} --region ${var.aws_region}" : "aws ssm start-session --target ${aws_instance.k8s.id} --region ${var.aws_region}"
 }
 
-output "kubectl_config_command" {
+output "k8s_kubeconfig_command" {
   description = "Command to get kubeconfig (k8s mode only)"
   value       = var.deploy_mode == "k8s" ? "aws ssm start-session --target ${aws_instance.k8s.id} --region ${var.aws_region} --document-name AWS-StartInteractiveCommand --parameters command='cat /root/.kube/config'" : "N/A - Not in Kubernetes mode"
 }
