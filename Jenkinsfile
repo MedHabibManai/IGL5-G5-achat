@@ -50,7 +50,8 @@ pipeline {
         AWS_REGION = 'us-east-1'
         AWS_CREDENTIAL_ID = 'aws-sandbox-credentials'
         TERRAFORM_DIR = 'terraform'
-        TF_VAR_docker_image = "${DOCKER_REGISTRY}/rayenslouma/${DOCKER_IMAGE}"
+        DOCKER_HUB_USER = '' // Will be set from credentials
+        TF_VAR_docker_image = "${DOCKER_REGISTRY}/habibmanai/${DOCKER_IMAGE}"
     }
     
     stages {
