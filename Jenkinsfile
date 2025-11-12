@@ -1219,14 +1219,19 @@ EOF
                         ).trim()
 
                         if (appUrl) {
-                            echo "Waiting for application to start (60 seconds)..."
-                            sleep(60)
+                            // For k8s deployments, wait longer for k3s installation and app deployment
+                            def waitTime = env.TF_VAR_deploy_mode == 'k8s' ? 300 : 60
+                            def retryCount = env.TF_VAR_deploy_mode == 'k8s' ? 10 : 5
+
+                            echo "Waiting for application to start (${waitTime} seconds)..."
+                            echo "Deploy mode: ${env.TF_VAR_deploy_mode}"
+                            sleep(waitTime)
 
                             echo "Checking application health..."
                             // Application runs with context path /SpringMVC
                             def healthUrl = "${appUrl}/SpringMVC/actuator/health"
 
-                            retry(5) {
+                            retry(retryCount) {
                                 sleep(10)
                                 sh """
                                     curl -f ${healthUrl} || exit 1
