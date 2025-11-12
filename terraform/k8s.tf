@@ -71,11 +71,11 @@ resource "aws_security_group" "k8s" {
 # ============================================================================
 
 resource "aws_instance" "k8s" {
-  ami                    = data.aws_ami.amazon_linux_2023.id
+  ami                    = local.amazon_linux_2023_ami
   instance_type          = var.k8s_instance_type
   subnet_id              = aws_subnet.public.id
   vpc_security_group_ids = [aws_security_group.k8s.id]
-  iam_instance_profile   = data.aws_iam_instance_profile.lab_profile.name
+  iam_instance_profile   = local.lab_instance_profile_name
 
   # Increased volume size for Kubernetes and Docker images
   root_block_device {

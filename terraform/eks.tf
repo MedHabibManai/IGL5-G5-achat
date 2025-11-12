@@ -129,7 +129,7 @@ resource "aws_security_group" "eks_nodes" {
 resource "aws_eks_cluster" "main" {
   count    = var.deploy_mode == "eks" ? 1 : 0
   name     = "${var.project_name}-eks-cluster"
-  role_arn = data.aws_iam_role.lab_role.arn
+  role_arn = local.lab_role_arn
   version  = var.eks_cluster_version
 
   vpc_config {
@@ -164,7 +164,7 @@ resource "aws_eks_node_group" "main" {
   count           = var.deploy_mode == "eks" ? 1 : 0
   cluster_name    = aws_eks_cluster.main[0].name
   node_group_name = "${var.project_name}-eks-node-group"
-  node_role_arn   = data.aws_iam_role.lab_role.arn
+  node_role_arn   = local.lab_role_arn
   subnet_ids      = [aws_subnet.public.id, aws_subnet.private.id]
 
   scaling_config {
@@ -250,7 +250,7 @@ resource "aws_eks_addon" "kube_proxy" {
 resource "aws_subnet" "private" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.2.0/24"
-  availability_zone       = data.aws_availability_zones.available.names[0]
+  availability_zone       = local.availability_zones[1]
   map_public_ip_on_launch = false
 
   tags = merge(
