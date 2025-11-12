@@ -407,12 +407,11 @@ resource "aws_instance" "app" {
 }
 
 # ============================================================================
-# Elastic IP (Optional - for static IP)
+# Elastic IP (for static public IP)
 # ============================================================================
 
 resource "aws_eip" "app" {
-  instance = aws_instance.app.id
-  domain   = "vpc"
+  domain = "vpc"
 
   tags = merge(
     var.common_tags,
@@ -424,3 +423,8 @@ resource "aws_eip" "app" {
   depends_on = [aws_internet_gateway.main]
 }
 
+# Associate Elastic IP with EC2 instance
+resource "aws_eip_association" "app" {
+  instance_id   = aws_instance.app.id
+  allocation_id = aws_eip.app.id
+}
