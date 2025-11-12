@@ -1247,17 +1247,26 @@ EOF
 
                             // Create namespace
                             sh """
+                                export AWS_SHARED_CREDENTIALS_FILE=/var/jenkins_home/.aws/credentials
+                                export AWS_CONFIG_FILE=/var/jenkins_home/.aws/config
+                                export AWS_PAGER=''
                                 kubectl apply -f ../k8s/namespace.yaml
                             """
 
                             // Replace image placeholder in deployment
                             sh """
+                                export AWS_SHARED_CREDENTIALS_FILE=/var/jenkins_home/.aws/credentials
+                                export AWS_CONFIG_FILE=/var/jenkins_home/.aws/config
+                                export AWS_PAGER=''
                                 export DOCKER_IMAGE="${TF_VAR_docker_image}"
-                                envsubst < ../k8s/deployment.yaml | kubectl apply -f -
+                                sed "s|\\\${DOCKER_IMAGE}|${TF_VAR_docker_image}|g" ../k8s/deployment.yaml | kubectl apply -f -
                             """
 
                             // Apply LoadBalancer service for EKS
                             sh """
+                                export AWS_SHARED_CREDENTIALS_FILE=/var/jenkins_home/.aws/credentials
+                                export AWS_CONFIG_FILE=/var/jenkins_home/.aws/config
+                                export AWS_PAGER=''
                                 kubectl apply -f ../k8s/service-eks.yaml
                             """
 
@@ -1380,6 +1389,9 @@ EOF
                     // Get LoadBalancer URL
                     def lbUrl = sh(
                         script: '''
+                            export AWS_SHARED_CREDENTIALS_FILE=/var/jenkins_home/.aws/credentials
+                            export AWS_CONFIG_FILE=/var/jenkins_home/.aws/config
+                            export AWS_PAGER=''
                             kubectl get svc achat-app-service -n achat-app -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo ""
                         ''',
                         returnStdout: true
