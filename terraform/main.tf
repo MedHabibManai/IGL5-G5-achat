@@ -317,9 +317,10 @@ locals {
       --name ${var.app_name} \
       --restart unless-stopped \
       -p ${var.app_port}:${var.app_port} \
-      -e SPRING_DATASOURCE_URL=jdbc:mysql://${aws_db_instance.mysql.address}:3306/achatdb?useUnicode=true&useJDBCCompliantTimezoneShift=true&useLegacyDatetimeCode=false&serverTimezone=UTC \
-      -e SPRING_DATASOURCE_USERNAME=admin \
-      -e SPRING_DATASOURCE_PASSWORD=Admin123456! \
+      -e SPRING_DATASOURCE_URL="jdbc:mysql://${aws_db_instance.mysql.address}:3306/achatdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true" \
+      -e SPRING_DATASOURCE_USERNAME="admin" \
+      -e SPRING_DATASOURCE_PASSWORD="Admin123456!" \
+      -e SPRING_JPA_HIBERNATE_DDL_AUTO="update" \
       ${var.docker_image}
     
     # Wait a bit for container to start
