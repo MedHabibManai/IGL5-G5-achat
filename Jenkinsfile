@@ -1038,7 +1038,7 @@ EOF
                             sleep(300)  // 5 minutes
 
                             echo "Checking application health..."
-                            def healthUrl = "${appUrl}/SpringMVC/actuator/health"
+                            def healthUrl = "${appUrl}/actuator/health"
 
                             retry(12) {
                                 sleep(20)
