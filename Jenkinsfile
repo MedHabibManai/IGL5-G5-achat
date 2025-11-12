@@ -1355,18 +1355,45 @@ EOF
                                 
                                 // Deploy backend and frontend to EKS
                                 sh """
-                                    # Update backend deployment image
+                                    # Update backend deployment image (if exists)
                                     kubectl set image deployment/achat-app -n achat-app \\
                                         achat-app=${DOCKER_REGISTRY}/habibmanai/${DOCKER_IMAGE_NAME}:${BUILD_NUMBER} \\
-                                        --record || echo "Backend deployment doesn't exist yet"
+                                        --record 2>/dev/null || echo "Backend deployment doesn't exist yet"
                                     
-                                    # Update frontend deployment image
+                                    # Update frontend deployment image (if exists)
                                     kubectl set image deployment/achat-frontend -n achat-app \\
                                         frontend=${DOCKER_REGISTRY}/habibmanai/achat-frontend:${BUILD_NUMBER} \\
-                                        --record || echo "Frontend deployment doesn't exist yet"
+                                        --record 2>/dev/null || echo "Frontend deployment doesn't exist yet"
                                     
-                                    # Apply all Kubernetes manifests
-                                    kubectl apply -f ../k8s/
+                                    echo ""
+                                    echo "=== Applying Kubernetes manifests ==="
+                                    
+                                    # Apply namespace first
+                                    kubectl apply -f ../k8s/namespace.yaml
+                                    
+                                    # Wait for namespace to be ready
+                                    echo "Waiting for namespace to be ready..."
+                                    kubectl wait --for=jsonpath='{.status.phase}'=Active namespace/achat-app --timeout=30s
+                                    sleep 2
+                                    
+                                    # Apply secrets and configmaps
+                                    kubectl apply -f ../k8s/secret.yaml
+                                    kubectl apply -f ../k8s/configmap.yaml || echo "ConfigMap not found"
+                                    
+                                    # Apply services
+                                    kubectl apply -f ../k8s/service.yaml
+                                    
+                                    # Apply deployments
+                                    kubectl apply -f ../k8s/deployment.yaml
+                                    kubectl apply -f ../k8s/mysql-deployment.yaml
+                                    kubectl apply -f ../k8s/frontend-deployment.yaml
+                                    
+                                    # Apply ingress and HPA (if they exist)
+                                    kubectl apply -f ../k8s/ingress.yaml || echo "Ingress not found"
+                                    kubectl apply -f ../k8s/hpa.yaml || echo "HPA not found"
+                                    
+                                    echo ""
+                                    echo "=== Waiting for deployments to be ready ==="
                                     
                                     # Wait for backend rollout
                                     kubectl rollout status deployment/achat-app -n achat-app --timeout=5m
