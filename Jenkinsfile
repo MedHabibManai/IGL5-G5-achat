@@ -241,9 +241,6 @@ EOF
         }
         
         stage('Build Docker Image') {
-            when {
-                expression { return fileExists('Dockerfile') }
-            }
             steps {
                 script {
                     echo '========================================='
@@ -280,9 +277,6 @@ EOF
         }
         
         stage('Push Docker Image') {
-            when {
-                expression { return fileExists('Dockerfile') }
-            }
             steps {
                 script {
                     echo '========================================='
