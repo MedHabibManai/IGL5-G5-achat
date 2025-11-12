@@ -36,12 +36,12 @@ output "security_group_id" {
 
 output "iam_role_arn" {
   description = "ARN of the EC2 IAM role (AWS Academy LabRole)"
-  value       = data.aws_iam_role.lab_role.arn
+  value       = local.lab_role_arn
 }
 
 output "iam_instance_profile" {
   description = "Name of the IAM instance profile (AWS Academy LabInstanceProfile)"
-  value       = data.aws_iam_instance_profile.lab_profile.name
+  value       = local.lab_instance_profile_name
 }
 
 # ============================================================================
