@@ -1165,16 +1165,95 @@ EOF
             }
         }
 
-        stage('Deploy to Kubernetes') {
+        stage('Deploy to EKS') {
             when {
                 expression { return fileExists('k8s/deployment.yaml') }
             }
             steps {
                 script {
                     echo '========================================='
-                    echo 'Stage 13: Deploying to Kubernetes'
+                    echo 'Stage 13: Deploying to AWS EKS'
                     echo '========================================='
-                    echo 'Note: This stage requires Phase 5 setup'
+                }
+                
+                // Configure kubectl for EKS
+                withAWS(credentials: "${AWS_CREDENTIAL_ID}", region: "${AWS_REGION}") {
+                    dir("${TERRAFORM_DIR}") {
+                        script {
+                            // Get EKS cluster name from Terraform
+                            def eksClusterName = sh(
+                                script: 'terraform output -raw eks_cluster_name 2>/dev/null || echo ""',
+                                returnStdout: true
+                            ).trim()
+                            
+                            if (eksClusterName) {
+                                echo "Configuring kubectl for EKS cluster: ${eksClusterName}"
+                                
+                                // Update kubeconfig
+                                sh """
+                                    aws eks update-kubeconfig \\
+                                        --region ${AWS_REGION} \\
+                                        --name ${eksClusterName}
+                                """
+                                
+                                // Deploy backend and frontend to EKS
+                                sh """
+                                    # Update backend deployment image
+                                    kubectl set image deployment/achat-app -n achat-app \\
+                                        achat-app=${DOCKER_REGISTRY}/habibmanai/${DOCKER_IMAGE_NAME}:${BUILD_NUMBER} \\
+                                        --record || echo "Backend deployment doesn't exist yet"
+                                    
+                                    # Update frontend deployment image
+                                    kubectl set image deployment/achat-frontend -n achat-app \\
+                                        frontend=${DOCKER_REGISTRY}/habibmanai/achat-frontend:${BUILD_NUMBER} \\
+                                        --record || echo "Frontend deployment doesn't exist yet"
+                                    
+                                    # Apply all Kubernetes manifests
+                                    kubectl apply -f ../k8s/
+                                    
+                                    # Wait for backend rollout
+                                    kubectl rollout status deployment/achat-app -n achat-app --timeout=5m
+                                    
+                                    # Wait for frontend rollout
+                                    kubectl rollout status deployment/achat-frontend -n achat-app --timeout=5m
+                                    
+                                    # Get service endpoints
+                                    echo ""
+                                    echo "=== EKS Services ==="
+                                    kubectl get svc -n achat-app
+                                    
+                                    # Get Load Balancer URLs
+                                    echo ""
+                                    echo "=== Frontend LoadBalancer URL ==="
+                                    FRONTEND_URL=\$(kubectl get svc achat-frontend -n achat-app -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "Pending...")
+                                    echo "Frontend will be accessible at: http://\${FRONTEND_URL}"
+                                    
+                                    echo ""
+                                    echo "=== Backend LoadBalancer URL ==="
+                                    BACKEND_URL=\$(kubectl get svc achat-app -n achat-app -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "Pending...")
+                                    echo "Backend will be accessible at: http://\${BACKEND_URL}/SpringMVC"
+                                """
+                                
+                                echo '✓ Application deployed to EKS successfully!'
+                            } else {
+                                echo '⚠ EKS cluster not found. Skipping EKS deployment.'
+                                echo 'Run terraform apply to create EKS cluster first.'
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Deploy to Local Kubernetes') {
+            when {
+                expression { return fileExists('k8s/deployment.yaml') }
+            }
+            steps {
+                script {
+                    echo '========================================='
+                    echo 'Stage 14: Deploying to Local Kubernetes (Docker Desktop)'
+                    echo '========================================='
                 }
                 
                 // Deploy to Kubernetes
