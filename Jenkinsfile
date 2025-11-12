@@ -90,6 +90,7 @@ pipeline {
         AWS_CREDENTIAL_ID = 'aws-sandbox-credentials'
         TERRAFORM_DIR = 'terraform'
         TF_VAR_docker_image = "${DOCKER_REGISTRY}/rayenslouma/${DOCKER_IMAGE}"
+        TF_VAR_deploy_mode = 'k8s'  // Deployment mode: 'ec2' or 'k8s'
 
         // Terraform State Management
         // Store state in persistent Jenkins location (outside workspace)
@@ -118,6 +119,7 @@ pipeline {
                     echo "   Job Name:         ${JOB_NAME}"
                     echo "   AWS Region:       ${AWS_REGION}"
                     echo "   Docker Image:     ${TF_VAR_docker_image}"
+                    echo "   Deploy Mode:      ${TF_VAR_deploy_mode} (${TF_VAR_deploy_mode == 'k8s' ? 'Kubernetes cluster' : 'Standalone EC2'})"
                     echo ''
 
                     // Set up Terraform state directory
@@ -266,6 +268,9 @@ pipeline {
         }
 
         stage('Quality Gate') {
+            when {
+                expression { return !params.SKIP_SONARQUBE }
+            }
             steps {
                 script {
                     echo '========================================='
@@ -1059,11 +1064,13 @@ EOF
                         echo "Creating Terraform execution plan..."
                         terraform plan \
                           -var="docker_image=${TF_VAR_docker_image}" \
+                          -var="deploy_mode=${TF_VAR_deploy_mode}" \
                           -out=tfplan \
                           -input=false
 
                         echo ""
                         echo "Plan saved to: tfplan"
+                        echo "Deployment mode: ${TF_VAR_deploy_mode}"
                     '''
                 }
 

@@ -219,17 +219,19 @@ locals {
   EOF
 }
 
-# EC2 Instance
+# EC2 Instance (only created when deploy_mode = "ec2")
 resource "aws_instance" "app" {
+  count = var.deploy_mode == "ec2" ? 1 : 0
+
   ami                    = var.ami_id != "" ? var.ami_id : data.aws_ami.amazon_linux_2023.id
   instance_type          = var.instance_type
   subnet_id              = aws_subnet.public.id
   vpc_security_group_ids = [aws_security_group.app.id]
   iam_instance_profile   = data.aws_iam_instance_profile.lab_profile.name
   key_name               = var.key_name != "" ? var.key_name : null
-  
+
   user_data = local.user_data
-  
+
   monitoring = var.enable_monitoring
 
   root_block_device {
@@ -254,11 +256,13 @@ resource "aws_instance" "app" {
 }
 
 # ============================================================================
-# Elastic IP (Optional - for static IP)
+# Elastic IP (Optional - for static IP) - Only for EC2 mode
 # ============================================================================
 
 resource "aws_eip" "app" {
-  instance = aws_instance.app.id
+  count = var.deploy_mode == "ec2" ? 1 : 0
+
+  instance = aws_instance.app[0].id
   domain   = "vpc"
 
   tags = merge(

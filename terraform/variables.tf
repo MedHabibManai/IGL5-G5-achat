@@ -74,6 +74,22 @@ variable "root_volume_size" {
 }
 
 # ============================================================================
+# Kubernetes Configuration
+# ============================================================================
+
+variable "k8s_instance_type" {
+  description = "EC2 instance type for Kubernetes cluster"
+  type        = string
+  default     = "t2.medium"  # Minimum recommended for k3s with application
+}
+
+variable "deploy_mode" {
+  description = "Deployment mode: 'ec2' for standalone EC2, 'k8s' for Kubernetes cluster"
+  type        = string
+  default     = "k8s"
+}
+
+# ============================================================================
 # Application Configuration
 # ============================================================================
 
