@@ -567,15 +567,18 @@ EOF
                         echo '🗑️  State files removed'
 
                     } else {
-                        echo '⚠️  No Terraform state found - using AWS query-based cleanup...'
+                        echo '⚠️  No Terraform state found - skipping cleanup'
                         echo ''
-                        echo '🧹 Searching for existing Terraform-managed VPCs...'
+                        echo 'ℹ️  AWS Academy does not allow VPC query operations'
+                        echo 'ℹ️  If you need to cleanup, use AWS Console or set DEPLOY_ACTION=destroy with existing state'
+                        echo ''
                     }
                 }
 
                 script {
                     // Fallback: AWS query-based cleanup if no state exists
-                    if (!fileExists("${TERRAFORM_STATE_DIR}/terraform.tfstate")) {
+                    // DISABLED: AWS Academy does not allow ec2:DescribeVpcs operation
+                    if (false && !fileExists("${TERRAFORM_STATE_DIR}/terraform.tfstate")) {
                     // Find all VPCs with Name tag = "achat-app-vpc"
                     def vpcIds = sh(
                         script: '''
