@@ -104,6 +104,8 @@ terraform.tfvars
 .aws/
 credentials
 config
+aws-credentials
+aws-credentials-*
 
 # Kubernetes secrets
 k8s/secrets/
