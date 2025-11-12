@@ -1,0 +1,60 @@
+Stage 10: Deploying to Kubernetes
+[Pipeline] echo
+=========================================
+[Pipeline] echo
+Note: This stage requires Phase 5 setup
+[Pipeline] }
+[Pipeline] // script
+[Pipeline] withKubeConfig
+[Pipeline] {
+[Pipeline] sh
++ kubectl apply -f k8s/
+/var/jenkins_home/workspace/IGL5-G5-achat@tmp/durable-d19251a0/script.sh.copy: 2: kubectl: not found
+[Pipeline] }
+[kubernetes-cli] kubectl configuration cleaned up
+[Pipeline] // withKubeConfig
+[Pipeline] }
+[Pipeline] // withEnv
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Declarative: Post Actions)
+[Pipeline] script
+[Pipeline] {
+[Pipeline] echo
+=========================================
+[Pipeline] echo
+Pipeline Execution Summary
+[Pipeline] echo
+=========================================
+[Pipeline] echo
+Build Number: 53
+[Pipeline] echo
+Build Status: FAILURE
+[Pipeline] echo
+Duration: 13 min and counting
+[Pipeline] }
+[Pipeline] // script
+[Pipeline] cleanWs
+[WS-CLEANUP] Deleting project workspace...
+[WS-CLEANUP] Deferred wipeout is used...
+[WS-CLEANUP] done
+[Pipeline] script
+[Pipeline] {
+[Pipeline] echo
+✗✗✗ Pipeline failed! ✗✗✗
+[Pipeline] }
+[Pipeline] // script
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] }
+[Pipeline] // withEnv
+[Pipeline] }
+[Pipeline] // withEnv
+[Pipeline] }
+[Pipeline] // withEnv
+[Pipeline] }
+[Pipeline] // node
+[Pipeline] End of Pipeline
+ERROR: script returned exit code 127
+Finished: FAILURE

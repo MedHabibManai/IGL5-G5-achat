@@ -1057,6 +1057,114 @@ EOF
             }
         }
 
+        stage('Build Frontend') {
+            when {
+                expression { return fileExists('frontend/package.json') }
+            }
+            steps {
+                script {
+                    echo '========================================='
+                    echo 'Stage 10: Building Frontend Application'
+                    echo '========================================='
+                }
+                
+                dir('frontend') {
+                    script {
+                        // Get backend URL from Terraform output
+                        def backendUrl = ''
+                        dir("../${TERRAFORM_DIR}") {
+                            backendUrl = sh(
+                                script: 'terraform output -raw application_url 2>/dev/null || echo ""',
+                                returnStdout: true
+                            ).trim()
+                        }
+                        
+                        if (backendUrl) {
+                            echo "Backend URL: ${backendUrl}"
+                            
+                            // Create .env.production file with correct backend URL
+                            sh """
+                                echo "REACT_APP_API_URL=${backendUrl}" > .env.production
+                                cat .env.production
+                            """
+                        } else {
+                            echo "Warning: Could not get backend URL from Terraform"
+                        }
+                        
+                        // Install dependencies and build
+                        sh '''
+                            npm install
+                            npm run build
+                        '''
+                    }
+                }
+                
+                script {
+                    echo '✓ Frontend built successfully'
+                }
+            }
+        }
+
+        stage('Build Frontend Docker Image') {
+            when {
+                expression { return fileExists('frontend/Dockerfile') }
+            }
+            steps {
+                script {
+                    echo '========================================='
+                    echo 'Stage 11: Building Frontend Docker Image'
+                    echo '========================================='
+                }
+                
+                dir('frontend') {
+                    script {
+                        // Build Docker image
+                        sh """
+                            docker build -t ${DOCKER_REGISTRY}/habibmanai/achat-frontend:${BUILD_NUMBER} .
+                            docker tag ${DOCKER_REGISTRY}/habibmanai/achat-frontend:${BUILD_NUMBER} ${DOCKER_REGISTRY}/habibmanai/achat-frontend:latest
+                        """
+                    }
+                }
+                
+                script {
+                    echo '✓ Frontend Docker image built successfully'
+                }
+            }
+        }
+
+        stage('Push Frontend Docker Image') {
+            when {
+                expression { return fileExists('frontend/Dockerfile') }
+            }
+            steps {
+                script {
+                    echo '========================================='
+                    echo 'Stage 12: Pushing Frontend Image to Docker Hub'
+                    echo '========================================='
+                }
+                
+                script {
+                    // Push to Docker Hub
+                    withCredentials([usernamePassword(
+                        credentialsId: "${DOCKER_CREDENTIAL_ID}",
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )]) {
+                        sh """
+                            echo "\${DOCKER_PASS}" | docker login -u "\${DOCKER_USER}" --password-stdin ${DOCKER_REGISTRY}
+                            docker push ${DOCKER_REGISTRY}/habibmanai/achat-frontend:${BUILD_NUMBER}
+                            docker push ${DOCKER_REGISTRY}/habibmanai/achat-frontend:latest
+                        """
+                    }
+                }
+                
+                script {
+                    echo '✓ Frontend image pushed to Docker Hub'
+                    echo "Image: ${DOCKER_REGISTRY}/habibmanai/achat-frontend:${BUILD_NUMBER}"
+                }
+            }
+        }
+
         stage('Deploy to Kubernetes') {
             when {
                 expression { return fileExists('k8s/deployment.yaml') }
@@ -1064,7 +1172,7 @@ EOF
             steps {
                 script {
                     echo '========================================='
-                    echo 'Stage 10: Deploying to Kubernetes'
+                    echo 'Stage 13: Deploying to Kubernetes'
                     echo '========================================='
                     echo 'Note: This stage requires Phase 5 setup'
                 }

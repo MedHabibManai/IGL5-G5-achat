@@ -188,39 +188,39 @@ if (-not $SkipAWS) {
     Write-Header "Step 5: Installing AWS Tools in Jenkins"
 
     Write-Step "Installing AWS CLI v2..."
-    docker exec -u root jenkins-cicd bash -c @"
-        if ! command -v aws &> /dev/null; then
-            cd /tmp
-            curl -s 'https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip' -o 'awscliv2.zip'
-            unzip -q awscliv2.zip
-            ./aws/install
-            rm -rf aws awscliv2.zip
-            echo 'AWS CLI installed'
-        else
-            echo 'AWS CLI already installed'
-        fi
-"@ 2>$null
-
+    $awsInstallScript = @'
+if ! command -v aws &> /dev/null; then
+    cd /tmp
+    curl -s 'https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip' -o 'awscliv2.zip'
+    unzip -q awscliv2.zip
+    ./aws/install
+    rm -rf aws awscliv2.zip
+    echo 'AWS CLI installed'
+else
+    echo 'AWS CLI already installed'
+fi
+'@
+    docker exec -u root jenkins-cicd bash -c $awsInstallScript 2>$null
     Write-Success "AWS CLI installed!"
 
     Write-Step "Installing Terraform..."
-    docker exec -u root jenkins-cicd bash -c @"
-        if ! command -v terraform &> /dev/null; then
-            cd /tmp
-            wget -q https://releases.hashicorp.com/terraform/1.6.6/terraform_1.6.6_linux_amd64.zip
-            unzip -q terraform_1.6.6_linux_amd64.zip
-            mv terraform /usr/local/bin/
-            chmod +x /usr/local/bin/terraform
-            rm terraform_1.6.6_linux_amd64.zip
-            echo 'Terraform installed'
-        else
-            echo 'Terraform already installed'
-        fi
-"@ 2>$null
-
+    $terraformInstallScript = @'
+if ! command -v terraform &> /dev/null; then
+    cd /tmp
+    wget -q https://releases.hashicorp.com/terraform/1.6.6/terraform_1.6.6_linux_amd64.zip
+    unzip -q terraform_1.6.6_linux_amd64.zip
+    mv terraform /usr/local/bin/
+    chmod +x /usr/local/bin/terraform
+    rm terraform_1.6.6_linux_amd64.zip
+    echo 'Terraform installed'
+else
+    echo 'Terraform already installed'
+fi
+'@
+    docker exec -u root jenkins-cicd bash -c $terraformInstallScript 2>$null
     Write-Success "Terraform installed!"
 } else {
-    Write-Info "Skipping AWS tools installation (use -SkipAWS:$false to install)"
+    Write-Info "Skipping AWS tools installation (use -SkipAWS:`$false to install)"
 }
 
 # ============================================================================
@@ -286,4 +286,3 @@ Write-Host "══════════════════════�
 Write-Host ""
 Write-Host "✨ Setup complete! Happy DevOps-ing! ✨" -ForegroundColor Green
 Write-Host ""
-
