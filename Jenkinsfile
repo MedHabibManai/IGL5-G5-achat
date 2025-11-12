@@ -1355,6 +1355,16 @@ EOF
                                 
                                 // Deploy backend and frontend to EKS
                                 sh """
+                                    # Get RDS endpoint
+                                    RDS_ENDPOINT=\$(terraform output -raw db_endpoint 2>/dev/null || echo "")
+                                    
+                                    if [ -z "\$RDS_ENDPOINT" ]; then
+                                        echo "ERROR: Could not get RDS endpoint from Terraform"
+                                        exit 1
+                                    fi
+                                    
+                                    echo "RDS Endpoint: \$RDS_ENDPOINT"
+                                    
                                     # Update backend deployment image (if exists)
                                     kubectl set image deployment/achat-app -n achat-app \\
                                         achat-app=${DOCKER_REGISTRY}/habibmanai/${DOCKER_IMAGE_NAME}:${BUILD_NUMBER} \\
@@ -1376,16 +1386,17 @@ EOF
                                     kubectl wait --for=jsonpath='{.status.phase}'=Active namespace/achat-app --timeout=30s
                                     sleep 2
                                     
-                                    # Apply secrets and configmaps
+                                    # Apply secrets
                                     kubectl apply -f ../k8s/secret.yaml
-                                    kubectl apply -f ../k8s/configmap.yaml || echo "ConfigMap not found"
+                                    
+                                    # Update ConfigMap with actual RDS endpoint
+                                    sed "s|RDS_ENDPOINT_PLACEHOLDER|\$RDS_ENDPOINT|g" ../k8s/configmap.yaml | kubectl apply -f -
                                     
                                     # Apply services
                                     kubectl apply -f ../k8s/service.yaml
                                     
-                                    # Apply deployments
+                                    # Apply deployments (skip mysql-deployment.yaml since we use RDS)
                                     kubectl apply -f ../k8s/deployment.yaml
-                                    kubectl apply -f ../k8s/mysql-deployment.yaml
                                     kubectl apply -f ../k8s/frontend-deployment.yaml
                                     
                                     # Apply ingress and HPA (if they exist)

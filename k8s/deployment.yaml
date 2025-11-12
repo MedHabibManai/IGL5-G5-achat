@@ -32,9 +32,7 @@ spec:
           name: http
           protocol: TCP
         env:
-        # Database connection
-        - name: SPRING_DATASOURCE_URL
-          value: "jdbc:mysql://mysql:3306/achatdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true"
+        # Database credentials from secret
         - name: SPRING_DATASOURCE_USERNAME
           valueFrom:
             secretKeyRef:
@@ -45,6 +43,7 @@ spec:
             secretKeyRef:
               name: achat-app-secret
               key: SPRING_DATASOURCE_PASSWORD
+        # All other config from ConfigMap (including SPRING_DATASOURCE_URL)
         envFrom:
         - configMapRef:
             name: achat-app-config

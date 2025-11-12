@@ -1,20 +1,1469 @@
-Stage 10: Deploying to Kubernetes
+  [32m+[0m[0m eks_cluster_version           = "1.28"
+  [32m+[0m[0m eks_kubeconfig_command        = "aws eks update-kubeconfig --region us-east-1 --name achat-app-eks-cluster"
+  [32m+[0m[0m eks_node_group_name           = "achat-app-node-group"
+  [32m+[0m[0m eks_node_group_status         = (known after apply)
+  [32m+[0m[0m health_check_url              = (known after apply)
+  [32m+[0m[0m iam_instance_profile_name     = "LabInstanceProfile"
+  [32m+[0m[0m iam_role_arn                  = "arn:aws:iam::945667981117:role/LabRole"
+  [32m+[0m[0m instance_id                   = (known after apply)
+  [32m+[0m[0m instance_state                = (known after apply)
+  [32m+[0m[0m instance_type                 = "t2.micro"
+  [32m+[0m[0m internet_gateway_id           = (known after apply)
+  [32m+[0m[0m private_ip                    = (known after apply)
+  [32m+[0m[0m public_dns                    = (known after apply)
+  [32m+[0m[0m public_ip                     = (known after apply)
+  [32m+[0m[0m rds_endpoint                  = (known after apply)
+  [32m+[0m[0m rds_instance_class            = "db.t3.micro"
+  [32m+[0m[0m rds_port                      = (known after apply)
+  [32m+[0m[0m rds_storage                   = 20
+  [32m+[0m[0m security_group_id             = (known after apply)
+  [32m+[0m[0m ssh_command                   = "SSH not configured - use AWS Systems Manager Session Manager"
+  [32m+[0m[0m ssm_connect_command           = (known after apply)
+  [32m+[0m[0m subnet_id                     = (known after apply)
+  [32m+[0m[0m swagger_url                   = (known after apply)
+  [32m+[0m[0m vpc_cidr                      = "10.0.0.0/16"
+  [32m+[0m[0m vpc_id                        = (known after apply)
+[90m
+─────────────────────────────────────────────────────────────────────────────[0m
+
+Saved the plan to: tfplan
+
+To perform exactly these actions, run the following command to apply:
+    terraform apply "tfplan"
++ echo 
+
++ echo Plan saved to: tfplan
+Plan saved to: tfplan
+[Pipeline] }
+[Pipeline] // dir
+[Pipeline] }
+[Pipeline] // withCredentials
+[Pipeline] script
+[Pipeline] {
+[Pipeline] echo
+Terraform plan created successfully
+[Pipeline] echo
+Review the plan above before applying
+[Pipeline] }
+[Pipeline] // script
+[Pipeline] }
+[Pipeline] // withEnv
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Terraform Apply)
+[Pipeline] fileExists
+[Pipeline] tool
+[Pipeline] envVarsForTool
+[Pipeline] tool
+[Pipeline] envVarsForTool
+[Pipeline] withEnv
+[Pipeline] {
+[Pipeline] script
+[Pipeline] {
 [Pipeline] echo
 =========================================
 [Pipeline] echo
-Note: This stage requires Phase 5 setup
+Stage 12: Terraform Apply (Deploy to AWS)
+[Pipeline] echo
+=========================================
 [Pipeline] }
 [Pipeline] // script
-[Pipeline] withKubeConfig
+[Pipeline] withCredentials
+Masking supported pattern matches of $AWS_CREDENTIALS_FILE
+[Pipeline] {
+[Pipeline] dir
+Running in /var/jenkins_home/workspace/IGL5-G5-achat/terraform
 [Pipeline] {
 [Pipeline] sh
-+ kubectl apply -f k8s/
-/var/jenkins_home/workspace/IGL5-G5-achat@tmp/durable-d19251a0/script.sh.copy: 2: kubectl: not found
++ echo Setting up AWS credentials...
+Setting up AWS credentials...
++ mkdir -p /root/.aws
++ cp **** /root/.aws/credentials
++ chmod 600 /root/.aws/credentials
++ echo Applying Terraform plan...
+Applying Terraform plan...
++ terraform apply -auto-approve tfplan
+[0m[1maws_vpc.main: Creating...[0m[0m
+[0m[1maws_eip.nat[0]: Creating...[0m[0m
+[0m[1maws_eip.nat[0]: Creation complete after 2s [id=eipalloc-0ea87d9552e65e649][0m
+[0m[1maws_vpc.main: Still creating... [10s elapsed][0m[0m
+[0m[1maws_vpc.main: Creation complete after 14s [id=vpc-032f8004122b1d235][0m
+[0m[1maws_internet_gateway.main: Creating...[0m[0m
+[0m[1maws_subnet.private: Creating...[0m[0m
+[0m[1maws_subnet.public: Creating...[0m[0m
+[0m[1maws_security_group.eks_cluster[0]: Creating...[0m[0m
+[0m[1maws_security_group.app: Creating...[0m[0m
+[0m[1maws_subnet.private: Creation complete after 1s [id=subnet-014c7ece078a4e4b3][0m
+[0m[1maws_internet_gateway.main: Creation complete after 1s [id=igw-0a276e27685acbd2e][0m
+[0m[1maws_eip.app: Creating...[0m[0m
+[0m[1maws_route_table.public: Creating...[0m[0m
+[0m[1maws_eip.app: Creation complete after 2s [id=eipalloc-08c12f2db6afaa085][0m
+[0m[1maws_route_table.public: Creation complete after 3s [id=rtb-05378a98a561231d7][0m
+[0m[1maws_security_group.eks_cluster[0]: Creation complete after 4s [id=sg-066905cbc4c786133][0m
+[0m[1maws_security_group.app: Creation complete after 4s [id=sg-082858a6ad0b4da2d][0m
+[0m[1maws_security_group.rds: Creating...[0m[0m
+[0m[1maws_security_group.eks_nodes[0]: Creating...[0m[0m
+[0m[1maws_security_group.eks_nodes[0]: Creation complete after 5s [id=sg-05a82444e5a7532e1][0m
+[0m[1maws_security_group.rds: Creation complete after 5s [id=sg-03dd5e3f56e9faf80][0m
+[0m[1maws_subnet.public: Still creating... [10s elapsed][0m[0m
+[0m[1maws_subnet.public: Creation complete after 12s [id=subnet-0d05683c629770f23][0m
+[0m[1maws_ec2_tag.public_subnet_eks[0]: Creating...[0m[0m
+[0m[1maws_ec2_tag.public_subnet_elb[0]: Creating...[0m[0m
+[0m[1maws_route_table_association.public: Creating...[0m[0m
+[0m[1maws_db_subnet_group.main: Creating...[0m[0m
+[0m[1maws_nat_gateway.main[0]: Creating...[0m[0m
+[0m[1maws_eks_cluster.main[0]: Creating...[0m[0m
+[0m[1maws_ec2_tag.public_subnet_eks[0]: Creation complete after 1s [id=subnet-0d05683c629770f23,kubernetes.io/cluster/achat-app-eks-cluster][0m
+[0m[1maws_ec2_tag.public_subnet_elb[0]: Creation complete after 1s [id=subnet-0d05683c629770f23,kubernetes.io/role/elb][0m
+[0m[1maws_route_table_association.public: Creation complete after 1s [id=rtbassoc-0116b5665f89f14c5][0m
+[0m[1maws_db_subnet_group.main: Creation complete after 2s [id=achat-app-db-subnet-group][0m
+[0m[1maws_db_instance.mysql: Creating...[0m[0m
+[0m[1maws_nat_gateway.main[0]: Still creating... [10s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [10s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [10s elapsed][0m[0m
+[0m[1maws_nat_gateway.main[0]: Still creating... [20s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [20s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [20s elapsed][0m[0m
+[0m[1maws_nat_gateway.main[0]: Still creating... [30s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [30s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [30s elapsed][0m[0m
+[0m[1maws_nat_gateway.main[0]: Still creating... [40s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [40s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [40s elapsed][0m[0m
+[0m[1maws_nat_gateway.main[0]: Still creating... [50s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [50s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [50s elapsed][0m[0m
+[0m[1maws_nat_gateway.main[0]: Still creating... [1m0s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [1m0s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [1m0s elapsed][0m[0m
+[0m[1maws_nat_gateway.main[0]: Still creating... [1m10s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [1m10s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [1m10s elapsed][0m[0m
+[0m[1maws_nat_gateway.main[0]: Still creating... [1m20s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [1m20s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [1m20s elapsed][0m[0m
+[0m[1maws_nat_gateway.main[0]: Still creating... [1m30s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [1m30s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [1m30s elapsed][0m[0m
+[0m[1maws_nat_gateway.main[0]: Creation complete after 1m38s [id=nat-09b68b0926949a970][0m
+[0m[1maws_route_table.private[0]: Creating...[0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [1m40s elapsed][0m[0m
+[0m[1maws_route_table.private[0]: Creation complete after 2s [id=rtb-0e9cbd551c3c16701][0m
+[0m[1maws_route_table_association.private[0]: Creating...[0m[0m
+[0m[1maws_route_table_association.private[0]: Creation complete after 1s [id=rtbassoc-035df19eb9caa37ce][0m
+[0m[1maws_db_instance.mysql: Still creating... [1m40s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [1m50s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [1m50s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [2m0s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [2m0s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [2m10s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [2m10s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [2m20s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [2m20s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [2m30s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [2m30s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [2m40s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [2m40s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [2m50s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [2m50s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [3m0s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [3m0s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [3m10s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [3m10s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [3m20s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [3m20s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [3m30s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [3m30s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [3m40s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [3m40s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [3m50s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [3m50s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [4m0s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [4m0s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [4m10s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [4m10s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [4m20s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [4m20s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [4m30s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [4m30s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [4m40s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [4m40s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [4m50s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [4m50s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [5m0s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [5m0s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [5m10s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [5m10s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [5m20s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [5m20s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [5m30s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [5m30s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [5m40s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [5m40s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [5m50s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [5m50s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [6m0s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [6m0s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [6m10s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [6m10s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [6m20s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [6m20s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [6m30s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [6m30s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [6m40s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Still creating... [6m40s elapsed][0m[0m
+[0m[1maws_db_instance.mysql: Creation complete after 6m41s [id=db-TS33MIIAILXNWZSALOTAZZBF6A][0m
+[0m[1maws_instance.app: Creating...[0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [6m50s elapsed][0m[0m
+[0m[1maws_instance.app: Still creating... [10s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [7m0s elapsed][0m[0m
+[0m[1maws_instance.app: Creation complete after 18s [id=i-0c2954e44979f030a][0m
+[0m[1maws_eip_association.app: Creating...[0m[0m
+[0m[1maws_eip_association.app: Creation complete after 2s [id=eipassoc-08ad78cd4f1a707d3][0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [7m10s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [7m20s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [7m30s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [7m40s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [7m50s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Still creating... [8m0s elapsed][0m[0m
+[0m[1maws_eks_cluster.main[0]: Creation complete after 8m2s [id=achat-app-eks-cluster][0m
+[0m[1maws_eks_node_group.main[0]: Creating...[0m[0m
+[0m[1maws_eks_node_group.main[0]: Still creating... [10s elapsed][0m[0m
+[0m[1maws_eks_node_group.main[0]: Still creating... [20s elapsed][0m[0m
+[0m[1maws_eks_node_group.main[0]: Still creating... [30s elapsed][0m[0m
+[0m[1maws_eks_node_group.main[0]: Still creating... [40s elapsed][0m[0m
+[0m[1maws_eks_node_group.main[0]: Still creating... [50s elapsed][0m[0m
+[0m[1maws_eks_node_group.main[0]: Still creating... [1m0s elapsed][0m[0m
+[0m[1maws_eks_node_group.main[0]: Still creating... [1m10s elapsed][0m[0m
+[0m[1maws_eks_node_group.main[0]: Still creating... [1m20s elapsed][0m[0m
+[0m[1maws_eks_node_group.main[0]: Still creating... [1m30s elapsed][0m[0m
+[0m[1maws_eks_node_group.main[0]: Still creating... [1m40s elapsed][0m[0m
+[0m[1maws_eks_node_group.main[0]: Creation complete after 1m50s [id=achat-app-eks-cluster:achat-app-node-group][0m
+[0m[1m[32m
+Apply complete! Resources: 23 added, 0 changed, 0 destroyed.
+[0m[0m[1m[32m
+Outputs:
+
+[0mapplication_url = "http://3.214.140.119:8089/SpringMVC"
+database_name = "achatdb"
+deployment_info = {
+  "deployed_at" = "2025-11-12T21:56:26Z"
+  "docker_image" = "docker.io/habibmanai/achat-app:72"
+  "environment" = "sandbox"
+  "project" = "achat-app"
+  "region" = "us-east-1"
+}
+deployment_summary = <<EOT
+╔════════════════════════════════════════════════════════╗
+║  DEPLOYMENT SUCCESSFUL                                 ║
+╚════════════════════════════════════════════════════════╝
+    
+Application URL:
+  → http://3.214.140.119:8089/SpringMVC
+    
+Health Check:
+  → http://3.214.140.119:8089/SpringMVC/actuator/health
+    
+Instance Details:
+  • Instance ID: i-0c2954e44979f030a
+  • Instance Type: t2.micro
+  • Public IP: 3.214.140.119
+  • Region: us-east-1
+    
+Database Details:
+  • RDS Endpoint: achat-app-db.ciug9ce7zygu.us-east-1.rds.amazonaws.com
+  • Database: achatdb
+  • Instance Class: db.t3.micro (~$0.017/hour)
+  • Storage: 20 GB
+    
+Connect to Instance:
+  SSM: aws ssm start-session --target i-0c2954e44979f030a
+    
+Docker Image:
+  → docker.io/habibmanai/achat-app:72
+    
+════════════════════════════════════════════════════════
+
+EOT
+eks_cluster_endpoint = "https://0B81CD37388D35B7CAA0A432C49824CA.gr7.us-east-1.eks.amazonaws.com"
+eks_cluster_name = "achat-app-eks-cluster"
+eks_cluster_security_group_id = "sg-066905cbc4c786133"
+eks_cluster_version = "1.28"
+eks_kubeconfig_command = "aws eks update-kubeconfig --region us-east-1 --name achat-app-eks-cluster"
+eks_node_group_name = "achat-app-node-group"
+eks_node_group_status = "ACTIVE"
+health_check_url = "http://3.214.140.119:8089/SpringMVC/actuator/health"
+iam_instance_profile_name = "LabInstanceProfile"
+iam_role_arn = "arn:aws:iam::945667981117:role/LabRole"
+instance_id = "i-0c2954e44979f030a"
+instance_state = "running"
+instance_type = "t2.micro"
+internet_gateway_id = "igw-0a276e27685acbd2e"
+private_ip = "10.0.1.165"
+public_dns = "ec2-3-214-140-119.compute-1.amazonaws.com"
+public_ip = "3.214.140.119"
+rds_endpoint = "achat-app-db.ciug9ce7zygu.us-east-1.rds.amazonaws.com"
+rds_instance_class = "db.t3.micro"
+rds_port = 3306
+rds_storage = 20
+security_group_id = "sg-082858a6ad0b4da2d"
+ssh_command = "SSH not configured - use AWS Systems Manager Session Manager"
+ssm_connect_command = "aws ssm start-session --target i-0c2954e44979f030a --region us-east-1"
+subnet_id = "subnet-0d05683c629770f23"
+swagger_url = "http://3.214.140.119:8089/SpringMVC/swagger-ui.html"
+vpc_cidr = "10.0.0.0/16"
+vpc_id = "vpc-032f8004122b1d235"
++ echo 
+
++ echo Deployment complete!
+Deployment complete!
 [Pipeline] }
-[kubernetes-cli] kubectl configuration cleaned up
-[Pipeline] // withKubeConfig
+[Pipeline] // dir
+[Pipeline] }
+[Pipeline] // withCredentials
+[Pipeline] script
+[Pipeline] {
+[Pipeline] echo
+Infrastructure deployed to AWS successfully
+[Pipeline] }
+[Pipeline] // script
 [Pipeline] }
 [Pipeline] // withEnv
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Get AWS Deployment Info)
+[Pipeline] fileExists
+[Pipeline] tool
+[Pipeline] envVarsForTool
+[Pipeline] tool
+[Pipeline] envVarsForTool
+[Pipeline] withEnv
+[Pipeline] {
+[Pipeline] script
+[Pipeline] {
+[Pipeline] echo
+=========================================
+[Pipeline] echo
+Stage 13: AWS Deployment Information
+[Pipeline] echo
+=========================================
+[Pipeline] }
+[Pipeline] // script
+[Pipeline] dir
+Running in /var/jenkins_home/workspace/IGL5-G5-achat/terraform
+[Pipeline] {
+[Pipeline] script
+[Pipeline] {
+[Pipeline] sh
++ terraform output -json
+[Pipeline] echo
+Terraform Outputs:
+[Pipeline] echo
+{
+  "application_url": {
+    "sensitive": false,
+    "type": "string",
+    "value": "http://3.214.140.119:8089/SpringMVC"
+  },
+  "database_name": {
+    "sensitive": false,
+    "type": "string",
+    "value": "achatdb"
+  },
+  "deployment_info": {
+    "sensitive": false,
+    "type": [
+      "object",
+      {
+        "deployed_at": "string",
+        "docker_image": "string",
+        "environment": "string",
+        "project": "string",
+        "region": "string"
+      }
+    ],
+    "value": {
+      "deployed_at": "2025-11-12T21:56:26Z",
+      "docker_image": "docker.io/habibmanai/achat-app:72",
+      "environment": "sandbox",
+      "project": "achat-app",
+      "region": "us-east-1"
+    }
+  },
+  "deployment_summary": {
+    "sensitive": false,
+    "type": "string",
+    "value": "╔════════════════════════════════════════════════════════╗\n║  DEPLOYMENT SUCCESSFUL                                 ║\n╚════════════════════════════════════════════════════════╝\n    \nApplication URL:\n  → http://3.214.140.119:8089/SpringMVC\n    \nHealth Check:\n  → http://3.214.140.119:8089/SpringMVC/actuator/health\n    \nInstance Details:\n  • Instance ID: i-0c2954e44979f030a\n  • Instance Type: t2.micro\n  • Public IP: 3.214.140.119\n  • Region: us-east-1\n    \nDatabase Details:\n  • RDS Endpoint: achat-app-db.ciug9ce7zygu.us-east-1.rds.amazonaws.com\n  • Database: achatdb\n  • Instance Class: db.t3.micro (~$0.017/hour)\n  • Storage: 20 GB\n    \nConnect to Instance:\n  SSM: aws ssm start-session --target i-0c2954e44979f030a\n    \nDocker Image:\n  → docker.io/habibmanai/achat-app:72\n    \n════════════════════════════════════════════════════════\n"
+  },
+  "eks_cluster_endpoint": {
+    "sensitive": false,
+    "type": "string",
+    "value": "https://0B81CD37388D35B7CAA0A432C49824CA.gr7.us-east-1.eks.amazonaws.com"
+  },
+  "eks_cluster_name": {
+    "sensitive": false,
+    "type": "string",
+    "value": "achat-app-eks-cluster"
+  },
+  "eks_cluster_security_group_id": {
+    "sensitive": false,
+    "type": "string",
+    "value": "sg-066905cbc4c786133"
+  },
+  "eks_cluster_version": {
+    "sensitive": false,
+    "type": "string",
+    "value": "1.28"
+  },
+  "eks_kubeconfig_command": {
+    "sensitive": false,
+    "type": "string",
+    "value": "aws eks update-kubeconfig --region us-east-1 --name achat-app-eks-cluster"
+  },
+  "eks_node_group_name": {
+    "sensitive": false,
+    "type": "string",
+    "value": "achat-app-node-group"
+  },
+  "eks_node_group_status": {
+    "sensitive": false,
+    "type": "string",
+    "value": "ACTIVE"
+  },
+  "health_check_url": {
+    "sensitive": false,
+    "type": "string",
+    "value": "http://3.214.140.119:8089/SpringMVC/actuator/health"
+  },
+  "iam_instance_profile_name": {
+    "sensitive": false,
+    "type": "string",
+    "value": "LabInstanceProfile"
+  },
+  "iam_role_arn": {
+    "sensitive": false,
+    "type": "string",
+    "value": "arn:aws:iam::945667981117:role/LabRole"
+  },
+  "instance_id": {
+    "sensitive": false,
+    "type": "string",
+    "value": "i-0c2954e44979f030a"
+  },
+  "instance_state": {
+    "sensitive": false,
+    "type": "string",
+    "value": "running"
+  },
+  "instance_type": {
+    "sensitive": false,
+    "type": "string",
+    "value": "t2.micro"
+  },
+  "internet_gateway_id": {
+    "sensitive": false,
+    "type": "string",
+    "value": "igw-0a276e27685acbd2e"
+  },
+  "private_ip": {
+    "sensitive": false,
+    "type": "string",
+    "value": "10.0.1.165"
+  },
+  "public_dns": {
+    "sensitive": false,
+    "type": "string",
+    "value": "ec2-3-214-140-119.compute-1.amazonaws.com"
+  },
+  "public_ip": {
+    "sensitive": false,
+    "type": "string",
+    "value": "3.214.140.119"
+  },
+  "rds_endpoint": {
+    "sensitive": false,
+    "type": "string",
+    "value": "achat-app-db.ciug9ce7zygu.us-east-1.rds.amazonaws.com"
+  },
+  "rds_instance_class": {
+    "sensitive": false,
+    "type": "string",
+    "value": "db.t3.micro"
+  },
+  "rds_port": {
+    "sensitive": false,
+    "type": "number",
+    "value": 3306
+  },
+  "rds_storage": {
+    "sensitive": false,
+    "type": "number",
+    "value": 20
+  },
+  "security_group_id": {
+    "sensitive": false,
+    "type": "string",
+    "value": "sg-082858a6ad0b4da2d"
+  },
+  "ssh_command": {
+    "sensitive": false,
+    "type": "string",
+    "value": "SSH not configured - use AWS Systems Manager Session Manager"
+  },
+  "ssm_connect_command": {
+    "sensitive": false,
+    "type": "string",
+    "value": "aws ssm start-session --target i-0c2954e44979f030a --region us-east-1"
+  },
+  "subnet_id": {
+    "sensitive": false,
+    "type": "string",
+    "value": "subnet-0d05683c629770f23"
+  },
+  "swagger_url": {
+    "sensitive": false,
+    "type": "string",
+    "value": "http://3.214.140.119:8089/SpringMVC/swagger-ui.html"
+  },
+  "vpc_cidr": {
+    "sensitive": false,
+    "type": "string",
+    "value": "10.0.0.0/16"
+  },
+  "vpc_id": {
+    "sensitive": false,
+    "type": "string",
+    "value": "vpc-032f8004122b1d235"
+  }
+}
+[Pipeline] sh
++ terraform output -raw application_url
+[Pipeline] sh
++ terraform output -raw health_check_url
+[Pipeline] sh
++ terraform output -raw public_ip
+[Pipeline] sh
++ terraform output -raw instance_id
+[Pipeline] echo
+
+[Pipeline] echo
+=========================================
+[Pipeline] echo
+APPLICATION DEPLOYED SUCCESSFULLY!
+[Pipeline] echo
+=========================================
+[Pipeline] echo
+Application URL: http://3.214.140.119:8089/SpringMVC
+[Pipeline] echo
+Health Check: http://3.214.140.119:8089/SpringMVC/actuator/health
+[Pipeline] echo
+Public IP: 3.214.140.119
+[Pipeline] echo
+Instance ID: i-0c2954e44979f030a
+[Pipeline] echo
+=========================================
+[Pipeline] }
+[Pipeline] // script
+[Pipeline] }
+[Pipeline] // dir
+[Pipeline] }
+[Pipeline] // withEnv
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Debug EC2 Instance)
+[Pipeline] fileExists
+[Pipeline] tool
+[Pipeline] envVarsForTool
+[Pipeline] tool
+[Pipeline] envVarsForTool
+[Pipeline] withEnv
+[Pipeline] {
+[Pipeline] script
+[Pipeline] {
+[Pipeline] echo
+=========================================
+[Pipeline] echo
+Stage 13.5: Debug EC2 Instance
+[Pipeline] echo
+=========================================
+[Pipeline] }
+[Pipeline] // script
+[Pipeline] withCredentials
+Masking supported pattern matches of $AWS_CREDENTIALS_FILE
+[Pipeline] {
+[Pipeline] dir
+Running in /var/jenkins_home/workspace/IGL5-G5-achat/terraform
+[Pipeline] {
+[Pipeline] sh
++ echo Setting up AWS credentials...
+Setting up AWS credentials...
++ mkdir -p /root/.aws
++ cp **** /root/.aws/credentials
++ chmod 600 /root/.aws/credentials
++ echo ======================================
+======================================
++ echo Fetching EC2 Instance Information
+Fetching EC2 Instance Information
++ echo ======================================
+======================================
++ terraform output -raw instance_id
++ INSTANCE_ID=i-0c2954e44979f030a
++ [ -n i-0c2954e44979f030a ]
++ echo Instance ID: i-0c2954e44979f030a
+Instance ID: i-0c2954e44979f030a
++ echo 
+
++ echo Waiting for instance to initialize (60 seconds)...
+Waiting for instance to initialize (60 seconds)...
++ sleep 60
++ echo Instance Status:
+Instance Status:
++ aws ec2 describe-instance-status --region us-east-1 --instance-ids i-0c2954e44979f030a
+{
+    "InstanceStatuses": [
+        {
+            "AvailabilityZone": "us-east-1a",
+            "AvailabilityZoneId": "use1-az6",
+            "Operator": {
+                "Managed": false
+            },
+            "InstanceId": "i-0c2954e44979f030a",
+            "InstanceState": {
+                "Code": 16,
+                "Name": "running"
+            },
+            "InstanceStatus": {
+                "Details": [
+                    {
+                        "Name": "reachability",
+                        "Status": "passed"
+                    }
+                ],
+                "Status": "ok"
+            },
+            "SystemStatus": {
+                "Details": [
+                    {
+                        "Name": "reachability",
+                        "Status": "passed"
+                    }
+                ],
+                "Status": "ok"
+            }
+        }
+    ]
+}
++ echo 
+
++ echo ======================================
+======================================
++ echo EC2 Console Output (Last 100 lines):
+EC2 Console Output (Last 100 lines):
++ echo ======================================
+======================================
++ MAX_ATTEMPTS=3
++ seq 1 3
++ echo Attempt 1 of 3 to fetch console output...
+Attempt 1 of 3 to fetch console output...
++ aws ec2 get-console-output --region us-east-1 --instance-id i-0c2954e44979f030a --output text
++ tail -n 100
++ CONSOLE_OUTPUT=i-0c2954e44979f030a		2025-11-12T22:07:55+00:00
++ [ -n i-0c2954e44979f030a		2025-11-12T22:07:55+00:00 ]
++ [ i-0c2954e44979f030a		2025-11-12T22:07:55+00:00 != i-0c2954e44979f030a ]
++ echo i-0c2954e44979f030a		2025-11-12T22:07:55+00:00
+i-0c2954e44979f030a		2025-11-12T22:07:55+00:00
++ break
++ [ -z i-0c2954e44979f030a		2025-11-12T22:07:55+00:00 ]
++ [ i-0c2954e44979f030a		2025-11-12T22:07:55+00:00 = i-0c2954e44979f030a ]
++ echo 
+
++ echo ======================================
+======================================
+[Pipeline] }
+[Pipeline] // dir
+[Pipeline] }
+[Pipeline] // withCredentials
+[Pipeline] }
+[Pipeline] // withEnv
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Health Check AWS Deployment)
+[Pipeline] fileExists
+[Pipeline] tool
+[Pipeline] envVarsForTool
+[Pipeline] tool
+[Pipeline] envVarsForTool
+[Pipeline] withEnv
+[Pipeline] {
+[Pipeline] script
+[Pipeline] {
+[Pipeline] echo
+=========================================
+[Pipeline] echo
+Stage 14: Health Check
+[Pipeline] echo
+=========================================
+[Pipeline] }
+[Pipeline] // script
+[Pipeline] dir
+Running in /var/jenkins_home/workspace/IGL5-G5-achat/terraform
+[Pipeline] {
+[Pipeline] script
+[Pipeline] {
+[Pipeline] sh
++ terraform output -raw application_url
+[Pipeline] echo
+Waiting for application to start (5 minutes)...
+[Pipeline] echo
+This includes time for:
+[Pipeline] echo
+  - EC2 instance initialization
+[Pipeline] echo
+  - Docker installation and startup
+[Pipeline] echo
+  - Database connectivity check (up to 10 minutes timeout)
+[Pipeline] echo
+  - Application container startup
+[Pipeline] sleep
+Sleeping for 5 min 0 sec
+[Pipeline] echo
+Checking application health...
+[Pipeline] retry
+[Pipeline] {
+[Pipeline] sleep
+Sleeping for 20 sec
+[Pipeline] sh
++ curl -f http://3.214.140.119:8089/SpringMVC/actuator/health
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+100   249    0   249    0     0    861      0 --:--:-- --:--:-- --:--:--   864
+{"status":"UP","components":{"db":{"status":"UP","details":{"database":"MySQL","validationQuery":"isValid()"}},"diskSpace":{"status":"UP","details":{"total":32132542464,"free":29093670912,"threshold":10485760,"exists":true}},"ping":{"status":"UP"}}}
+[Pipeline] }
+[Pipeline] // retry
+[Pipeline] echo
+
+[Pipeline] echo
+Application is healthy and responding!
+[Pipeline] }
+[Pipeline] // script
+[Pipeline] }
+[Pipeline] // dir
+[Pipeline] }
+[Pipeline] // withEnv
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Build Frontend)
+[Pipeline] fileExists
+[Pipeline] tool
+[Pipeline] envVarsForTool
+[Pipeline] tool
+[Pipeline] envVarsForTool
+[Pipeline] withEnv
+[Pipeline] {
+[Pipeline] script
+[Pipeline] {
+[Pipeline] echo
+=========================================
+[Pipeline] echo
+Stage 10: Building Frontend Application
+[Pipeline] echo
+=========================================
+[Pipeline] }
+[Pipeline] // script
+[Pipeline] dir
+Running in /var/jenkins_home/workspace/IGL5-G5-achat/frontend
+[Pipeline] {
+[Pipeline] script
+[Pipeline] {
+[Pipeline] dir
+Running in /var/jenkins_home/workspace/IGL5-G5-achat/terraform
+[Pipeline] {
+[Pipeline] sh
++ terraform output -raw application_url
+[Pipeline] }
+[Pipeline] // dir
+[Pipeline] echo
+Backend URL: http://3.214.140.119:8089/SpringMVC
+[Pipeline] sh
++ echo REACT_APP_API_URL=http://3.214.140.119:8089/SpringMVC
++ cat .env.production
+REACT_APP_API_URL=http://3.214.140.119:8089/SpringMVC
+[Pipeline] sh
++ npm install
+npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+npm warn deprecated stable@0.1.8: Modern JS already guarantees Array#sort() is a stable sort, so this library is deprecated. See the compatibility table on MDN: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/sort#browser_compatibility
+npm warn deprecated @babel/plugin-proposal-numeric-separator@7.18.6: This proposal has been merged to the ECMAScript standard and thus this plugin is no longer maintained. Please use @babel/plugin-transform-numeric-separator instead.
+npm warn deprecated @babel/plugin-proposal-nullish-coalescing-operator@7.18.6: This proposal has been merged to the ECMAScript standard and thus this plugin is no longer maintained. Please use @babel/plugin-transform-nullish-coalescing-operator instead.
+npm warn deprecated @babel/plugin-proposal-private-methods@7.18.6: This proposal has been merged to the ECMAScript standard and thus this plugin is no longer maintained. Please use @babel/plugin-transform-private-methods instead.
+npm warn deprecated @babel/plugin-proposal-class-properties@7.18.6: This proposal has been merged to the ECMAScript standard and thus this plugin is no longer maintained. Please use @babel/plugin-transform-class-properties instead.
+npm warn deprecated rollup-plugin-terser@7.0.2: This package has been deprecated and is no longer maintained. Please use @rollup/plugin-terser
+npm warn deprecated @humanwhocodes/config-array@0.13.0: Use @eslint/config-array instead
+npm warn deprecated rimraf@3.0.2: Rimraf versions prior to v4 are no longer supported
+npm warn deprecated abab@2.0.6: Use your platform's native atob() and btoa() methods instead
+npm warn deprecated @babel/plugin-proposal-optional-chaining@7.21.0: This proposal has been merged to the ECMAScript standard and thus this plugin is no longer maintained. Please use @babel/plugin-transform-optional-chaining instead.
+npm warn deprecated @babel/plugin-proposal-private-property-in-object@7.21.11: This proposal has been merged to the ECMAScript standard and thus this plugin is no longer maintained. Please use @babel/plugin-transform-private-property-in-object instead.
+npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+npm warn deprecated @humanwhocodes/object-schema@2.0.3: Use @eslint/object-schema instead
+npm warn deprecated domexception@2.0.1: Use your platform's native DOMException instead
+npm warn deprecated w3c-hr-time@1.0.2: Use your platform's native performance.now() and performance.timeOrigin.
+npm warn deprecated q@1.5.1: You or someone you depend on is using Q, the JavaScript Promise library that gave JavaScript developers strong feelings about promises. They can almost certainly migrate to the native JavaScript promise now. Thank you literally everyone for joining me in this bet against the odds. Be excellent to each other.
+npm warn deprecated
+npm warn deprecated (For a CapTP with native promises, see @endo/eventual-send and @endo/captp)
+npm warn deprecated sourcemap-codec@1.4.8: Please use @jridgewell/sourcemap-codec instead
+npm warn deprecated workbox-cacheable-response@6.6.0: workbox-background-sync@6.6.0
+npm warn deprecated source-map@0.8.0-beta.0: The work that was done in this beta branch won't be included in future versions
+npm warn deprecated workbox-google-analytics@6.6.0: It is not compatible with newer versions of GA starting with v4, as long as you are using GAv3 it should be ok, but the package is not longer being maintained
+npm warn deprecated svgo@1.3.2: This SVGO version is no longer supported. Upgrade to v2.x.x.
+npm warn deprecated eslint@8.57.1: This version is no longer supported. Please see https://eslint.org/version-support for other options.
+
+added 1343 packages, and audited 1344 packages in 10s
+
+271 packages are looking for funding
+  run `npm fund` for details
+
+9 vulnerabilities (3 moderate, 6 high)
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
++ npm run build
+
+> frontend@0.1.0 build
+> react-scripts build
+
+Creating an optimized production build...
+Compiled successfully.
+
+File sizes after gzip:
+
+  77.06 kB  build/static/js/main.04f49467.js
+  1.76 kB   build/static/js/453.d7446e4a.chunk.js
+  1.16 kB   build/static/css/main.743d23da.css
+
+The project was built assuming it is hosted at /.
+You can control this with the homepage field in your package.json.
+
+The build folder is ready to be deployed.
+You may serve it with a static server:
+
+  npm install -g serve
+  serve -s build
+
+Find out more about deployment here:
+
+  https://cra.link/deployment
+
+[Pipeline] }
+[Pipeline] // script
+[Pipeline] }
+[Pipeline] // dir
+[Pipeline] script
+[Pipeline] {
+[Pipeline] echo
+✓ Frontend built successfully
+[Pipeline] }
+[Pipeline] // script
+[Pipeline] }
+[Pipeline] // withEnv
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Build Frontend Docker Image)
+[Pipeline] fileExists
+[Pipeline] tool
+[Pipeline] envVarsForTool
+[Pipeline] tool
+[Pipeline] envVarsForTool
+[Pipeline] withEnv
+[Pipeline] {
+[Pipeline] script
+[Pipeline] {
+[Pipeline] echo
+=========================================
+[Pipeline] echo
+Stage 11: Building Frontend Docker Image
+[Pipeline] echo
+=========================================
+[Pipeline] }
+[Pipeline] // script
+[Pipeline] dir
+Running in /var/jenkins_home/workspace/IGL5-G5-achat/frontend
+[Pipeline] {
+[Pipeline] script
+[Pipeline] {
+[Pipeline] sh
++ docker build -t docker.io/habibmanai/achat-frontend:72 .
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 544B done
+#1 WARN: FromAsCasing: 'as' and 'FROM' keywords' casing do not match (line 2)
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/node:18-alpine
+#2 ...
+
+#3 [auth] library/nginx:pull token for registry-1.docker.io
+#3 DONE 0.0s
+
+#4 [auth] library/node:pull token for registry-1.docker.io
+#4 DONE 0.0s
+
+#5 [internal] load metadata for docker.io/library/nginx:alpine
+#5 ...
+
+#2 [internal] load metadata for docker.io/library/node:18-alpine
+#2 DONE 1.3s
+
+#5 [internal] load metadata for docker.io/library/nginx:alpine
+#5 DONE 1.3s
+
+#6 [internal] load .dockerignore
+#6 transferring context: 2B done
+#6 DONE 0.0s
+
+#7 [internal] load build context
+#7 ...
+
+#8 [build 1/6] FROM docker.io/library/node:18-alpine@sha256:8d6421d663b4c28fd3ebc498332f249011d118945588d0a35cb9bc4b8ca09d9e
+#8 resolve docker.io/library/node:18-alpine@sha256:8d6421d663b4c28fd3ebc498332f249011d118945588d0a35cb9bc4b8ca09d9e 0.1s done
+#8 DONE 0.1s
+
+#9 [stage-1 1/3] FROM docker.io/library/nginx:alpine@sha256:b3c656d55d7ad751196f21b7fd2e8d4da9cb430e32f646adcf92441b72f82b14
+#9 resolve docker.io/library/nginx:alpine@sha256:b3c656d55d7ad751196f21b7fd2e8d4da9cb430e32f646adcf92441b72f82b14 0.1s done
+#9 DONE 0.1s
+
+#7 [internal] load build context
+#7 transferring context: 46.47MB 5.1s
+#7 transferring context: 89.54MB 10.1s
+#7 transferring context: 139.16MB 15.2s
+#7 transferring context: 188.96MB 20.2s
+#7 transferring context: 246.44MB 25.2s done
+#7 DONE 25.3s
+
+#10 [build 2/6] WORKDIR /app
+#10 CACHED
+
+#11 [build 3/6] COPY package*.json ./
+#11 CACHED
+
+#12 [build 4/6] RUN npm ci --only=production
+#12 CACHED
+
+#13 [build 5/6] COPY . .
+#13 DONE 6.0s
+
+#14 [build 6/6] RUN npm run build
+#14 0.914 
+#14 0.914 > frontend@0.1.0 build
+#14 0.914 > react-scripts build
+#14 0.914 
+#14 2.371 Creating an optimized production build...
+#14 10.01 Compiled successfully.
+#14 10.01 
+#14 10.01 File sizes after gzip:
+#14 10.01 
+#14 10.02   77.06 kB  build/static/js/main.04f49467.js
+#14 10.02   1.76 kB   build/static/js/453.d7446e4a.chunk.js
+#14 10.02   1.16 kB   build/static/css/main.743d23da.css
+#14 10.02 
+#14 10.02 The project was built assuming it is hosted at /.
+#14 10.02 You can control this with the homepage field in your package.json.
+#14 10.02 
+#14 10.02 The build folder is ready to be deployed.
+#14 10.02 You may serve it with a static server:
+#14 10.02 
+#14 10.02   npm install -g serve
+#14 10.02   serve -s build
+#14 10.02 
+#14 10.02 Find out more about deployment here:
+#14 10.02 
+#14 10.02   https://cra.link/deployment
+#14 10.02 
+#14 DONE 10.1s
+
+#9 [stage-1 1/3] FROM docker.io/library/nginx:alpine@sha256:b3c656d55d7ad751196f21b7fd2e8d4da9cb430e32f646adcf92441b72f82b14
+#9 CACHED
+
+#15 [stage-1 2/3] COPY --from=build /app/build /usr/share/nginx/html
+#15 DONE 0.0s
+
+#16 [stage-1 3/3] COPY nginx.conf /etc/nginx/conf.d/default.conf
+#16 DONE 0.0s
+
+#17 exporting to image
+#17 exporting layers
+#17 exporting layers 0.2s done
+#17 exporting manifest sha256:6ceeb4858e54ec6ebeaac36e485f03cd6dc28e2f982d308e27e3296fcff4a93b 0.0s done
+#17 exporting config sha256:106bf21297cac32a103c3fb74d072be2bacf9c15fbf40036852537d64aab076f 0.0s done
+#17 exporting attestation manifest sha256:e8b8c4a3d2bc546228e6b0fb0ea37b7d004229d7baaf8fb14f0cd50a214bd946 0.0s done
+#17 exporting manifest list sha256:c226ed8a81cd1bc8a8644beaf9cad1867ee9a32de82e0b7e64e33b6f4906a2ac 0.0s done
+#17 naming to docker.io/habibmanai/achat-frontend:72 done
+#17 unpacking to docker.io/habibmanai/achat-frontend:72 0.1s done
+#17 DONE 0.4s
+
+ [33m1 warning found (use docker --debug to expand):
+[0m - FromAsCasing: 'as' and 'FROM' keywords' casing do not match (line 2)
++ docker tag docker.io/habibmanai/achat-frontend:72 docker.io/habibmanai/achat-frontend:latest
+[Pipeline] }
+[Pipeline] // script
+[Pipeline] }
+[Pipeline] // dir
+[Pipeline] script
+[Pipeline] {
+[Pipeline] echo
+✓ Frontend Docker image built successfully
+[Pipeline] }
+[Pipeline] // script
+[Pipeline] }
+[Pipeline] // withEnv
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Push Frontend Docker Image)
+[Pipeline] fileExists
+[Pipeline] tool
+[Pipeline] envVarsForTool
+[Pipeline] tool
+[Pipeline] envVarsForTool
+[Pipeline] withEnv
+[Pipeline] {
+[Pipeline] script
+[Pipeline] {
+[Pipeline] echo
+=========================================
+[Pipeline] echo
+Stage 12: Pushing Frontend Image to Docker Hub
+[Pipeline] echo
+=========================================
+[Pipeline] }
+[Pipeline] // script
+[Pipeline] script
+[Pipeline] {
+[Pipeline] withCredentials
+Masking supported pattern matches of $DOCKER_PASS
+[Pipeline] {
+[Pipeline] sh
++ docker login -u habibmanai --password-stdin docker.io
++ echo ****
+Login Succeeded
++ docker push docker.io/habibmanai/achat-frontend:72
+The push refers to repository [docker.io/habibmanai/achat-frontend]
+2346eba567f8: Waiting
+8f6a6833e95d: Waiting
+ff8a36d5502a: Waiting
+bdabb0d44271: Waiting
+281b6d015cac: Waiting
+d9a55dab5954: Waiting
+2d35ebdb57d9: Waiting
+194fa24e147d: Waiting
+df413d6ebdc8: Waiting
+2c262d6eb7aa: Waiting
+3eaba6cd10a3: Waiting
+3eaba6cd10a3: Waiting
+2346eba567f8: Waiting
+8f6a6833e95d: Waiting
+ff8a36d5502a: Waiting
+bdabb0d44271: Waiting
+281b6d015cac: Waiting
+d9a55dab5954: Waiting
+2d35ebdb57d9: Waiting
+194fa24e147d: Waiting
+df413d6ebdc8: Waiting
+2c262d6eb7aa: Waiting
+8f6a6833e95d: Waiting
+ff8a36d5502a: Waiting
+bdabb0d44271: Waiting
+281b6d015cac: Waiting
+d9a55dab5954: Waiting
+2d35ebdb57d9: Waiting
+194fa24e147d: Waiting
+df413d6ebdc8: Waiting
+2c262d6eb7aa: Waiting
+3eaba6cd10a3: Waiting
+2346eba567f8: Waiting
+d9a55dab5954: Waiting
+2d35ebdb57d9: Waiting
+194fa24e147d: Waiting
+df413d6ebdc8: Waiting
+2c262d6eb7aa: Waiting
+3eaba6cd10a3: Waiting
+2346eba567f8: Waiting
+8f6a6833e95d: Waiting
+ff8a36d5502a: Waiting
+bdabb0d44271: Waiting
+281b6d015cac: Waiting
+2346eba567f8: Waiting
+8f6a6833e95d: Waiting
+ff8a36d5502a: Waiting
+bdabb0d44271: Waiting
+281b6d015cac: Waiting
+d9a55dab5954: Waiting
+2d35ebdb57d9: Waiting
+194fa24e147d: Waiting
+df413d6ebdc8: Waiting
+2c262d6eb7aa: Waiting
+3eaba6cd10a3: Waiting
+ff8a36d5502a: Waiting
+bdabb0d44271: Waiting
+281b6d015cac: Waiting
+d9a55dab5954: Waiting
+2d35ebdb57d9: Waiting
+194fa24e147d: Waiting
+df413d6ebdc8: Waiting
+2c262d6eb7aa: Waiting
+3eaba6cd10a3: Waiting
+2346eba567f8: Waiting
+8f6a6833e95d: Waiting
+194fa24e147d: Waiting
+df413d6ebdc8: Waiting
+2c262d6eb7aa: Waiting
+3eaba6cd10a3: Waiting
+2346eba567f8: Waiting
+8f6a6833e95d: Waiting
+ff8a36d5502a: Waiting
+bdabb0d44271: Waiting
+281b6d015cac: Waiting
+d9a55dab5954: Waiting
+2d35ebdb57d9: Waiting
+2346eba567f8: Waiting
+8f6a6833e95d: Waiting
+ff8a36d5502a: Waiting
+bdabb0d44271: Waiting
+281b6d015cac: Waiting
+d9a55dab5954: Waiting
+2d35ebdb57d9: Waiting
+194fa24e147d: Waiting
+df413d6ebdc8: Waiting
+2c262d6eb7aa: Waiting
+3eaba6cd10a3: Waiting
+2346eba567f8: Waiting
+8f6a6833e95d: Waiting
+ff8a36d5502a: Waiting
+bdabb0d44271: Waiting
+281b6d015cac: Waiting
+d9a55dab5954: Waiting
+2d35ebdb57d9: Waiting
+194fa24e147d: Waiting
+df413d6ebdc8: Waiting
+2c262d6eb7aa: Waiting
+3eaba6cd10a3: Waiting
+df413d6ebdc8: Waiting
+2c262d6eb7aa: Waiting
+3eaba6cd10a3: Waiting
+2346eba567f8: Waiting
+8f6a6833e95d: Waiting
+ff8a36d5502a: Waiting
+bdabb0d44271: Waiting
+281b6d015cac: Waiting
+d9a55dab5954: Waiting
+2d35ebdb57d9: Waiting
+194fa24e147d: Waiting
+194fa24e147d: Waiting
+df413d6ebdc8: Waiting
+2c262d6eb7aa: Waiting
+3eaba6cd10a3: Layer already exists
+2346eba567f8: Waiting
+8f6a6833e95d: Waiting
+ff8a36d5502a: Waiting
+bdabb0d44271: Waiting
+281b6d015cac: Waiting
+d9a55dab5954: Waiting
+2d35ebdb57d9: Waiting
+ff8a36d5502a: Waiting
+bdabb0d44271: Waiting
+281b6d015cac: Waiting
+d9a55dab5954: Waiting
+2d35ebdb57d9: Waiting
+194fa24e147d: Waiting
+df413d6ebdc8: Waiting
+2c262d6eb7aa: Waiting
+2346eba567f8: Waiting
+8f6a6833e95d: Waiting
+2c262d6eb7aa: Waiting
+2346eba567f8: Waiting
+8f6a6833e95d: Waiting
+ff8a36d5502a: Waiting
+bdabb0d44271: Layer already exists
+281b6d015cac: Waiting
+d9a55dab5954: Waiting
+2d35ebdb57d9: Waiting
+194fa24e147d: Waiting
+df413d6ebdc8: Waiting
+2346eba567f8: Waiting
+8f6a6833e95d: Layer already exists
+ff8a36d5502a: Layer already exists
+281b6d015cac: Waiting
+d9a55dab5954: Layer already exists
+2d35ebdb57d9: Layer already exists
+194fa24e147d: Layer already exists
+df413d6ebdc8: Layer already exists
+2c262d6eb7aa: Waiting
+281b6d015cac: Waiting
+2c262d6eb7aa: Waiting
+2346eba567f8: Waiting
+2346eba567f8: Waiting
+281b6d015cac: Waiting
+2c262d6eb7aa: Pushed
+2346eba567f8: Pushed
+281b6d015cac: Pushed
+72: digest: sha256:c226ed8a81cd1bc8a8644beaf9cad1867ee9a32de82e0b7e64e33b6f4906a2ac size: 856
++ docker push docker.io/habibmanai/achat-frontend:latest
+The push refers to repository [docker.io/habibmanai/achat-frontend]
+194fa24e147d: Waiting
+2d35ebdb57d9: Waiting
+ff8a36d5502a: Waiting
+281b6d015cac: Waiting
+8f6a6833e95d: Waiting
+2c262d6eb7aa: Waiting
+3eaba6cd10a3: Waiting
+bdabb0d44271: Waiting
+df413d6ebdc8: Waiting
+d9a55dab5954: Waiting
+2346eba567f8: Waiting
+2346eba567f8: Waiting
+194fa24e147d: Waiting
+2d35ebdb57d9: Waiting
+ff8a36d5502a: Waiting
+281b6d015cac: Waiting
+8f6a6833e95d: Waiting
+2c262d6eb7aa: Waiting
+3eaba6cd10a3: Waiting
+bdabb0d44271: Waiting
+df413d6ebdc8: Waiting
+d9a55dab5954: Waiting
+194fa24e147d: Waiting
+2d35ebdb57d9: Waiting
+ff8a36d5502a: Waiting
+281b6d015cac: Waiting
+8f6a6833e95d: Waiting
+2c262d6eb7aa: Waiting
+3eaba6cd10a3: Waiting
+bdabb0d44271: Waiting
+df413d6ebdc8: Waiting
+d9a55dab5954: Waiting
+2346eba567f8: Waiting
+2c262d6eb7aa: Waiting
+3eaba6cd10a3: Waiting
+bdabb0d44271: Waiting
+df413d6ebdc8: Waiting
+d9a55dab5954: Waiting
+2346eba567f8: Waiting
+194fa24e147d: Waiting
+2d35ebdb57d9: Waiting
+ff8a36d5502a: Waiting
+281b6d015cac: Waiting
+8f6a6833e95d: Waiting
+3eaba6cd10a3: Waiting
+bdabb0d44271: Waiting
+df413d6ebdc8: Waiting
+d9a55dab5954: Waiting
+2346eba567f8: Waiting
+194fa24e147d: Waiting
+2d35ebdb57d9: Waiting
+ff8a36d5502a: Waiting
+281b6d015cac: Waiting
+8f6a6833e95d: Waiting
+2c262d6eb7aa: Waiting
+2346eba567f8: Waiting
+194fa24e147d: Waiting
+2d35ebdb57d9: Waiting
+ff8a36d5502a: Waiting
+281b6d015cac: Waiting
+8f6a6833e95d: Waiting
+2c262d6eb7aa: Waiting
+3eaba6cd10a3: Waiting
+bdabb0d44271: Waiting
+df413d6ebdc8: Waiting
+d9a55dab5954: Waiting
+2346eba567f8: Waiting
+194fa24e147d: Waiting
+2d35ebdb57d9: Waiting
+ff8a36d5502a: Waiting
+281b6d015cac: Waiting
+8f6a6833e95d: Waiting
+2c262d6eb7aa: Waiting
+3eaba6cd10a3: Waiting
+bdabb0d44271: Waiting
+df413d6ebdc8: Waiting
+d9a55dab5954: Waiting
+194fa24e147d: Waiting
+2d35ebdb57d9: Waiting
+ff8a36d5502a: Waiting
+281b6d015cac: Waiting
+8f6a6833e95d: Waiting
+2c262d6eb7aa: Waiting
+3eaba6cd10a3: Waiting
+bdabb0d44271: Waiting
+df413d6ebdc8: Waiting
+d9a55dab5954: Waiting
+2346eba567f8: Waiting
+bdabb0d44271: Waiting
+df413d6ebdc8: Waiting
+d9a55dab5954: Waiting
+2346eba567f8: Waiting
+194fa24e147d: Waiting
+2d35ebdb57d9: Waiting
+ff8a36d5502a: Waiting
+281b6d015cac: Waiting
+8f6a6833e95d: Waiting
+2c262d6eb7aa: Waiting
+3eaba6cd10a3: Waiting
+d9a55dab5954: Waiting
+2346eba567f8: Waiting
+194fa24e147d: Layer already exists
+2d35ebdb57d9: Waiting
+ff8a36d5502a: Waiting
+281b6d015cac: Waiting
+8f6a6833e95d: Waiting
+2c262d6eb7aa: Layer already exists
+3eaba6cd10a3: Waiting
+bdabb0d44271: Waiting
+df413d6ebdc8: Waiting
+281b6d015cac: Waiting
+8f6a6833e95d: Waiting
+3eaba6cd10a3: Layer already exists
+bdabb0d44271: Waiting
+df413d6ebdc8: Waiting
+d9a55dab5954: Waiting
+2346eba567f8: Already exists
+2d35ebdb57d9: Waiting
+ff8a36d5502a: Waiting
+2d35ebdb57d9: Waiting
+ff8a36d5502a: Waiting
+281b6d015cac: Waiting
+8f6a6833e95d: Waiting
+bdabb0d44271: Waiting
+df413d6ebdc8: Waiting
+d9a55dab5954: Waiting
+d9a55dab5954: Layer already exists
+2d35ebdb57d9: Layer already exists
+ff8a36d5502a: Layer already exists
+281b6d015cac: Layer already exists
+8f6a6833e95d: Layer already exists
+bdabb0d44271: Layer already exists
+df413d6ebdc8: Layer already exists
+latest: digest: sha256:c226ed8a81cd1bc8a8644beaf9cad1867ee9a32de82e0b7e64e33b6f4906a2ac size: 856
+[Pipeline] }
+[Pipeline] // withCredentials
+[Pipeline] }
+[Pipeline] // script
+[Pipeline] script
+[Pipeline] {
+[Pipeline] echo
+✓ Frontend image pushed to Docker Hub
+[Pipeline] echo
+Image: docker.io/habibmanai/achat-frontend:72
+[Pipeline] }
+[Pipeline] // script
+[Pipeline] }
+[Pipeline] // withEnv
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Deploy to EKS)
+[Pipeline] fileExists
+[Pipeline] tool
+[Pipeline] envVarsForTool
+[Pipeline] tool
+[Pipeline] envVarsForTool
+[Pipeline] withEnv
+[Pipeline] {
+[Pipeline] script
+[Pipeline] {
+[Pipeline] echo
+=========================================
+[Pipeline] echo
+Stage 13: Deploying to AWS EKS
+[Pipeline] echo
+=========================================
+[Pipeline] }
+[Pipeline] // script
+[Pipeline] withCredentials
+Masking supported pattern matches of $AWS_CREDENTIALS_FILE
+[Pipeline] {
+[Pipeline] dir
+Running in /var/jenkins_home/workspace/IGL5-G5-achat/terraform
+[Pipeline] {
+[Pipeline] script
+[Pipeline] {
+[Pipeline] sh
++ mkdir -p /root/.aws
++ cp **** /root/.aws/credentials
++ chmod 600 /root/.aws/credentials
+[Pipeline] sh
++ terraform output -raw eks_cluster_name
+[Pipeline] echo
+Configuring kubectl for EKS cluster: achat-app-eks-cluster
+[Pipeline] sh
++ aws eks update-kubeconfig --region us-east-1 --name achat-app-eks-cluster
+Updated context arn:aws:eks:us-east-1:945667981117:cluster/achat-app-eks-cluster in /root/.kube/config
+[Pipeline] sh
++ kubectl set image deployment/achat-app -n achat-app achat-app=docker.io/habibmanai/achat-app:72 --record
++ echo Backend deployment doesn't exist yet
+Backend deployment doesn't exist yet
++ kubectl set image deployment/achat-frontend -n achat-app frontend=docker.io/habibmanai/achat-frontend:72 --record
++ echo Frontend deployment doesn't exist yet
+Frontend deployment doesn't exist yet
++ echo 
+
++ echo === Applying Kubernetes manifests ===
+=== Applying Kubernetes manifests ===
++ kubectl apply -f ../k8s/namespace.yaml
+namespace/achat-app created
++ echo Waiting for namespace to be ready...
+Waiting for namespace to be ready...
++ kubectl wait --for=jsonpath={.status.phase}=Active namespace/achat-app --timeout=30s
+namespace/achat-app condition met
++ sleep 2
++ kubectl apply -f ../k8s/secret.yaml
+secret/achat-app-secret created
++ kubectl apply -f ../k8s/configmap.yaml
+configmap/achat-app-config created
++ kubectl apply -f ../k8s/service.yaml
+service/achat-app created
++ kubectl apply -f ../k8s/deployment.yaml
+deployment.apps/achat-app created
++ kubectl apply -f ../k8s/mysql-deployment.yaml
+persistentvolumeclaim/mysql-pvc created
+deployment.apps/mysql created
+service/mysql created
++ kubectl apply -f ../k8s/frontend-deployment.yaml
+deployment.apps/achat-frontend created
+service/achat-frontend created
++ kubectl apply -f ../k8s/ingress.yaml
+ingress.networking.k8s.io/achat-app-ingress created
++ kubectl apply -f ../k8s/hpa.yaml
+horizontalpodautoscaler.autoscaling/achat-app-hpa created
++ echo 
+
++ echo === Waiting for deployments to be ready ===
+=== Waiting for deployments to be ready ===
++ kubectl rollout status deployment/achat-app -n achat-app --timeout=5m
+Waiting for deployment "achat-app" rollout to finish: 0 of 2 updated replicas are available...
+error: timed out waiting for the condition
+[Pipeline] }
+[Pipeline] // script
+[Pipeline] }
+[Pipeline] // dir
+[Pipeline] }
+[Pipeline] // withCredentials
+[Pipeline] }
+[Pipeline] // withEnv
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Deploy to Local Kubernetes)
+Stage "Deploy to Local Kubernetes" skipped due to earlier failure(s)
+[Pipeline] getContext
 [Pipeline] }
 [Pipeline] // stage
 [Pipeline] stage
@@ -28,11 +1477,11 @@ Pipeline Execution Summary
 [Pipeline] echo
 =========================================
 [Pipeline] echo
-Build Number: 53
+Build Number: 72
 [Pipeline] echo
 Build Status: FAILURE
 [Pipeline] echo
-Duration: 13 min and counting
+Duration: 55 min and counting
 [Pipeline] }
 [Pipeline] // script
 [Pipeline] cleanWs
@@ -56,5 +1505,5 @@ Duration: 13 min and counting
 [Pipeline] }
 [Pipeline] // node
 [Pipeline] End of Pipeline
-ERROR: script returned exit code 127
+ERROR: script returned exit code 1
 Finished: FAILURE

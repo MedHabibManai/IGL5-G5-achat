@@ -175,13 +175,25 @@ resource "aws_security_group" "rds" {
   description = "Security group for ${var.project_name} RDS MySQL"
   vpc_id      = aws_vpc.main.id
 
-  # Allow MySQL traffic from application security group
+  # Allow MySQL traffic from application security group (EC2)
   ingress {
     description     = "MySQL from application"
     from_port       = 3306
     to_port         = 3306
     protocol        = "tcp"
     security_groups = [aws_security_group.app.id]
+  }
+
+  # Allow MySQL traffic from EKS nodes security group
+  dynamic "ingress" {
+    for_each = var.create_eks ? [1] : []
+    content {
+      description     = "MySQL from EKS nodes"
+      from_port       = 3306
+      to_port         = 3306
+      protocol        = "tcp"
+      security_groups = [aws_security_group.eks_nodes[0].id]
+    }
   }
 
   egress {
