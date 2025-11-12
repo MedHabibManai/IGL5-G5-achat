@@ -10,7 +10,7 @@ resource "aws_eks_cluster" "main" {
   version  = "1.28"
 
   vpc_config {
-    subnet_ids              = [aws_subnet.public.id, aws_subnet.private[0].id]
+    subnet_ids              = [aws_subnet.public.id, aws_subnet.private.id]
     endpoint_private_access = false
     endpoint_public_access  = true
     security_group_ids      = [aws_security_group.eks_cluster[0].id]
@@ -36,7 +36,7 @@ resource "aws_eks_node_group" "main" {
   cluster_name    = aws_eks_cluster.main[0].name
   node_group_name = "${var.project_name}-node-group"
   node_role_arn   = data.aws_iam_role.lab_role.arn
-  subnet_ids      = [aws_subnet.public.id, aws_subnet.private[0].id]
+  subnet_ids      = [aws_subnet.public.id, aws_subnet.private.id]
 
   scaling_config {
     desired_size = 2
@@ -160,21 +160,8 @@ resource "aws_security_group" "eks_nodes" {
   }
 }
 
-# Private Subnet for EKS (needed for multi-AZ)
-resource "aws_subnet" "private" {
-  count                   = var.create_eks ? 1 : 0
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.2.0/24"
-  availability_zone       = data.aws_availability_zones.available.names[1]
-  map_public_ip_on_launch = false
-
-  tags = {
-    Name                                           = "${var.project_name}-private-subnet"
-    Environment                                    = var.environment
-    "kubernetes.io/cluster/${var.project_name}-eks-cluster" = "shared"
-    "kubernetes.io/role/internal-elb"              = "1"
-  }
-}
+# Note: Private subnet is already defined in main.tf
+# We reuse it here for EKS (no need to recreate)
 
 # NAT Gateway for private subnet (needed for nodes to pull images)
 resource "aws_eip" "nat" {
@@ -218,7 +205,7 @@ resource "aws_route_table" "private" {
 
 resource "aws_route_table_association" "private" {
   count          = var.create_eks ? 1 : 0
-  subnet_id      = aws_subnet.private[0].id
+  subnet_id      = aws_subnet.private.id
   route_table_id = aws_route_table.private[0].id
 }
 
@@ -237,7 +224,5 @@ resource "aws_ec2_tag" "public_subnet_elb" {
   value       = "1"
 }
 
-# Data source for availability zones
-data "aws_availability_zones" "available" {
-  state = "available"
-}
+# Note: data "aws_availability_zones" "available" is already defined in main.tf
+# We reuse it here for EKS (no need to recreate)

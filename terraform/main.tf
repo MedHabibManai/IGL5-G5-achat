@@ -216,7 +216,7 @@ resource "aws_subnet" "private" {
 
 resource "aws_db_subnet_group" "main" {
   name       = "${var.project_name}-db-subnet-group"
-  subnet_ids = var.create_eks ? [aws_subnet.public.id, aws_subnet.private[0].id] : [aws_subnet.public.id]
+  subnet_ids = [aws_subnet.public.id, aws_subnet.private.id]
 
   tags = merge(
     var.common_tags,
