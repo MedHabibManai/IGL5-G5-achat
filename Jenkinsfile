@@ -1177,9 +1177,16 @@ EOF
                 }
                 
                 // Configure kubectl for EKS
-                withAWS(credentials: "${AWS_CREDENTIAL_ID}", region: "${AWS_REGION}") {
+                withCredentials([file(credentialsId: "${AWS_CREDENTIAL_ID}", variable: 'AWS_CREDENTIALS_FILE')]) {
                     dir("${TERRAFORM_DIR}") {
                         script {
+                            // Set up AWS credentials
+                            sh '''
+                                mkdir -p ~/.aws
+                                cp $AWS_CREDENTIALS_FILE ~/.aws/credentials
+                                chmod 600 ~/.aws/credentials
+                            '''
+                            
                             // Get EKS cluster name from Terraform
                             def eksClusterName = sh(
                                 script: 'terraform output -raw eks_cluster_name 2>/dev/null || echo ""',
