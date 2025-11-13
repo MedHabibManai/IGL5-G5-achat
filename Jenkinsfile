@@ -98,6 +98,27 @@ pipeline {
     }
 
     stages {
+        // ============================================================================
+        // TEMPORARY: TESTING EARLY STAGES ONLY
+        // ============================================================================
+        stage('Pipeline Mode') {
+            steps {
+                script {
+                    echo '========================================='
+                    echo 'TESTING MODE: Early Stages Only'
+                    echo '========================================='
+                    echo 'Testing stages 1-6:'
+                    echo '  1. Checkout'
+                    echo '  2. Build'
+                    echo '  3. Unit Tests'
+                    echo '  4. SonarQube Analysis'
+                    echo '  5. Quality Gate'
+                    echo ''
+                    echo 'Skipping stages 7-15 (Nexus, Docker, AWS)'
+                    echo '========================================='
+                }
+            }
+        }
         stage('Initialize Pipeline') {
             steps {
                 script {
@@ -294,6 +315,9 @@ pipeline {
         }
 
         stage('Deploy to Nexus') {
+            when {
+                expression { return false }  // SKIP: Testing early stages only
+            }
             steps {
                 script {
                     echo '========================================='
@@ -341,6 +365,7 @@ EOF
 
         stage('Build Docker Image') {
             when {
+                expression { return false }  // SKIP: Testing early stages only
                 allOf {
                     expression { return fileExists('Dockerfile') }
                     expression { return params.DEPLOY_ACTION != 'destroy' }
@@ -383,7 +408,7 @@ EOF
 
         stage('Push Docker Image') {
             when {
-                expression { return fileExists('Dockerfile') }
+                expression { return false }  // SKIP: Testing early stages only
             }
             steps {
                 script {
@@ -430,7 +455,7 @@ EOF
 
         stage('Verify AWS Credentials') {
             when {
-                expression { return fileExists('terraform/main.tf') }
+                expression { return false }  // SKIP: Testing early stages only
             }
             steps {
                 script {
@@ -512,6 +537,7 @@ EOF
 
         stage('Cleanup Previous Deployment') {
             when {
+                expression { return false }  // SKIP: Testing early stages only
                 allOf {
                     expression { return fileExists('terraform/main.tf') }
                     expression {
@@ -728,6 +754,7 @@ EOF
 
         stage('Import Existing AWS Resources') {
             when {
+                expression { return false }  // SKIP: Testing early stages only
                 allOf {
                     expression { return fileExists('terraform/main.tf') }
                     expression { return params.DEPLOY_ACTION == 'deploy' }
@@ -970,6 +997,7 @@ EOF
 
         stage('Terraform Init') {
             when {
+                expression { return false }  // SKIP: Testing early stages only
                 allOf {
                     expression { return fileExists('terraform/main.tf') }
                     expression { return params.DEPLOY_ACTION != 'destroy' }
@@ -1048,6 +1076,7 @@ EOF
 
         stage('Terraform Plan') {
             when {
+                expression { return false }  // SKIP: Testing early stages only
                 allOf {
                     expression { return fileExists('terraform/main.tf') }
                     expression { return params.DEPLOY_ACTION != 'destroy' }
@@ -1090,6 +1119,7 @@ EOF
 
         stage('Terraform Apply') {
             when {
+                expression { return false }  // SKIP: Testing early stages only
                 allOf {
                     expression { return fileExists('terraform/main.tf') }
                     expression {
@@ -1146,7 +1176,7 @@ EOF
 
         stage('Get AWS Deployment Info') {
             when {
-                expression { return fileExists('terraform/main.tf') }
+                expression { return false }  // SKIP: Testing early stages only
             }
             steps {
                 script {
@@ -1208,7 +1238,7 @@ EOF
 
         stage('Deploy Application to EKS') {
             when {
-                expression { return env.TF_VAR_deploy_mode == 'eks' }
+                expression { return false }  // SKIP: Testing early stages only
             }
             steps {
                 script {
@@ -1335,7 +1365,7 @@ EOF
 
         stage('Health Check AWS Deployment') {
             when {
-                expression { return fileExists('terraform/main.tf') && env.TF_VAR_deploy_mode != 'eks' }
+                expression { return false }  // SKIP: Testing early stages only
             }
             steps {
                 script {
@@ -1384,7 +1414,7 @@ EOF
 
         stage('Health Check EKS Deployment') {
             when {
-                expression { return env.TF_VAR_deploy_mode == 'eks' }
+                expression { return false }  // SKIP: Testing early stages only
             }
             steps {
                 script {
@@ -1439,7 +1469,7 @@ EOF
 
         stage('Deploy to Kubernetes') {
             when {
-                branch 'main'
+                expression { return false }  // SKIP: Testing early stages only
                 expression { return fileExists('k8s/deployment.yaml') }
             }
             steps {
