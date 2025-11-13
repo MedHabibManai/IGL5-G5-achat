@@ -1,4 +1,4 @@
-pipeline {
+﻿pipeline {
     agent any
 
     // Parameters to control pipeline behavior
@@ -1129,7 +1129,73 @@ EOF
                             cp $AWS_CREDENTIALS_FILE ~/.aws/credentials
                             chmod 600 ~/.aws/credentials
                             
+                            # Pre-check: Wait for any existing EKS cluster to be fully deleted
+                            echo ""
+                            echo "=========================================="
+                            echo "Pre-Check: Verifying EKS cluster name availability"
+                            echo "=========================================="
+                            
+                            CLUSTER_NAME="achat-app-eks-cluster"
+                            CLUSTER_STATUS=$(aws eks describe-cluster \
+                                --region ${AWS_REGION} \
+                                --name $CLUSTER_NAME \
+                                --query 'cluster.status' \
+                                --output text 2>/dev/null || echo "NOT_FOUND")
+                            
+                            if [ "$CLUSTER_STATUS" != "NOT_FOUND" ]; then
+                                echo "⚠ Found existing cluster: $CLUSTER_NAME"
+                                echo "  Current status: $CLUSTER_STATUS"
+                                
+                                if [ "$CLUSTER_STATUS" = "DELETING" ]; then
+                                    echo ""
+                                    echo "Cluster is being deleted. Waiting for deletion to complete..."
+                                    echo "This may take 5-10 minutes..."
+                                    echo ""
+                                    
+                                    WAIT_START=$(date +%s)
+                                    MAX_WAIT=900  # 15 minutes
+                                    
+                                    while true; do
+                                        sleep 30
+                                        
+                                        CURRENT_STATUS=$(aws eks describe-cluster \
+                                            --region ${AWS_REGION} \
+                                            --name $CLUSTER_NAME \
+                                            --query 'cluster.status' \
+                                            --output text 2>/dev/null || echo "DELETED")
+                                        
+                                        if [ "$CURRENT_STATUS" = "DELETED" ] || echo "$CURRENT_STATUS" | grep -q "ResourceNotFoundException"; then
+                                            echo "✓ Cluster $CLUSTER_NAME is now fully deleted"
+                                            break
+                                        fi
+                                        
+                                        ELAPSED=$(($(date +%s) - WAIT_START))
+                                        if [ $ELAPSED -gt $MAX_WAIT ]; then
+                                            echo "✗ Timeout waiting for cluster deletion (${MAX_WAIT}s)"
+                                            echo "  Current status: $CURRENT_STATUS"
+                                            exit 1
+                                        fi
+                                        
+                                        echo "  Status: $CURRENT_STATUS (waited ${ELAPSED}s / ${MAX_WAIT}s)"
+                                    done
+                                    echo ""
+                                elif [ "$CLUSTER_STATUS" = "ACTIVE" ]; then
+                                    echo "✗ ERROR: Cluster $CLUSTER_NAME is still ACTIVE!"
+                                    echo "  This should have been deleted by the cleanup stage."
+                                    echo "  Please run with CLEANUP_AND_DEPLOY mode or manually delete the cluster."
+                                    exit 1
+                                else
+                                    echo "⚠ Unexpected cluster status: $CLUSTER_STATUS"
+                                    echo "  Proceeding anyway..."
+                                fi
+                            else
+                                echo "✓ No existing cluster found - name is available"
+                            fi
+                            
+                            echo ""
+                            echo "=========================================="
                             echo "Applying Terraform plan..."
+                            echo "=========================================="
                             terraform apply -auto-approve tfplan
 
                             echo ""
