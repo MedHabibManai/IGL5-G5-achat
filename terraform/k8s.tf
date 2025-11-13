@@ -9,6 +9,7 @@
 # ============================================================================
 
 resource "aws_security_group" "k8s" {
+  count       = var.deploy_mode == "k8s" ? 1 : 0
   name        = "${var.project_name}-k8s-sg"
   description = "Security group for ${var.project_name} Kubernetes cluster"
   vpc_id      = aws_vpc.main.id
@@ -71,10 +72,11 @@ resource "aws_security_group" "k8s" {
 # ============================================================================
 
 resource "aws_instance" "k8s" {
+  count                  = var.deploy_mode == "k8s" ? 1 : 0
   ami                    = local.amazon_linux_2023_ami
   instance_type          = var.k8s_instance_type
   subnet_id              = aws_subnet.public.id
-  vpc_security_group_ids = [aws_security_group.k8s.id]
+  vpc_security_group_ids = [aws_security_group.k8s[0].id]
   iam_instance_profile   = local.lab_instance_profile_name
 
   # Increased volume size for Kubernetes and Docker images

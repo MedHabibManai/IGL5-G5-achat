@@ -98,32 +98,32 @@ output "eks_node_group_status" {
 
 output "instance_id" {
   description = "ID of the EC2 instance (N/A for EKS)"
-  value       = var.deploy_mode == "ec2" ? aws_instance.app[0].id : (var.deploy_mode == "k8s" ? aws_instance.k8s.id : "N/A - Using EKS")
+  value       = var.deploy_mode == "ec2" ? aws_instance.app[0].id : (var.deploy_mode == "k8s" ? aws_instance.k8s[0].id : "N/A - Using EKS")
 }
 
 output "instance_type" {
   description = "Type of the EC2 instance (N/A for EKS)"
-  value       = var.deploy_mode == "ec2" ? aws_instance.app[0].instance_type : (var.deploy_mode == "k8s" ? aws_instance.k8s.instance_type : "N/A - Using EKS")
+  value       = var.deploy_mode == "ec2" ? aws_instance.app[0].instance_type : (var.deploy_mode == "k8s" ? aws_instance.k8s[0].instance_type : "N/A - Using EKS")
 }
 
 output "instance_state" {
   description = "State of the EC2 instance (N/A for EKS)"
-  value       = var.deploy_mode == "ec2" ? aws_instance.app[0].instance_state : (var.deploy_mode == "k8s" ? aws_instance.k8s.instance_state : "N/A - Using EKS")
+  value       = var.deploy_mode == "ec2" ? aws_instance.app[0].instance_state : (var.deploy_mode == "k8s" ? aws_instance.k8s[0].instance_state : "N/A - Using EKS")
 }
 
 output "private_ip" {
   description = "Private IP address of the EC2 instance (N/A for EKS)"
-  value       = var.deploy_mode == "ec2" ? aws_instance.app[0].private_ip : (var.deploy_mode == "k8s" ? aws_instance.k8s.private_ip : "N/A - Using EKS")
+  value       = var.deploy_mode == "ec2" ? aws_instance.app[0].private_ip : (var.deploy_mode == "k8s" ? aws_instance.k8s[0].private_ip : "N/A - Using EKS")
 }
 
 output "public_ip" {
   description = "Public IP address (N/A for EKS - use LoadBalancer service)"
-  value       = var.deploy_mode == "ec2" ? aws_eip.app[0].public_ip : (var.deploy_mode == "k8s" ? aws_instance.k8s.public_ip : "N/A - Using EKS LoadBalancer")
+  value       = var.deploy_mode == "ec2" ? aws_eip.app[0].public_ip : (var.deploy_mode == "k8s" ? aws_instance.k8s[0].public_ip : "N/A - Using EKS LoadBalancer")
 }
 
 output "public_dns" {
   description = "Public DNS name (N/A for EKS - use LoadBalancer service)"
-  value       = var.deploy_mode == "ec2" ? aws_eip.app[0].public_dns : (var.deploy_mode == "k8s" ? aws_instance.k8s.public_dns : "N/A - Using EKS LoadBalancer")
+  value       = var.deploy_mode == "ec2" ? aws_eip.app[0].public_dns : (var.deploy_mode == "k8s" ? aws_instance.k8s[0].public_dns : "N/A - Using EKS LoadBalancer")
 }
 
 # ============================================================================
@@ -132,17 +132,17 @@ output "public_dns" {
 
 output "application_url" {
   description = "URL to access the application (for EKS, deploy app first to get LoadBalancer URL)"
-  value       = var.deploy_mode == "ec2" ? "http://${aws_eip.app[0].public_ip}:${var.app_port}" : (var.deploy_mode == "k8s" ? "http://${aws_instance.k8s.public_ip}" : "Deploy application to get LoadBalancer URL")
+  value       = var.deploy_mode == "ec2" ? "http://${aws_eip.app[0].public_ip}:${var.app_port}" : (var.deploy_mode == "k8s" ? "http://${aws_instance.k8s[0].public_ip}" : "Deploy application to get LoadBalancer URL")
 }
 
 output "health_check_url" {
   description = "URL for application health check (for EKS, deploy app first)"
-  value       = var.deploy_mode == "ec2" ? "http://${aws_eip.app[0].public_ip}:${var.app_port}/SpringMVC/actuator/health" : (var.deploy_mode == "k8s" ? "http://${aws_instance.k8s.public_ip}/SpringMVC/actuator/health" : "Deploy application to get LoadBalancer URL")
+  value       = var.deploy_mode == "ec2" ? "http://${aws_eip.app[0].public_ip}:${var.app_port}/SpringMVC/actuator/health" : (var.deploy_mode == "k8s" ? "http://${aws_instance.k8s[0].public_ip}/SpringMVC/actuator/health" : "Deploy application to get LoadBalancer URL")
 }
 
 output "swagger_url" {
   description = "URL for Swagger UI (for EKS, deploy app first)"
-  value       = var.deploy_mode == "ec2" ? "http://${aws_eip.app[0].public_ip}:${var.app_port}/SpringMVC/swagger-ui/" : (var.deploy_mode == "k8s" ? "http://${aws_instance.k8s.public_ip}/SpringMVC/swagger-ui/" : "Deploy application to get LoadBalancer URL")
+  value       = var.deploy_mode == "ec2" ? "http://${aws_eip.app[0].public_ip}:${var.app_port}/SpringMVC/swagger-ui/" : (var.deploy_mode == "k8s" ? "http://${aws_instance.k8s[0].public_ip}/SpringMVC/swagger-ui/" : "Deploy application to get LoadBalancer URL")
 }
 
 output "kubectl_config_command" {
@@ -176,12 +176,12 @@ output "ssh_command" {
 
 output "ssm_connect_command" {
   description = "AWS CLI command to connect via Session Manager"
-  value       = var.deploy_mode == "ec2" ? "aws ssm start-session --target ${aws_instance.app[0].id} --region ${var.aws_region}" : "aws ssm start-session --target ${aws_instance.k8s.id} --region ${var.aws_region}"
+  value       = var.deploy_mode == "ec2" ? "aws ssm start-session --target ${aws_instance.app[0].id} --region ${var.aws_region}" : (var.deploy_mode == "k8s" ? "aws ssm start-session --target ${aws_instance.k8s[0].id} --region ${var.aws_region}" : "N/A - Using EKS")
 }
 
 output "k8s_kubeconfig_command" {
   description = "Command to get kubeconfig (k8s mode only)"
-  value       = var.deploy_mode == "k8s" ? "aws ssm start-session --target ${aws_instance.k8s.id} --region ${var.aws_region} --document-name AWS-StartInteractiveCommand --parameters command='cat /root/.kube/config'" : "N/A - Not in Kubernetes mode"
+  value       = var.deploy_mode == "k8s" ? "aws ssm start-session --target ${aws_instance.k8s[0].id} --region ${var.aws_region} --document-name AWS-StartInteractiveCommand --parameters command='cat /root/.kube/config'" : "N/A - Not in Kubernetes mode"
 }
 
 # ============================================================================
@@ -230,19 +230,19 @@ Docker Image:
 Deployment Mode: Kubernetes (k3s)
 
 Application URLs:
-  → Main: http://${aws_instance.k8s.public_ip}/SpringMVC/
-  → Health: http://${aws_instance.k8s.public_ip}/SpringMVC/actuator/health
-  → Swagger: http://${aws_instance.k8s.public_ip}/SpringMVC/swagger-ui/
+  → Main: http://${aws_instance.k8s[0].public_ip}/SpringMVC/
+  → Health: http://${aws_instance.k8s[0].public_ip}/SpringMVC/actuator/health
+  → Swagger: http://${aws_instance.k8s[0].public_ip}/SpringMVC/swagger-ui/
 
 Kubernetes Cluster:
-  • Instance ID: ${aws_instance.k8s.id}
-  • Instance Type: ${aws_instance.k8s.instance_type}
-  • Public IP: ${aws_instance.k8s.public_ip}
+  • Instance ID: ${aws_instance.k8s[0].id}
+  • Instance Type: ${aws_instance.k8s[0].instance_type}
+  • Public IP: ${aws_instance.k8s[0].public_ip}
   • Region: ${var.aws_region}
   • K8s Distribution: k3s (lightweight Kubernetes)
 
 Connect to Cluster:
-  SSM: aws ssm start-session --target ${aws_instance.k8s.id} --region ${var.aws_region}
+  SSM: aws ssm start-session --target ${aws_instance.k8s[0].id} --region ${var.aws_region}
 
 Kubernetes Commands (run on instance):
   • kubectl get pods -n achat-app
