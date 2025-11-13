@@ -124,14 +124,12 @@
 				</configuration>
 			</plugin>
 
-			<!-- SonarQube Maven Plugin - Version 3.7.0.1746 supports Java 8 -->
-			<plugin>
-				<groupId>org.sonarsource.scanner.maven</groupId>
-				<artifactId>sonar-maven-plugin</artifactId>
-				<version>3.7.0.1746</version>
-			</plugin>
-
-			<!-- Maven Deploy Plugin -->
+		<!-- SonarQube Maven Plugin - Version 3.11.0.3922 supports Java 21 -->
+		<plugin>
+			<groupId>org.sonarsource.scanner.maven</groupId>
+			<artifactId>sonar-maven-plugin</artifactId>
+			<version>3.11.0.3922</version>
+		</plugin>			<!-- Maven Deploy Plugin -->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-deploy-plugin</artifactId>
