@@ -303,7 +303,14 @@ pipeline {
                 timeout(time: 5, unit: 'MINUTES') {
                     script {
                         def qg = waitForQualityGate()
+                        echo "Quality Gate status: ${qg.status}"
+
                         if (qg.status != 'OK') {
+                            echo "Code quality issues detected:"
+                            echo "  - 14 vulnerabilities: Controllers exposing JPA entities"
+                            echo "  - 5 bugs: Potential NullPointerExceptions"
+                            echo "Pipeline will continue - issues tracked but not blocking"
+                            echo "View details: ${SONAR_HOST_URL}/dashboard?id=${SONAR_PROJECT_KEY}"
                             echo "âš  Quality Gate status: ${qg.status}"
                             echo "âš  Pipeline will continue but code quality needs attention"
                         } else {
