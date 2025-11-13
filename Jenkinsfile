@@ -100,7 +100,9 @@ pipeline {
                         echo "Checkout failed: ${e.message}. Retrying..."
                     }
                 }
-            }                script {
+            }
+            
+            script {
                     echo "âœ“ Successfully checked out branch: ${env.GIT_BRANCH}"
                     echo "âœ“ Commit: ${env.GIT_COMMIT}"
                 }
