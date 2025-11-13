@@ -1241,26 +1241,70 @@ EOF
                         ).trim()
 
                         if (appUrl) {
-                            echo "Waiting for application to start (5 minutes)..."
+                            def healthUrl = "${appUrl}/actuator/health"
+                            echo "Application URL: ${appUrl}"
+                            echo "Health Check URL: ${healthUrl}"
+                            echo ""
+                            echo "Waiting for application to start..."
                             echo "This includes time for:"
                             echo "  - EC2 instance initialization"
                             echo "  - Docker installation and startup"
-                            echo "  - Database connectivity check (up to 10 minutes timeout)"
+                            echo "  - Database connectivity"
                             echo "  - Application container startup"
-                            sleep(300)  // 5 minutes
-
-                            echo "Checking application health..."
-                            def healthUrl = "${appUrl}/actuator/health"
-
-                            retry(12) {
-                                sleep(20)
-                                sh """
-                                    curl -f ${healthUrl} || exit 1
-                                """
-                            }
-
                             echo ""
-                            echo "Application is healthy and responding!"
+                            
+                            // Initial wait for EC2 instance to initialize
+                            echo "Initial wait: 60 seconds for EC2 instance boot..."
+                            sleep(60)
+                            
+                            // Continuous health check with retries
+                            def maxAttempts = 30  // 30 attempts
+                            def checkInterval = 20  // 20 seconds between checks = 10 minutes total
+                            def healthy = false
+                            
+                            echo "Starting health checks (max ${maxAttempts} attempts, ${checkInterval}s intervals)..."
+                            echo "Maximum wait time: ${maxAttempts * checkInterval / 60} minutes"
+                            echo ""
+                            
+                            for (int i = 1; i <= maxAttempts && !healthy; i++) {
+                                try {
+                                    echo "Health check attempt ${i}/${maxAttempts}..."
+                                    
+                                    def response = sh(
+                                        script: "curl -f -s -o /dev/null -w '%{http_code}' ${healthUrl} || echo '000'",
+                                        returnStdout: true
+                                    ).trim()
+                                    
+                                    if (response == '200') {
+                                        healthy = true
+                                        echo "✓ Application is healthy! (HTTP ${response})"
+                                        
+                                        // Show actual health response
+                                        sh "curl -s ${healthUrl} || echo 'Could not fetch health details'"
+                                    } else {
+                                        echo "  Status: HTTP ${response} (not ready yet)"
+                                        if (i < maxAttempts) {
+                                            echo "  Waiting ${checkInterval} seconds before next check..."
+                                            sleep(checkInterval)
+                                        }
+                                    }
+                                } catch (Exception e) {
+                                    echo "  Connection failed: ${e.message}"
+                                    if (i < maxAttempts) {
+                                        echo "  Waiting ${checkInterval} seconds before retry..."
+                                        sleep(checkInterval)
+                                    }
+                                }
+                            }
+                            
+                            if (!healthy) {
+                                error("Application failed to become healthy after ${maxAttempts} attempts (${maxAttempts * checkInterval / 60} minutes)")
+                            }
+                            
+                            echo ""
+                            echo "════════════════════════════════════════"
+                            echo "✓ Application is healthy and responding!"
+                            echo "════════════════════════════════════════"
                         } else {
                             echo "Could not retrieve application URL"
                         }
@@ -1362,11 +1406,60 @@ EOF
                         usernameVariable: 'DOCKER_USER',
                         passwordVariable: 'DOCKER_PASS'
                     )]) {
-                        sh """
-                            echo "\${DOCKER_PASS}" | docker login -u "\${DOCKER_USER}" --password-stdin ${DOCKER_REGISTRY}
-                            docker push ${DOCKER_REGISTRY}/habibmanai/achat-frontend:${BUILD_NUMBER}
-                            docker push ${DOCKER_REGISTRY}/habibmanai/achat-frontend:latest
-                        """
+                        // Retry Docker login with exponential backoff
+                        def maxRetries = 3
+                        def retryDelay = 10
+                        def loginSuccess = false
+                        
+                        for (int i = 0; i < maxRetries && !loginSuccess; i++) {
+                            try {
+                                if (i > 0) {
+                                    echo "Retry login attempt ${i + 1}/${maxRetries} after ${retryDelay}s delay..."
+                                    sleep(retryDelay)
+                                    retryDelay *= 2
+                                }
+                                
+                                sh """
+                                    echo "\${DOCKER_PASS}" | docker login -u "\${DOCKER_USER}" --password-stdin ${DOCKER_REGISTRY}
+                                """
+                                
+                                loginSuccess = true
+                                echo "✓ Docker login successful!"
+                            } catch (Exception e) {
+                                echo "Docker login attempt ${i + 1} failed: ${e.message}"
+                                if (i == maxRetries - 1) {
+                                    error("Failed to login to Docker Hub after ${maxRetries} attempts")
+                                }
+                            }
+                        }
+                        
+                        // Retry Docker push with exponential backoff
+                        maxRetries = 3
+                        retryDelay = 10
+                        def pushSuccess = false
+                        
+                        for (int i = 0; i < maxRetries && !pushSuccess; i++) {
+                            try {
+                                if (i > 0) {
+                                    echo "Retry push attempt ${i + 1}/${maxRetries} after ${retryDelay}s delay..."
+                                    sleep(retryDelay)
+                                    retryDelay *= 2
+                                }
+                                
+                                sh """
+                                    docker push ${DOCKER_REGISTRY}/habibmanai/achat-frontend:${BUILD_NUMBER}
+                                    docker push ${DOCKER_REGISTRY}/habibmanai/achat-frontend:latest
+                                """
+                                
+                                pushSuccess = true
+                                echo "✓ Frontend Docker push successful!"
+                            } catch (Exception e) {
+                                echo "Frontend push attempt ${i + 1} failed: ${e.message}"
+                                if (i == maxRetries - 1) {
+                                    error("Failed to push frontend to Docker Hub after ${maxRetries} attempts")
+                                }
+                            }
+                        }
                     }
                 }
                 
@@ -1408,25 +1501,63 @@ EOF
                                         --name ${eksClusterName}
                                 """
                                 
-                                // Deploy backend and frontend to EKS
+                                // Get RDS endpoint from Terraform
+                                def rdsEndpoint = sh(
+                                    script: 'terraform output -raw rds_endpoint 2>/dev/null || echo ""',
+                                    returnStdout: true
+                                ).trim()
+                                
+                                if (rdsEndpoint) {
+                                    echo "RDS Endpoint: ${rdsEndpoint}"
+                                    echo "Updating ConfigMap with RDS endpoint..."
+                                } else {
+                                    echo "WARNING: Could not retrieve RDS endpoint!"
+                                }
+                                
+                                // Deploy to EKS
                                 sh """
-                                    # Update backend deployment image
+                                    # Create namespace first
+                                    echo "Creating namespace..."
+                                    kubectl apply -f ../k8s/namespace.yaml
+                                    
+                                    # Apply secrets and configmaps
+                                    echo "Applying secrets and configmaps..."
+                                    kubectl apply -f ../k8s/secret.yaml
+                                    
+                                    # Update ConfigMap with actual RDS endpoint
+                                    if [ -n "${rdsEndpoint}" ]; then
+                                        echo "Updating ConfigMap with RDS endpoint: ${rdsEndpoint}"
+                                        cat ../k8s/configmap.yaml | \\
+                                            sed "s|RDS_ENDPOINT_PLACEHOLDER|${rdsEndpoint}|g" | \\
+                                            kubectl apply -f -
+                                    else
+                                        echo "WARNING: Applying ConfigMap without RDS endpoint update!"
+                                        kubectl apply -f ../k8s/configmap.yaml
+                                    fi
+                                    
+                                    # Apply all other Kubernetes manifests (deployments, services, etc.)
+                                    echo "Applying deployments and services..."
+                                    kubectl apply -f ../k8s/deployment.yaml
+                                    kubectl apply -f ../k8s/frontend-deployment.yaml
+                                    kubectl apply -f ../k8s/service.yaml
+                                    kubectl apply -f ../k8s/hpa.yaml
+                                    
+                                    # Now update deployment images to specific build versions
+                                    echo "Updating deployment images to build ${BUILD_NUMBER}..."
                                     kubectl set image deployment/achat-app -n achat-app \\
                                         achat-app=${DOCKER_REGISTRY}/habibmanai/${DOCKER_IMAGE_NAME}:${BUILD_NUMBER} \\
-                                        --record || echo "Backend deployment doesn't exist yet"
+                                        --record
                                     
-                                    # Update frontend deployment image
                                     kubectl set image deployment/achat-frontend -n achat-app \\
                                         frontend=${DOCKER_REGISTRY}/habibmanai/achat-frontend:${BUILD_NUMBER} \\
-                                        --record || echo "Frontend deployment doesn't exist yet"
-                                    
-                                    # Apply all Kubernetes manifests
-                                    kubectl apply -f ../k8s/
+                                        --record
                                     
                                     # Wait for backend rollout
+                                    echo "Waiting for backend deployment..."
                                     kubectl rollout status deployment/achat-app -n achat-app --timeout=5m
                                     
                                     # Wait for frontend rollout
+                                    echo "Waiting for frontend deployment..."
                                     kubectl rollout status deployment/achat-frontend -n achat-app --timeout=5m
                                     
                                     # Get service endpoints
