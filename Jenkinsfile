@@ -1071,11 +1071,13 @@ EOF
                           -var="docker_image=${TF_VAR_docker_image}" \
                           -var="deploy_mode=${TF_VAR_deploy_mode}" \
                           -out=tfplan \
-                          -input=false
+                          -input=false \
+                          -refresh=false
 
                         echo ""
                         echo "Plan saved to: tfplan"
                         echo "Deployment mode: ${TF_VAR_deploy_mode}"
+                        echo "Note: Using -refresh=false for AWS Academy compatibility"
                     '''
                 }
 
