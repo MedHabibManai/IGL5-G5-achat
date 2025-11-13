@@ -13,10 +13,12 @@ pipeline {
         )
     }
 
-    tools {
-        maven 'maven-3.8.6'  // Will be auto-installed
-        jdk 'jdk-8'          // Will be auto-installed
-    }
+    // Removed Jenkins auto-install tools block to avoid external TLS download failures.
+    // Use project Maven Wrapper (mvnw) and container's existing JDK instead of downloading.
+    // tools {
+    //     maven 'maven-3.8.6'  // Will be auto-installed
+    //     jdk 'jdk-8'          // Will be auto-installed
+    // }
     
     environment {
         // Maven settings
@@ -82,7 +84,7 @@ pipeline {
                 }
                 
                 // Clean and compile the project
-                sh 'mvn clean compile'
+                sh './mvnw clean compile'
                 
                 script {
                     echo 'âœ“ Build completed successfully'
@@ -99,7 +101,7 @@ pipeline {
                 }
                 
                 // Run tests
-                sh 'mvn test'
+                sh './mvnw test'
                 
                 script {
                     echo 'âœ“ All unit tests passed'
@@ -127,7 +129,7 @@ pipeline {
                 }
                 
                 // Package the application
-                sh 'mvn package -DskipTests'
+                sh './mvnw package -DskipTests'
                 
                 script {
                     echo "âœ“ Application packaged: ${ARTIFACT_NAME}"
@@ -157,7 +159,7 @@ pipeline {
                 // Run SonarQube analysis
                 withSonarQubeEnv('SonarQube') {
                     sh '''
-                        mvn sonar:sonar \
+                        ./mvnw sonar:sonar \
                           -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
                           -Dsonar.projectName="${SONAR_PROJECT_NAME}" \
                           -Dsonar.host.url=${SONAR_HOST_URL} \
@@ -278,10 +280,6 @@ EOF
         }
         
         stage('Push Docker Image') {
-            options {
-                timeout(time: 10, unit: 'MINUTES')
-                retry(2)
-            }
             steps {
                 script {
                     echo '========================================='
@@ -389,26 +387,8 @@ EOF
                                     if [ -n "$INSTANCE_IDS" ]; then
                                         echo "    Found instances: $INSTANCE_IDS"
                                         safe_delete "aws ec2 terminate-instances --region ${AWS_REGION} --instance-ids $INSTANCE_IDS"
-                                        echo "    Waiting for instances to terminate (checking every 5 seconds)..."
-                                        
-                                        WAIT_COUNT=0
-                                        MAX_WAIT=60  # 60 * 5 seconds = 5 minutes max
-                                        while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
-                                            STATUS=$(aws ec2 describe-instances \
-                                                --region ${AWS_REGION} \
-                                                --instance-ids $INSTANCE_IDS \
-                                                --query 'Reservations[].Instances[].State.Name' \
-                                                --output text 2>/dev/null || echo "terminated")
-                                            
-                                            if [ "$STATUS" = "terminated" ] || [ -z "$STATUS" ]; then
-                                                echo "      ✓ All instances terminated"
-                                                break
-                                            else
-                                                echo "      Status: $STATUS (waiting...)"
-                                                sleep 5
-                                                WAIT_COUNT=$((WAIT_COUNT + 1))
-                                            fi
-                                        done
+                                        echo "    Waiting for instances to terminate..."
+                                        aws ec2 wait instance-terminated --region ${AWS_REGION} --instance-ids $INSTANCE_IDS 2>/dev/null || sleep 30
                                     else
                                         echo "    No instances found"
                                     fi
@@ -426,24 +406,25 @@ EOF
                                             echo "    Deleting RDS instance: $db_id"
                                             safe_delete "aws rds delete-db-instance --region ${AWS_REGION} --db-instance-identifier $db_id --skip-final-snapshot"
                                         done
-                                        echo "    Waiting for RDS instances to delete (checking every 5 seconds)..."
+                                        echo "    Waiting for RDS instances to delete (this may take 5-10 minutes)..."
+                                        echo "    Checking deletion status every 30 seconds..."
                                         for db_id in $DB_INSTANCES; do
                                             WAIT_COUNT=0
-                                            MAX_WAIT=120  # 120 * 5 seconds = 10 minutes max
-                                            while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
-                                                DB_STATUS=$(aws rds describe-db-instances \
+                                            MAX_WAIT=20  # 20 * 30 seconds = 10 minutes max
+                                            while [ \$WAIT_COUNT -lt \$MAX_WAIT ]; do
+                                                DB_STATUS=\$(aws rds describe-db-instances \
                                                     --region ${AWS_REGION} \
-                                                    --db-instance-identifier $db_id \
+                                                    --db-instance-identifier \$db_id \
                                                     --query 'DBInstances[0].DBInstanceStatus' \
                                                     --output text 2>/dev/null || echo "deleted")
                                                 
-                                                if [ "$DB_STATUS" = "deleted" ] || [ "$DB_STATUS" = "None" ]; then
-                                                    echo "      ✓ RDS instance $db_id fully deleted"
+                                                if [ "\$DB_STATUS" = "deleted" ] || [ "\$DB_STATUS" = "None" ]; then
+                                                    echo "      ✓ RDS instance \$db_id fully deleted"
                                                     break
                                                 else
-                                                    echo "      Status: $DB_STATUS (waiting...)"
-                                                    sleep 5
-                                                    WAIT_COUNT=$((WAIT_COUNT + 1))
+                                                    echo "      Status: \$DB_STATUS (waiting...)"
+                                                    sleep 30
+                                                    WAIT_COUNT=\$((WAIT_COUNT + 1))
                                                 fi
                                             done
                                         done
@@ -468,66 +449,6 @@ EOF
                                         echo "    No DB subnet groups found"
                                     fi
                                     
-                                    # 2.6. Delete EKS Resources
-                                    echo ""
-                                    echo "  2.6. Deleting EKS Resources..."
-                                    
-                                    # Check if EKS cluster exists
-                                    EKS_CLUSTER=$(aws eks describe-cluster --region ${AWS_REGION} --name achat-app-eks-cluster --query "cluster.name" --output text 2>/dev/null || echo "")
-                                    if [ -n "$EKS_CLUSTER" ] && [ "$EKS_CLUSTER" != "None" ]; then
-                                        echo "    Found EKS cluster: $EKS_CLUSTER"
-                                        
-                                        # Delete node groups first
-                                        echo "    Checking for EKS node groups..."
-                                        NODE_GROUPS=$(aws eks list-nodegroups --region ${AWS_REGION} --cluster-name achat-app-eks-cluster --query "nodegroups[*]" --output text 2>/dev/null || echo "")
-                                        if [ -n "$NODE_GROUPS" ]; then
-                                            for node_group in $NODE_GROUPS; do
-                                                echo "      Deleting node group: $node_group"
-                                                safe_delete "aws eks delete-nodegroup --region ${AWS_REGION} --cluster-name achat-app-eks-cluster --nodegroup-name $node_group"
-                                            done
-                                            
-                                            echo "    Waiting for node groups to delete (checking every 5 seconds)..."
-                                            WAIT_COUNT=0
-                                            MAX_WAIT=60  # 60 * 5 seconds = 5 minutes max
-                                            while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
-                                                REMAINING=$(aws eks list-nodegroups --region ${AWS_REGION} --cluster-name achat-app-eks-cluster --query "nodegroups[*]" --output text 2>/dev/null | wc -w || echo "0")
-                                                
-                                                if [ "$REMAINING" = "0" ]; then
-                                                    echo "      ✓ All node groups deleted"
-                                                    break
-                                                else
-                                                    echo "      Still $REMAINING node group(s) deleting..."
-                                                    sleep 5
-                                                    WAIT_COUNT=$((WAIT_COUNT + 1))
-                                                fi
-                                            done
-                                        else
-                                            echo "      No node groups found"
-                                        fi
-                                        
-                                        # Now delete the cluster
-                                        echo "    Deleting EKS cluster: $EKS_CLUSTER"
-                                        safe_delete "aws eks delete-cluster --region ${AWS_REGION} --name achat-app-eks-cluster"
-                                        
-                                        echo "    Waiting for cluster deletion (checking every 5 seconds)..."
-                                        WAIT_COUNT=0
-                                        MAX_WAIT=180  # 180 * 5 seconds = 15 minutes max
-                                        while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
-                                            CLUSTER_STATUS=$(aws eks describe-cluster --region ${AWS_REGION} --name achat-app-eks-cluster --query "cluster.status" --output text 2>/dev/null || echo "DELETED")
-                                            
-                                            if [ "$CLUSTER_STATUS" = "DELETED" ] || [ -z "$CLUSTER_STATUS" ]; then
-                                                echo "      ✓ EKS cluster deleted"
-                                                break
-                                            else
-                                                echo "      Status: $CLUSTER_STATUS (waiting...)"
-                                                sleep 5
-                                                WAIT_COUNT=$((WAIT_COUNT + 1))
-                                            fi
-                                        done
-                                    else
-                                        echo "    No EKS cluster found"
-                                    fi
-                                    
                                     # 3. Delete NAT Gateways
                                     echo ""
                                     echo "  3. Deleting NAT Gateways..."
@@ -542,26 +463,8 @@ EOF
                                             echo "    Deleting NAT Gateway: $nat_id"
                                             safe_delete "aws ec2 delete-nat-gateway --region ${AWS_REGION} --nat-gateway-id $nat_id"
                                         done
-                                        echo "    Waiting for NAT Gateways to delete (checking every 5 seconds)..."
-                                        
-                                        WAIT_COUNT=0
-                                        MAX_WAIT=36  # 36 * 5 seconds = 3 minutes
-                                        while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
-                                            REMAINING=$(aws ec2 describe-nat-gateways \
-                                                --region ${AWS_REGION} \
-                                                --nat-gateway-ids $NAT_GW_IDS \
-                                                --query 'NatGateways[?State==`available` || State==`deleting`].NatGatewayId' \
-                                                --output text 2>/dev/null | wc -w || echo "0")
-                                            
-                                            if [ "$REMAINING" = "0" ]; then
-                                                echo "      ✓ All NAT Gateways deleted"
-                                                break
-                                            else
-                                                echo "      Still $REMAINING NAT Gateway(s) deleting..."
-                                                sleep 5
-                                                WAIT_COUNT=$((WAIT_COUNT + 1))
-                                            fi
-                                        done
+                                        echo "    Waiting for NAT Gateways to delete..."
+                                        sleep 30
                                     else
                                         echo "    No NAT Gateways found"
                                     fi
@@ -789,100 +692,12 @@ EOF
                                     echo "Importing DB subnet group: $DB_SUBNET_GROUP"
                                     terraform import -var="docker_image=${TF_VAR_docker_image}" aws_db_subnet_group.main $DB_SUBNET_GROUP 2>/dev/null || echo "  (already in state)"
                                 fi
-                                
-                                # Import EKS resources if they exist
-                                echo "Checking for existing EKS resources..."
-                                EKS_CLUSTER=$(aws eks describe-cluster --region ${AWS_REGION} --name achat-app-eks-cluster --query "cluster.name" --output text 2>/dev/null || echo "")
-                                if [ -n "$EKS_CLUSTER" ] && [ "$EKS_CLUSTER" != "None" ]; then
-                                    echo "Found existing EKS cluster: $EKS_CLUSTER"
-                                    echo "Importing EKS cluster..."
-                                    terraform import -var="docker_image=${TF_VAR_docker_image}" 'aws_eks_cluster.main[0]' $EKS_CLUSTER 2>/dev/null || echo "  (already in state)"
-                                    
-                                    # Import EKS node group
-                                    NODE_GROUP=$(aws eks describe-nodegroup --region ${AWS_REGION} --cluster-name achat-app-eks-cluster --nodegroup-name achat-app-node-group --query "nodegroup.nodegroupName" --output text 2>/dev/null || echo "")
-                                    if [ -n "$NODE_GROUP" ] && [ "$NODE_GROUP" != "None" ]; then
-                                        echo "Importing EKS node group: $NODE_GROUP"
-                                        terraform import -var="docker_image=${TF_VAR_docker_image}" 'aws_eks_node_group.main[0]' "achat-app-eks-cluster:achat-app-node-group" 2>/dev/null || echo "  (already in state)"
-                                    fi
-                                    
-                                    # Import EKS security groups
-                                    EKS_CLUSTER_SG=$(aws ec2 describe-security-groups --region ${AWS_REGION} --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=achat-app-eks-cluster-sg" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || echo "")
-                                    if [ -n "$EKS_CLUSTER_SG" ] && [ "$EKS_CLUSTER_SG" != "None" ]; then
-                                        echo "Importing EKS cluster security group: $EKS_CLUSTER_SG"
-                                        terraform import -var="docker_image=${TF_VAR_docker_image}" 'aws_security_group.eks_cluster[0]' $EKS_CLUSTER_SG 2>/dev/null || echo "  (already in state)"
-                                    fi
-                                    
-                                    EKS_NODES_SG=$(aws ec2 describe-security-groups --region ${AWS_REGION} --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=achat-app-eks-nodes-sg" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || echo "")
-                                    if [ -n "$EKS_NODES_SG" ] && [ "$EKS_NODES_SG" != "None" ]; then
-                                        echo "Importing EKS nodes security group: $EKS_NODES_SG"
-                                        terraform import -var="docker_image=${TF_VAR_docker_image}" 'aws_security_group.eks_nodes[0]' $EKS_NODES_SG 2>/dev/null || echo "  (already in state)"
-                                    fi
-                                    
-                                    # Import NAT Gateway and EIP
-                                    NAT_GW=$(aws ec2 describe-nat-gateways --region ${AWS_REGION} --filter "Name=vpc-id,Values=$VPC_ID" "Name=state,Values=available" --query "NatGateways[0].NatGatewayId" --output text 2>/dev/null || echo "")
-                                    if [ -n "$NAT_GW" ] && [ "$NAT_GW" != "None" ]; then
-                                        echo "Importing NAT Gateway: $NAT_GW"
-                                        terraform import -var="docker_image=${TF_VAR_docker_image}" 'aws_nat_gateway.main[0]' $NAT_GW 2>/dev/null || echo "  (already in state)"
-                                        
-                                        # Get NAT EIP
-                                        NAT_EIP=$(aws ec2 describe-nat-gateways --region ${AWS_REGION} --nat-gateway-ids $NAT_GW --query "NatGateways[0].NatGatewayAddresses[0].AllocationId" --output text 2>/dev/null || echo "")
-                                        if [ -n "$NAT_EIP" ] && [ "$NAT_EIP" != "None" ]; then
-                                            echo "Importing NAT EIP: $NAT_EIP"
-                                            terraform import -var="docker_image=${TF_VAR_docker_image}" 'aws_eip.nat[0]' $NAT_EIP 2>/dev/null || echo "  (already in state)"
-                                        fi
-                                    fi
-                                    
-                                    # Import private route table
-                                    PRIVATE_RTB=$(aws ec2 describe-route-tables --region ${AWS_REGION} --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=achat-app-private-rt" --query "RouteTables[0].RouteTableId" --output text 2>/dev/null || echo "")
-                                    if [ -n "$PRIVATE_RTB" ] && [ "$PRIVATE_RTB" != "None" ]; then
-                                        echo "Importing private route table: $PRIVATE_RTB"
-                                        terraform import -var="docker_image=${TF_VAR_docker_image}" 'aws_route_table.private[0]' $PRIVATE_RTB 2>/dev/null || echo "  (already in state)"
-                                        
-                                        # Import private route table association
-                                        if [ -n "$PRIVATE_SUBNET_ID" ]; then
-                                            # Get association ID using simpler approach
-                                            PRIVATE_RTB_ASSOC=$(aws ec2 describe-route-tables --region ${AWS_REGION} --route-table-ids $PRIVATE_RTB --output json 2>/dev/null | grep -A2 "$PRIVATE_SUBNET_ID" | grep "RouteTableAssociationId" | cut -d':' -f2 | tr -d ' ",' | head -1)
-                                            if [ -n "$PRIVATE_RTB_ASSOC" ] && [ "$PRIVATE_RTB_ASSOC" != "None" ]; then
-                                                echo "Importing private route table association: $PRIVATE_RTB_ASSOC"
-                                                terraform import -var="docker_image=${TF_VAR_docker_image}" 'aws_route_table_association.private[0]' $PRIVATE_RTB_ASSOC 2>/dev/null || echo "  (already in state)"
-                                            else
-                                                echo "No private route table association found (will be created)"
-                                            fi
-                                        fi
-                                    fi
-                                    
-                                    # Import subnet tags for EKS
-                                    if [ -n "$PUBLIC_SUBNET_ID" ]; then
-                                        echo "Importing EKS subnet tags..."
-                                        terraform import -var="docker_image=${TF_VAR_docker_image}" 'aws_ec2_tag.public_subnet_eks[0]' "$PUBLIC_SUBNET_ID,kubernetes.io/cluster/achat-app-eks-cluster" 2>/dev/null || echo "  (already in state)"
-                                        terraform import -var="docker_image=${TF_VAR_docker_image}" 'aws_ec2_tag.public_subnet_elb[0]' "$PUBLIC_SUBNET_ID,kubernetes.io/role/elb" 2>/dev/null || echo "  (already in state)"
-                                    fi
-                                else
-                                    echo "No EKS cluster found - will be created if terraform.tfvars has create_eks=true"
-                                fi
                             fi
                             
                             echo ""
                             echo "======================================"
                             echo "Destroying only EC2 instance..."
                             echo "======================================"
-                            
-                            # Import existing EIP if it exists (from previous build)
-                            echo "Checking for existing EIP from previous build..."
-                            EXISTING_EIP=$(aws ec2 describe-addresses --region ${AWS_REGION} --filters "Name=tag:Name,Values=achat-app-eip" --query "Addresses[0].AllocationId" --output text 2>/dev/null || echo "")
-                            if [ -n "$EXISTING_EIP" ] && [ "$EXISTING_EIP" != "None" ]; then
-                                echo "Found existing EIP: $EXISTING_EIP - importing to destroy it"
-                                terraform import -var="docker_image=${TF_VAR_docker_image}" aws_eip.app $EXISTING_EIP 2>/dev/null || echo "  (already in state or doesn't exist)"
-                                
-                                # Also import EIP association if it exists
-                                EXISTING_EIP_ASSOC=$(aws ec2 describe-addresses --region ${AWS_REGION} --allocation-ids $EXISTING_EIP --query "Addresses[0].AssociationId" --output text 2>/dev/null || echo "")
-                                if [ -n "$EXISTING_EIP_ASSOC" ] && [ "$EXISTING_EIP_ASSOC" != "None" ]; then
-                                    echo "Found existing EIP association: $EXISTING_EIP_ASSOC - importing to destroy it"
-                                    terraform import -var="docker_image=${TF_VAR_docker_image}" aws_eip_association.app $EXISTING_EIP_ASSOC 2>/dev/null || echo "  (already in state or doesn't exist)"
-                                fi
-                            else
-                                echo "No existing EIP found from previous build"
-                            fi
                             
                             # Destroy only EC2 and EIP
                             terraform destroy -auto-approve \
@@ -1047,49 +862,6 @@ EOF
                             mkdir -p ~/.aws
                             cp $AWS_CREDENTIALS_FILE ~/.aws/credentials
                             chmod 600 ~/.aws/credentials
-                            
-                            echo ""
-                            echo "Checking for existing resources that may conflict..."
-                            echo "================================================="
-                            
-                            # Check for existing EKS cluster
-                            EKS_EXISTS=$(aws eks describe-cluster --region ${AWS_REGION} --name achat-app-eks-cluster --query "cluster.name" --output text 2>/dev/null || echo "")
-                            if [ -n "$EKS_EXISTS" ] && [ "$EKS_EXISTS" != "None" ]; then
-                                echo "⚠ Found existing EKS cluster: $EKS_EXISTS"
-                                echo "  Importing into Terraform state..."
-                                terraform import -var="docker_image=${TF_VAR_docker_image}" 'aws_eks_cluster.main[0]' $EKS_EXISTS 2>/dev/null || echo "  (already imported or import failed)"
-                                
-                                # Check for node group
-                                NODE_GROUP=$(aws eks describe-nodegroup --region ${AWS_REGION} --cluster-name achat-app-eks-cluster --nodegroup-name achat-app-node-group --query "nodegroup.nodegroupName" --output text 2>/dev/null || echo "")
-                                if [ -n "$NODE_GROUP" ] && [ "$NODE_GROUP" != "None" ]; then
-                                    echo "  Found existing node group: $NODE_GROUP"
-                                    terraform import -var="docker_image=${TF_VAR_docker_image}" 'aws_eks_node_group.main[0]' achat-app-eks-cluster:$NODE_GROUP 2>/dev/null || echo "  (already imported or import failed)"
-                                fi
-                                
-                                # Import EKS security groups
-                                EKS_CLUSTER_SG=$(aws ec2 describe-security-groups --region ${AWS_REGION} --filters "Name=tag:Name,Values=achat-app-eks-cluster-sg" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || echo "")
-                                if [ -n "$EKS_CLUSTER_SG" ] && [ "$EKS_CLUSTER_SG" != "None" ]; then
-                                    echo "  Found existing EKS cluster SG: $EKS_CLUSTER_SG"
-                                    terraform import -var="docker_image=${TF_VAR_docker_image}" 'aws_security_group.eks_cluster[0]' $EKS_CLUSTER_SG 2>/dev/null || echo "  (already imported or import failed)"
-                                fi
-                                
-                                EKS_NODES_SG=$(aws ec2 describe-security-groups --region ${AWS_REGION} --filters "Name=tag:Name,Values=achat-app-eks-nodes-sg" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || echo "")
-                                if [ -n "$EKS_NODES_SG" ] && [ "$EKS_NODES_SG" != "None" ]; then
-                                    echo "  Found existing EKS nodes SG: $EKS_NODES_SG"
-                                    terraform import -var="docker_image=${TF_VAR_docker_image}" 'aws_security_group.eks_nodes[0]' $EKS_NODES_SG 2>/dev/null || echo "  (already imported or import failed)"
-                                fi
-                            fi
-                            
-                            # Check for existing DB subnet group
-                            DB_SUBNET_GROUP=$(aws rds describe-db-subnet-groups --region ${AWS_REGION} --query "DBSubnetGroups[?DBSubnetGroupName=='achat-app-db-subnet-group'].DBSubnetGroupName | [0]" --output text 2>/dev/null || echo "")
-                            if [ -n "$DB_SUBNET_GROUP" ] && [ "$DB_SUBNET_GROUP" != "None" ]; then
-                                echo "⚠ Found existing DB subnet group: $DB_SUBNET_GROUP"
-                                echo "  Importing into Terraform state..."
-                                terraform import -var="docker_image=${TF_VAR_docker_image}" aws_db_subnet_group.main $DB_SUBNET_GROUP 2>/dev/null || echo "  (already imported or import failed)"
-                            fi
-                            
-                            echo "================================================="
-                            echo ""
                             
                             echo "Applying Terraform plan..."
                             terraform apply -auto-approve tfplan
@@ -1407,16 +1179,9 @@ EOF
                 }
                 
                 // Configure kubectl for EKS
-                withCredentials([file(credentialsId: "${AWS_CREDENTIAL_ID}", variable: 'AWS_CREDENTIALS_FILE')]) {
+                withAWS(credentials: "${AWS_CREDENTIAL_ID}", region: "${AWS_REGION}") {
                     dir("${TERRAFORM_DIR}") {
                         script {
-                            // Set up AWS credentials
-                            sh '''
-                                mkdir -p ~/.aws
-                                cp $AWS_CREDENTIALS_FILE ~/.aws/credentials
-                                chmod 600 ~/.aws/credentials
-                            '''
-                            
                             // Get EKS cluster name from Terraform
                             def eksClusterName = sh(
                                 script: 'terraform output -raw eks_cluster_name 2>/dev/null || echo ""',
@@ -1435,56 +1200,18 @@ EOF
                                 
                                 // Deploy backend and frontend to EKS
                                 sh """
-                                    # Get RDS endpoint
-                                    RDS_ENDPOINT=\$(terraform output -raw db_endpoint 2>/dev/null || echo "")
-                                    
-                                    if [ -z "\$RDS_ENDPOINT" ]; then
-                                        echo "ERROR: Could not get RDS endpoint from Terraform"
-                                        exit 1
-                                    fi
-                                    
-                                    echo "RDS Endpoint: \$RDS_ENDPOINT"
-                                    
-                                    # Update backend deployment image (if exists)
+                                    # Update backend deployment image
                                     kubectl set image deployment/achat-app -n achat-app \\
                                         achat-app=${DOCKER_REGISTRY}/habibmanai/${DOCKER_IMAGE_NAME}:${BUILD_NUMBER} \\
-                                        --record 2>/dev/null || echo "Backend deployment doesn't exist yet"
+                                        --record || echo "Backend deployment doesn't exist yet"
                                     
-                                    # Update frontend deployment image (if exists)
+                                    # Update frontend deployment image
                                     kubectl set image deployment/achat-frontend -n achat-app \\
                                         frontend=${DOCKER_REGISTRY}/habibmanai/achat-frontend:${BUILD_NUMBER} \\
-                                        --record 2>/dev/null || echo "Frontend deployment doesn't exist yet"
+                                        --record || echo "Frontend deployment doesn't exist yet"
                                     
-                                    echo ""
-                                    echo "=== Applying Kubernetes manifests ==="
-                                    
-                                    # Apply namespace first
-                                    kubectl apply -f ../k8s/namespace.yaml
-                                    
-                                    # Wait for namespace to be ready
-                                    echo "Waiting for namespace to be ready..."
-                                    kubectl wait --for=jsonpath='{.status.phase}'=Active namespace/achat-app --timeout=30s
-                                    sleep 2
-                                    
-                                    # Apply secrets
-                                    kubectl apply -f ../k8s/secret.yaml
-                                    
-                                    # Update ConfigMap with actual RDS endpoint
-                                    sed "s|RDS_ENDPOINT_PLACEHOLDER|\$RDS_ENDPOINT|g" ../k8s/configmap.yaml | kubectl apply -f -
-                                    
-                                    # Apply services
-                                    kubectl apply -f ../k8s/service.yaml
-                                    
-                                    # Apply deployments (skip mysql-deployment.yaml since we use RDS)
-                                    kubectl apply -f ../k8s/deployment.yaml
-                                    kubectl apply -f ../k8s/frontend-deployment.yaml
-                                    
-                                    # Apply ingress and HPA (if they exist)
-                                    kubectl apply -f ../k8s/ingress.yaml || echo "Ingress not found"
-                                    kubectl apply -f ../k8s/hpa.yaml || echo "HPA not found"
-                                    
-                                    echo ""
-                                    echo "=== Waiting for deployments to be ready ==="
+                                    # Apply all Kubernetes manifests
+                                    kubectl apply -f ../k8s/
                                     
                                     # Wait for backend rollout
                                     kubectl rollout status deployment/achat-app -n achat-app --timeout=5m
