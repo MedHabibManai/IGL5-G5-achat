@@ -1301,7 +1301,13 @@ EOF
                                     echo "✗ Terraform plan failed (exit code: $EXIT_CODE)"
                                     
                                     if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-                                        DELAY=$((10 * 2**(RETRY_COUNT - 1)))  # 10s, 20s, 40s
+                                        # Calculate delay: 10s, 20s, 40s (using case for sh compatibility)
+                                        case $RETRY_COUNT in
+                                            1) DELAY=10 ;;
+                                            2) DELAY=20 ;;
+                                            3) DELAY=40 ;;
+                                            *) DELAY=10 ;;
+                                        esac
                                         echo "Retrying in ${DELAY} seconds..."
                                         echo "(This may be a temporary network/TLS issue)"
                                         sleep $DELAY
@@ -1444,7 +1450,13 @@ EOF
                                     echo "✗ Terraform apply failed (exit code: $EXIT_CODE)"
                                     
                                     if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-                                        DELAY=$((10 * 2**(RETRY_COUNT - 1)))  # 10s, 20s, 40s
+                                        # Calculate delay: 10s, 20s, 40s (using case for sh compatibility)
+                                        case $RETRY_COUNT in
+                                            1) DELAY=10 ;;
+                                            2) DELAY=20 ;;
+                                            3) DELAY=40 ;;
+                                            *) DELAY=10 ;;
+                                        esac
                                         echo "Retrying in ${DELAY} seconds..."
                                         echo "(This may be a temporary network/TLS issue)"
                                         echo ""
