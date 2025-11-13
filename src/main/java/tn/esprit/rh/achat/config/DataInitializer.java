@@ -26,7 +26,10 @@ public class DataInitializer implements CommandLineRunner {
     private OperateurRepository operateurRepository;
 
     @Autowired
-    private DetailFournisseurRepository detailFournisseurRepository;
+    private FactureRepository factureRepository;
+
+    @Autowired
+    private ReglementRepository reglementRepository;
 
     @Override
     public void run(String... args) throws Exception {
@@ -106,21 +109,18 @@ public class DataInitializer implements CommandLineRunner {
         detail1.setEmail("contact@techsupply.tn");
         detail1.setMatricule("MAT001");
         detail1.setDateDebutCollaboration(new Date());
-        detailFournisseurRepository.save(detail1);
 
         DetailFournisseur detail2 = new DetailFournisseur();
         detail2.setAdresse("456 Rue de la République, Sfax");
         detail2.setEmail("info@electronicsplus.tn");
         detail2.setMatricule("MAT002");
         detail2.setDateDebutCollaboration(new Date());
-        detailFournisseurRepository.save(detail2);
 
         DetailFournisseur detail3 = new DetailFournisseur();
         detail3.setAdresse("789 Boulevard 7 Novembre, Sousse");
         detail3.setEmail("sales@mobilehub.tn");
         detail3.setMatricule("MAT003");
         detail3.setDateDebutCollaboration(new Date());
-        detailFournisseurRepository.save(detail3);
 
         // Create Fournisseurs
         Fournisseur fournisseur1 = new Fournisseur();
@@ -143,6 +143,42 @@ public class DataInitializer implements CommandLineRunner {
         fournisseur3.setCategorieFournisseur(CategorieFournisseur.ORDINAIRE);
         fournisseur3.setDetailFournisseur(detail3);
         fournisseurRepository.save(fournisseur3);
+
+        // Create Factures
+        Facture facture1 = new Facture();
+        facture1.setMontantRemise(100.0f);
+        facture1.setMontantFacture(5000.0f);
+        facture1.setDateCreationFacture(new Date());
+        facture1.setDateDerniereModificationFacture(new Date());
+        facture1.setArchivee(false);
+        facture1.setFournisseur(fournisseur1);
+        factureRepository.save(facture1);
+
+        Facture facture2 = new Facture();
+        facture2.setMontantRemise(50.0f);
+        facture2.setMontantFacture(3000.0f);
+        facture2.setDateCreationFacture(new Date());
+        facture2.setDateDerniereModificationFacture(new Date());
+        facture2.setArchivee(false);
+        facture2.setFournisseur(fournisseur2);
+        factureRepository.save(facture2);
+
+        // Create Reglements
+        Reglement reglement1 = new Reglement();
+        reglement1.setMontantPaye(2500.0f);
+        reglement1.setMontantRestant(2500.0f);
+        reglement1.setPayee(false);
+        reglement1.setDateReglement(new Date());
+        reglement1.setFacture(facture1);
+        reglementRepository.save(reglement1);
+
+        Reglement reglement2 = new Reglement();
+        reglement2.setMontantPaye(3000.0f);
+        reglement2.setMontantRestant(0.0f);
+        reglement2.setPayee(true);
+        reglement2.setDateReglement(new Date());
+        reglement2.setFacture(facture2);
+        reglementRepository.save(reglement2);
 
         // Create Operateurs
         Operateur operateur1 = new Operateur();
@@ -167,6 +203,8 @@ public class DataInitializer implements CommandLineRunner {
         log.info("Created {} stocks", stockRepository.count());
         log.info("Created {} fournisseurs", fournisseurRepository.count());
         log.info("Created {} operateurs", operateurRepository.count());
+        log.info("Created {} factures", factureRepository.count());
+        log.info("Created {} reglements", reglementRepository.count());
     }
 }
 

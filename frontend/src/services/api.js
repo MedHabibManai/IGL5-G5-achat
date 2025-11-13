@@ -41,8 +41,7 @@ export const apiService = {
   getAllFactures: () => api.get('/facture/retrieve-all-factures'),
   getFactureById: (id) => api.get(`/facture/retrieve-facture/${id}`),
   addFacture: (facture) => api.post('/facture/add-facture', facture),
-  updateFacture: (facture) => api.put('/facture/modify-facture', facture),
-  deleteFacture: (id) => api.delete(`/facture/remove-facture/${id}`),
+  cancelFacture: (id) => api.put(`/facture/cancel-facture/${id}`),
 
   // Operateurs
   getAllOperateurs: () => api.get('/operateur/retrieve-all-operateurs'),
@@ -55,8 +54,6 @@ export const apiService = {
   getAllReglements: () => api.get('/reglement/retrieve-all-reglements'),
   getReglementById: (id) => api.get(`/reglement/retrieve-reglement/${id}`),
   addReglement: (reglement) => api.post('/reglement/add-reglement', reglement),
-  updateReglement: (reglement) => api.put('/reglement/modify-reglement', reglement),
-  deleteReglement: (id) => api.delete(`/reglement/remove-reglement/${id}`),
 };
 
 export default api;
