@@ -1,4 +1,4 @@
-﻿pipeline {
+pipeline {
     agent any
 
     // Parameters to control pipeline behavior
@@ -619,6 +619,56 @@ EOF
                             else
                                 echo "  No EKS clusters found"
                             fi
+                            
+                            # Step 0.5: Delete DB Subnet Groups explicitly
+                            echo ""
+                            echo "Step 0.5: Deleting DB Subnet Groups..."
+                            
+                            # Delete by specific name first (Terraform-managed)
+                            echo "  Checking for Terraform-managed DB subnet group: achat-app-db-subnet-group"
+                            DB_SG_CHECK=$(aws rds describe-db-subnet-groups \
+                                --region ${AWS_REGION} \
+                                --db-subnet-group-name achat-app-db-subnet-group \
+                                --query 'DBSubnetGroups[0].DBSubnetGroupName' \
+                                --output text 2>/dev/null || echo "NOT_FOUND")
+                            
+                            if [ "$DB_SG_CHECK" != "NOT_FOUND" ] && [ -n "$DB_SG_CHECK" ]; then
+                                echo "    Found DB subnet group: $DB_SG_CHECK"
+                                DELETE_SG_OUTPUT=$(aws rds delete-db-subnet-group \
+                                    --region ${AWS_REGION} \
+                                    --db-subnet-group-name achat-app-db-subnet-group 2>&1)
+                                
+                                if echo "$DELETE_SG_OUTPUT" | grep -q "DBSubnetGroupNotFoundFault"; then
+                                    echo "      DB subnet group already deleted"
+                                elif echo "$DELETE_SG_OUTPUT" | grep -qi "error"; then
+                                    echo "      Error deleting DB subnet group: $DELETE_SG_OUTPUT"
+                                else
+                                    echo "      ✓ DB subnet group deleted successfully"
+                                fi
+                            else
+                                echo "    DB subnet group not found (already deleted)"
+                            fi
+                            
+                            # Also check for any other achat-app related DB subnet groups
+                            echo "  Checking for other achat-app DB subnet groups..."
+                            ALL_DB_SUBNET_GROUPS=$(aws rds describe-db-subnet-groups \
+                                --region ${AWS_REGION} \
+                                --query 'DBSubnetGroups[?contains(DBSubnetGroupName, `achat-app`) == `true`].DBSubnetGroupName' \
+                                --output text 2>/dev/null || echo "")
+                            
+                            if [ -n "$ALL_DB_SUBNET_GROUPS" ]; then
+                                for db_sg_name in $ALL_DB_SUBNET_GROUPS; do
+                                    echo "    Found additional DB subnet group: $db_sg_name"
+                                    aws rds delete-db-subnet-group \
+                                        --region ${AWS_REGION} \
+                                        --db-subnet-group-name $db_sg_name 2>&1 | grep -v "DBSubnetGroupNotFoundFault" || true
+                                    echo "      ✓ Processed DB subnet group: $db_sg_name"
+                                done
+                            else
+                                echo "    No additional DB subnet groups found"
+                            fi
+                            
+                            echo "  ✓ DB subnet group cleanup completed"
                             
                             # Find VPCs with name "achat-app-vpc" (regardless of tags)
                             echo ""
