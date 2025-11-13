@@ -1,4 +1,4 @@
-pipeline {
+﻿pipeline {
     agent any
 
     // Disable automatic checkout to use our custom retry logic instead
@@ -627,9 +627,69 @@ EOF
                                 echo "  No EKS clusters found"
                             fi
                             
-                            # Step 0.5: Delete DB Subnet Groups explicitly
+                            # Step 0.5: Delete RDS Instances FIRST (before DB subnet groups)
                             echo ""
-                            echo "Step 0.5: Deleting DB Subnet Groups..."
+                            echo "Step 0.5: Deleting RDS Instances..."
+                            
+                            # Find all achat-app RDS instances
+                            echo "  Checking for achat-app RDS instances..."
+                            RDS_INSTANCES=$(aws rds describe-db-instances \
+                                --region ${AWS_REGION} \
+                                --query 'DBInstances[?contains(DBInstanceIdentifier, `achat-app`) == `true`].DBInstanceIdentifier' \
+                                --output text 2>/dev/null || echo "")
+                            
+                            if [ -n "$RDS_INSTANCES" ]; then
+                                echo "    Found RDS instances: $RDS_INSTANCES"
+                                
+                                # Delete each RDS instance
+                                for db_id in $RDS_INSTANCES; do
+                                    echo "    Deleting RDS instance: $db_id"
+                                    DELETE_RDS_OUTPUT=$(aws rds delete-db-instance \
+                                        --region ${AWS_REGION} \
+                                        --db-instance-identifier $db_id \
+                                        --skip-final-snapshot 2>&1)
+                                    
+                                    if echo "$DELETE_RDS_OUTPUT" | grep -q "DBInstanceNotFound"; then
+                                        echo "      RDS instance already deleted"
+                                    elif echo "$DELETE_RDS_OUTPUT" | grep -qi "error"; then
+                                        echo "      Error deleting RDS instance: $DELETE_RDS_OUTPUT"
+                                    else
+                                        echo "      Delete command sent successfully"
+                                    fi
+                                done
+                                
+                                # Wait for RDS instances to be fully deleted
+                                echo "    Waiting for RDS instances to delete (this may take 5-10 minutes)..."
+                                for db_id in $RDS_INSTANCES; do
+                                    echo "      Waiting for RDS instance: $db_id"
+                                    WAIT_COUNT=0
+                                    MAX_WAIT=20  # 20 * 30 seconds = 10 minutes max
+                                    
+                                    while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
+                                        DB_STATUS=$(aws rds describe-db-instances \
+                                            --region ${AWS_REGION} \
+                                            --db-instance-identifier $db_id \
+                                            --query 'DBInstances[0].DBInstanceStatus' \
+                                            --output text 2>/dev/null || echo "deleted")
+                                        
+                                        if [ "$DB_STATUS" = "deleted" ] || [ "$DB_STATUS" = "None" ]; then
+                                            echo "        ✓ RDS instance $db_id fully deleted"
+                                            break
+                                        else
+                                            echo "        Status: $DB_STATUS (waiting...)"
+                                            sleep 30
+                                            WAIT_COUNT=$((WAIT_COUNT + 1))
+                                        fi
+                                    done
+                                done
+                                echo "    ✓ All RDS instances deleted"
+                            else
+                                echo "    No RDS instances found"
+                            fi
+                            
+                            # Step 0.6: Delete DB Subnet Groups (AFTER RDS instances are deleted)
+                            echo ""
+                            echo "Step 0.6: Deleting DB Subnet Groups..."
                             
                             # Delete by specific name first (Terraform-managed)
                             echo "  Checking for Terraform-managed DB subnet group: achat-app-db-subnet-group"
