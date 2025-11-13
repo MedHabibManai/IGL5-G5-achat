@@ -6,10 +6,10 @@ pipeline {
         choice(
             name: 'DEPLOYMENT_MODE',
             choices: ['NORMAL', 'CLEANUP_AND_DEPLOY', 'REUSE_INFRASTRUCTURE'],
-            description: 'Deployment mode:
+            description: '''Deployment mode:
             • NORMAL: Deploy fresh infrastructure (may fail if VPC limit reached)
             • CLEANUP_AND_DEPLOY: Destroy old resources first, then deploy new ones
-            • REUSE_INFRASTRUCTURE: Keep VPC/RDS, only recreate EC2 instance (fastest for testing)'
+            • REUSE_INFRASTRUCTURE: Keep VPC/RDS, only recreate EC2 instance (fastest for testing)'''
         )
     }
 
