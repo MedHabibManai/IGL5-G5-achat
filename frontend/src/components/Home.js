@@ -90,9 +90,12 @@ function Home() {
       <div className="card">
         <h2>Quick Links</h2>
         <div style={{ marginTop: '1rem' }}>
-          <a href="/SpringMVC/swagger-ui/index.html" target="_blank" rel="noopener noreferrer" className="btn btn-primary">
+          <button
+            onClick={() => window.open('http://ac94a5a3cddbc4277985043e89363030-d1a20f1d0911b266.elb.us-east-1.amazonaws.com/SpringMVC/swagger-ui/', '_blank')}
+            className="btn btn-primary"
+          >
             📚 API Documentation (Swagger)
-          </a>
+          </button>
           <a href="/SpringMVC/actuator/health" target="_blank" rel="noopener noreferrer" className="btn btn-secondary">
             ❤️ Health Check
           </a>
