@@ -447,11 +447,46 @@ spec:
       containers:
       - name: achat-app
         image: ${TF_VAR_docker_image}
+        imagePullPolicy: Always
         ports:
         - containerPort: 8089
+          name: http
+          protocol: TCP
         env:
         - name: SPRING_PROFILES_ACTIVE
           value: "prod"
+        - name: SPRING_DATASOURCE_URL
+          value: "jdbc:h2:mem:achatdb;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE"
+        - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
+          value: "org.h2.Driver"
+        - name: SPRING_DATASOURCE_USERNAME
+          value: "sa"
+        - name: SPRING_DATASOURCE_PASSWORD
+          value: ""
+        - name: SPRING_JPA_HIBERNATE_DDL_AUTO
+          value: "create-drop"
+        - name: SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT
+          value: "org.hibernate.dialect.H2Dialect"
+        - name: SPRING_H2_CONSOLE_ENABLED
+          value: "true"
+        - name: SERVER_SERVLET_CONTEXT_PATH
+          value: "/SpringMVC"
+        readinessProbe:
+          httpGet:
+            path: /SpringMVC/actuator/health
+            port: 8089
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /SpringMVC/actuator/health
+            port: 8089
+          initialDelaySeconds: 60
+          periodSeconds: 20
+          timeoutSeconds: 5
+          failureThreshold: 3
         resources:
           requests:
             memory: "512Mi"
@@ -468,14 +503,21 @@ kind: Service
 metadata:
   name: achat-app-service
   namespace: achat-app
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
 spec:
   type: LoadBalancer
   selector:
     app: achat-app
   ports:
-  - protocol: TCP
+  - name: http
+    protocol: TCP
     port: 80
     targetPort: 8089
+  sessionAffinity: None
+  externalTrafficPolicy: Cluster
 EOF
 
                     # Wait for deployment
