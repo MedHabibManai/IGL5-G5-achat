@@ -1,6 +1,13 @@
 pipeline {
     agent any
 
+    // Disable automatic checkout to use our custom retry logic instead
+    options {
+        skipDefaultCheckout()
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        timeout(time: 2, unit: 'HOURS')
+    }
+
     // Parameters to control pipeline behavior
     parameters {
         choice(
