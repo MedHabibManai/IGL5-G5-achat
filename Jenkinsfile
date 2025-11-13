@@ -1,4 +1,4 @@
-pipeline {
+﻿pipeline {
     agent any
 
     // Parameters to control pipeline behavior
@@ -380,9 +380,32 @@ EOF
                     script {
                         echo "Logging in to Docker Hub as ${DOCKER_USER}..."
 
-                        sh '''
-                            echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-                        '''
+                        // Retry Docker login with exponential backoff
+                        def maxRetries = 3
+                        def retryDelay = 10
+                        def loginSuccess = false
+                        
+                        for (int i = 0; i < maxRetries && !loginSuccess; i++) {
+                            try {
+                                if (i > 0) {
+                                    echo "Retry attempt ${i + 1}/${maxRetries} after ${retryDelay}s delay..."
+                                    sleep(retryDelay)
+                                    retryDelay *= 2
+                                }
+                                
+                                sh '''
+                                    echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                                '''
+                                
+                                loginSuccess = true
+                                echo "✓ Docker login successful!"
+                            } catch (Exception e) {
+                                echo "Docker login attempt ${i + 1} failed: ${e.message}"
+                                if (i == maxRetries - 1) {
+                                    error("Failed to login to Docker Hub after ${maxRetries} attempts")
+                                }
+                            }
+                        }
 
                         echo "Tagging images for Docker Hub..."
 
@@ -394,10 +417,33 @@ EOF
 
                         echo "Pushing images to Docker Hub..."
 
-                        sh """
-                            docker push ${DOCKER_USER}/${DOCKER_IMAGE}
-                            docker push ${DOCKER_USER}/${DOCKER_IMAGE_NAME}:latest
-                        """
+                        // Retry Docker push with exponential backoff
+                        maxRetries = 3
+                        retryDelay = 10
+                        def pushSuccess = false
+                        
+                        for (int i = 0; i < maxRetries && !pushSuccess; i++) {
+                            try {
+                                if (i > 0) {
+                                    echo "Retry push attempt ${i + 1}/${maxRetries} after ${retryDelay}s delay..."
+                                    sleep(retryDelay)
+                                    retryDelay *= 2
+                                }
+                                
+                                sh """
+                                    docker push ${DOCKER_USER}/${DOCKER_IMAGE}
+                                    docker push ${DOCKER_USER}/${DOCKER_IMAGE_NAME}:latest
+                                """
+                                
+                                pushSuccess = true
+                                echo "âœ“ Docker push successful!"
+                            } catch (Exception e) {
+                                echo "Docker push attempt ${i + 1} failed: ${e.message}"
+                                if (i == maxRetries - 1) {
+                                    error("Failed to push to Docker Hub after ${maxRetries} attempts")
+                                }
+                            }
+                        }
 
                         echo "âœ“ Docker images pushed successfully!"
                         echo "  - ${DOCKER_USER}/${DOCKER_IMAGE}"
