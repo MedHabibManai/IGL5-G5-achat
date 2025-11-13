@@ -1,29 +1,6 @@
 pipeline {
     agent any
 
-    // ============================================================================
-    // PIPELINE PARAMETERS
-    // ============================================================================
-    parameters {
-        string(
-            name: 'DOCKER_IMAGE_TAG',
-            defaultValue: '',
-            description: 'Docker image tag to deploy (leave empty to use BUILD_NUMBER)'
-        )
-
-        booleanParam(
-            name: 'SKIP_TESTS',
-            defaultValue: false,
-            description: 'Skip unit tests (faster builds for testing)'
-        )
-
-        booleanParam(
-            name: 'SKIP_SONARQUBE',
-            defaultValue: false,
-            description: 'Skip SonarQube analysis (faster builds)'
-        )
-    }
-
     tools {
         maven 'Maven-3.8.6'
         jdk 'JDK-8'
@@ -50,7 +27,7 @@ pipeline {
 
         // Docker
         DOCKER_IMAGE_NAME = 'achat-app'
-        DOCKER_IMAGE_TAG = "${params.DOCKER_IMAGE_TAG ?: BUILD_NUMBER}"
+        DOCKER_IMAGE_TAG = "${BUILD_NUMBER}"
         DOCKER_IMAGE = "${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
         DOCKER_REGISTRY = 'docker.io'
         DOCKER_CREDENTIAL_ID = 'docker-hub-credentials'
@@ -135,9 +112,6 @@ pipeline {
         // STAGE 4: UNIT TESTS
         // ========================================================================
         stage('UNIT TESTS') {
-            when {
-                expression { return !params.SKIP_TESTS }
-            }
             steps {
                 script {
                     echo '========================================='
@@ -166,9 +140,6 @@ pipeline {
         // STAGE 5: MVN SONARQUBE (includes Quality Gate)
         // ========================================================================
         stage('MVN SONARQUBE') {
-            when {
-                expression { return !params.SKIP_SONARQUBE }
-            }
             steps {
                 script {
                     echo '========================================='
