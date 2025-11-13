@@ -193,6 +193,7 @@ pipeline {
                 // Run SonarQube analysis
                 withSonarQubeEnv('SonarQube') {
                     sh '''
+                        export MAVEN_OPTS="--add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.io=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED"
                         mvn sonar:sonar \
                           -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
                           -Dsonar.projectName="${SONAR_PROJECT_NAME}" \
