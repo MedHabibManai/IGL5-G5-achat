@@ -83,6 +83,9 @@ pipeline {
                     echo '========================================='
                 }
                 
+                // Make Maven wrapper executable
+                sh 'chmod +x mvnw'
+                
                 // Clean and compile the project
                 sh './mvnw clean compile'
                 
