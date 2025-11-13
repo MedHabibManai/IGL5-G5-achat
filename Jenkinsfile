@@ -1,4 +1,4 @@
-pipeline {
+﻿pipeline {
     agent any
 
     // Disable automatic checkout to use our custom retry logic instead
@@ -663,26 +663,37 @@ EOF
                                 for db_id in $RDS_INSTANCES; do
                                     echo "      Waiting for RDS instance: $db_id"
                                     WAIT_COUNT=0
-                                    MAX_WAIT=20  # 20 * 30 seconds = 10 minutes max
+                                    MAX_WAIT=30  # 30 * 30 seconds = 15 minutes max
                                     
                                     while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
-                                        DB_STATUS=$(aws rds describe-db-instances \
+                                        # Check if instance exists
+                                        DB_CHECK=$(aws rds describe-db-instances \
                                             --region ${AWS_REGION} \
-                                            --db-instance-identifier $db_id \
-                                            --query 'DBInstances[0].DBInstanceStatus' \
-                                            --output text 2>/dev/null || echo "deleted")
+                                            --db-instance-identifier $db_id 2>&1)
                                         
-                                        if [ "$DB_STATUS" = "deleted" ] || [ "$DB_STATUS" = "None" ]; then
-                                            echo "        ✓ RDS instance $db_id fully deleted"
+                                        if echo "$DB_CHECK" | grep -q "DBInstanceNotFound"; then
+                                            echo "        ✓ RDS instance $db_id fully deleted (not found)"
+                                            break
+                                        fi
+                                        
+                                        # Get status if instance still exists
+                                        DB_STATUS=$(echo "$DB_CHECK" | grep -o '"DBInstanceStatus": "[^"]*"' | cut -d'"' -f4 || echo "unknown")
+                                        
+                                        if [ "$DB_STATUS" = "unknown" ] || [ -z "$DB_STATUS" ]; then
+                                            echo "        ✓ RDS instance $db_id fully deleted (no status)"
                                             break
                                         else
-                                            echo "        Status: $DB_STATUS (waiting...)"
+                                            echo "        Status: $DB_STATUS (attempt $WAIT_COUNT/$MAX_WAIT, waiting 30s...)"
                                             sleep 30
                                             WAIT_COUNT=$((WAIT_COUNT + 1))
                                         fi
                                     done
+                                    
+                                    if [ $WAIT_COUNT -ge $MAX_WAIT ]; then
+                                        echo "        WARNING: Timeout waiting for $db_id deletion, but continuing..."
+                                    fi
                                 done
-                                echo "    ✓ All RDS instances deleted"
+                                echo "    ✓ All RDS instances processed"
                             else
                                 echo "    No RDS instances found"
                             fi
@@ -691,8 +702,43 @@ EOF
                             echo ""
                             echo "Step 0.6: Deleting DB Subnet Groups..."
                             
-                            # Delete by specific name first (Terraform-managed)
-                            echo "  Checking for Terraform-managed DB subnet group: achat-app-db-subnet-group"
+                            # Verify no RDS instances exist before deleting subnet groups
+                            echo "  Double-checking that all RDS instances are deleted..."
+                            REMAINING_RDS=$(aws rds describe-db-instances \
+                                --region ${AWS_REGION} \
+                                --query 'DBInstances[?contains(DBInstanceIdentifier, `achat-app`) == `true`].DBInstanceIdentifier' \
+                                --output text 2>/dev/null || echo "")
+                            
+                            if [ -n "$REMAINING_RDS" ]; then
+                                echo "    WARNING: Found remaining RDS instances: $REMAINING_RDS"
+                                echo "    Waiting additional time for RDS deletion..."
+                                
+                                EXTRA_WAIT=0
+                                while [ $EXTRA_WAIT -lt 10 ] && [ -n "$REMAINING_RDS" ]; do
+                                    echo "      Extra wait attempt $EXTRA_WAIT/10 (60s)..."
+                                    sleep 60
+                                    REMAINING_RDS=$(aws rds describe-db-instances \
+                                        --region ${AWS_REGION} \
+                                        --query 'DBInstances[?contains(DBInstanceIdentifier, `achat-app`) == `true`].DBInstanceIdentifier' \
+                                        --output text 2>/dev/null || echo "")
+                                    EXTRA_WAIT=$((EXTRA_WAIT + 1))
+                                done
+                                
+                                if [ -n "$REMAINING_RDS" ]; then
+                                    echo "    ERROR: RDS instances still exist after extended wait: $REMAINING_RDS"
+                                    echo "    Cannot safely delete DB subnet groups. Skipping subnet group deletion."
+                                    echo "    Please manually delete these RDS instances and subnet groups later."
+                                else
+                                    echo "    ✓ All RDS instances confirmed deleted"
+                                fi
+                            else
+                                echo "    ✓ No RDS instances found - safe to delete subnet groups"
+                            fi
+                            
+                            # Only proceed with subnet group deletion if no RDS instances remain
+                            if [ -z "$REMAINING_RDS" ]; then
+                                # Delete by specific name first (Terraform-managed)
+                                echo "  Checking for Terraform-managed DB subnet group: achat-app-db-subnet-group"
                             DB_SG_CHECK=$(aws rds describe-db-subnet-groups \
                                 --region ${AWS_REGION} \
                                 --db-subnet-group-name achat-app-db-subnet-group \
@@ -736,6 +782,9 @@ EOF
                             fi
                             
                             echo "  ✓ DB subnet group cleanup completed"
+                            else
+                                echo "  ⚠ Skipping DB subnet group deletion due to remaining RDS instances"
+                            fi
                             
                             # Find VPCs with name "achat-app-vpc" (regardless of tags)
                             echo ""
