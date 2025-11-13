@@ -57,6 +57,11 @@ output "deploy_mode" {
 # EKS Cluster Outputs (when deploy_mode = "eks")
 # ============================================================================
 
+output "eks_cluster_name" {
+  description = "Name of the EKS cluster"
+  value       = var.deploy_mode == "eks" ? aws_eks_cluster.main[0].name : "N/A"
+}
+
 output "eks_cluster_id" {
   description = "ID of the EKS cluster"
   value       = var.deploy_mode == "eks" ? aws_eks_cluster.main[0].id : "N/A"

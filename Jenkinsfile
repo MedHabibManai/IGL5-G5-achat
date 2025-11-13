@@ -522,14 +522,90 @@ EOF
                     kubectl get pods -n achat-app
                 """
 
+                // Wait for LoadBalancer to get external IP
+                script {
+                    echo '========================================='
+                    echo 'Waiting for LoadBalancer URL...'
+                    echo '========================================='
+                }
+
+                sh """
+                    export AWS_SHARED_CREDENTIALS_FILE=/var/jenkins_home/.aws/credentials
+                    export AWS_CONFIG_FILE=/var/jenkins_home/.aws/config
+
+                    # Get EKS cluster name
+                    CLUSTER_NAME=\$(cd ${TERRAFORM_DIR} && terraform output -raw eks_cluster_name)
+
+                    # Configure kubectl
+                    aws eks update-kubeconfig --name \${CLUSTER_NAME} --region ${AWS_REGION}
+
+                    echo "Waiting for LoadBalancer to get external IP (this may take 2-3 minutes)..."
+
+                    # Wait for LoadBalancer to get external IP (max 5 minutes)
+                    for i in {1..30}; do
+                        EXTERNAL_IP=\$(kubectl get svc achat-app-service -n achat-app -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
+
+                        if [ -n "\${EXTERNAL_IP}" ] && [ "\${EXTERNAL_IP}" != "null" ]; then
+                            echo ""
+                            echo "✅ LoadBalancer is ready!"
+                            echo "External URL: \${EXTERNAL_IP}"
+                            break
+                        fi
+
+                        echo "Attempt \$i/30: LoadBalancer not ready yet, waiting 10 seconds..."
+                        sleep 10
+                    done
+
+                    # Get final LoadBalancer URL
+                    EXTERNAL_IP=\$(kubectl get svc achat-app-service -n achat-app -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+
+                    if [ -z "\${EXTERNAL_IP}" ] || [ "\${EXTERNAL_IP}" = "null" ]; then
+                        echo "⚠️  LoadBalancer URL not available yet. Check manually with:"
+                        echo "   kubectl get svc achat-app-service -n achat-app"
+                    else
+                        echo ""
+                        echo "════════════════════════════════════════"
+                        echo "APPLICATION URLS:"
+                        echo "════════════════════════════════════════"
+                        echo "Main Application:"
+                        echo "  → http://\${EXTERNAL_IP}/SpringMVC/"
+                        echo ""
+                        echo "Health Check:"
+                        echo "  → http://\${EXTERNAL_IP}/SpringMVC/actuator/health"
+                        echo ""
+                        echo "Swagger UI:"
+                        echo "  → http://\${EXTERNAL_IP}/SpringMVC/swagger-ui/"
+                        echo "════════════════════════════════════════"
+                        echo ""
+
+                        # Test health endpoint
+                        echo "Testing application health..."
+                        sleep 30  # Give app time to start
+
+                        for i in {1..10}; do
+                            if curl -f -s "http://\${EXTERNAL_IP}/SpringMVC/actuator/health" > /dev/null 2>&1; then
+                                echo "✅ Application is healthy!"
+                                curl -s "http://\${EXTERNAL_IP}/SpringMVC/actuator/health" | head -20
+                                break
+                            else
+                                echo "Attempt \$i/10: Application not ready yet, waiting 15 seconds..."
+                                sleep 15
+                            fi
+                        done
+                    fi
+                """
+
                 script {
                     echo '========================================='
                     echo 'Deployment Complete!'
                     echo '========================================='
                     echo 'Application is now running on AWS EKS'
-                    echo 'Use kubectl to check status:'
+                    echo ''
+                    echo 'Useful kubectl commands:'
                     echo '  kubectl get pods -n achat-app'
                     echo '  kubectl get svc -n achat-app'
+                    echo '  kubectl logs -n achat-app -l app=achat-app'
+                    echo '  kubectl describe svc achat-app-service -n achat-app'
                 }
             }
         }
