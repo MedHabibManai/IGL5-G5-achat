@@ -6,10 +6,10 @@ pipeline {
         choice(
             name: 'DEPLOYMENT_MODE',
             choices: ['NORMAL', 'CLEANUP_AND_DEPLOY', 'REUSE_INFRASTRUCTURE'],
-            description: '''Deployment mode:
+            description: ''Deployment mode:
             • NORMAL: Deploy fresh infrastructure (may fail if VPC limit reached)
             • CLEANUP_AND_DEPLOY: Destroy old resources first, then deploy new ones
-            • REUSE_INFRASTRUCTURE: Keep VPC/RDS, only recreate EC2 instance (fastest for testing)'''
+            • REUSE_INFRASTRUCTURE: Keep VPC/RDS, only recreate EC2 instance (fastest for testing)''
         )
     }
 
@@ -55,7 +55,7 @@ pipeline {
         AWS_REGION = 'us-east-1'
         AWS_CREDENTIAL_ID = 'aws-sandbox-credentials'
         TERRAFORM_DIR = 'terraform'
-        DOCKER_HUB_USER = '' // Will be set from credentials
+        DOCKER_HUB_USER = ' // Will be set from credentials
         TF_VAR_docker_image = "${DOCKER_REGISTRY}/habibmanai/${DOCKER_IMAGE}"
     }
     
@@ -192,14 +192,14 @@ pipeline {
 
                 // Run SonarQube analysis
                 withSonarQubeEnv('SonarQube') {
-                    sh '''
+                    sh ''
                         export MAVEN_OPTS="--add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.io=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED"
                         mvn sonar:sonar \
                           -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
                           -Dsonar.projectName="${SONAR_PROJECT_NAME}" \
                           -Dsonar.host.url=${SONAR_HOST_URL} \
                           -Dsonar.java.binaries=target/classes
-                    '''
+                    ''
                 }
 
                 script {
@@ -244,7 +244,7 @@ pipeline {
                 withCredentials([usernamePassword(credentialsId: "${NEXUS_CREDENTIAL_ID}",
                                                   usernameVariable: 'NEXUS_USER',
                                                   passwordVariable: 'NEXUS_PASS')]) {
-                    sh '''
+                    sh ''
                         # Create settings.xml with Nexus credentials
                         cat > settings.xml << EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -268,7 +268,7 @@ EOF
 
                         # Deploy to Nexus
                         mvn deploy -DskipTests -s settings.xml
-                    '''
+                    ''
                 }
 
                 script {
@@ -286,7 +286,7 @@ EOF
                     echo '========================================='
                 }
 
-                // Build Docker image
+                // Build Docker image with retry logic for network issues
                 script {
                     echo "Building Docker image: ${DOCKER_IMAGE}"
                     echo "JAR file: target/${PROJECT_NAME}-${PROJECT_VERSION}.jar"
@@ -294,22 +294,67 @@ EOF
                     // Verify JAR exists
                     sh "ls -lh target/${PROJECT_NAME}-${PROJECT_VERSION}.jar"
 
-                    // Build the image
-                    sh """
-                        docker build \
-                          --build-arg JAR_FILE=target/${PROJECT_NAME}-${PROJECT_VERSION}.jar \
-                          --build-arg BUILD_NUMBER=${BUILD_NUMBER} \
-                          -t ${DOCKER_IMAGE} \
-                          -t ${DOCKER_IMAGE_NAME}:latest \
-                          .
-                    """
+                    // Pre-pull base image with retry logic to handle TLS timeouts
+                    def baseImage = 'eclipse-temurin:8-jre-alpine'
+                    def maxRetries = 3
+                    def pulled = false
+                    
+                    for (int i = 0; i < maxRetries && !pulled; i++) {
+                        try {
+                            if (i > 0) {
+                                def delay = Math.pow(2, i) * 10
+                                echo "Retry ${i + 1}/${maxRetries} - waiting ${delay}s before pulling base image..."
+                                sleep(time: delay.toInteger(), unit: 'SECONDS')
+                            }
+                            
+                            echo "Attempting to pull base image: ${baseImage}"
+                            sh "docker pull ${baseImage}"
+                            pulled = true
+                            echo "? Base image pulled successfully"
+                        } catch (Exception e) {
+                            if (i < maxRetries - 1) {
+                                echo "Failed to pull base image: ${e.message}"
+                            } else {
+                                echo "? Failed to pull base image after ${maxRetries} attempts, proceeding with build (may use cached image)"
+                            }
+                        }
+                    }
 
-                    echo "âœ“ Docker image built successfully!"
-                    echo "  - ${DOCKER_IMAGE}"
-                    echo "  - ${DOCKER_IMAGE_NAME}:latest"
+                    // Build the image with retry logic
+                    def built = false
+                    
+                    for (int i = 0; i < maxRetries && !built; i++) {
+                        try {
+                            if (i > 0) {
+                                def delay = Math.pow(2, i) * 10
+                                echo "Retry ${i + 1}/${maxRetries} - waiting ${delay}s before building..."
+                                sleep(time: delay.toInteger(), unit: 'SECONDS')
+                            }
+                            
+                            sh """
+                                docker build \
+                                  --build-arg JAR_FILE=target/${PROJECT_NAME}-${PROJECT_VERSION}.jar \
+                                  --build-arg BUILD_NUMBER=${BUILD_NUMBER} \
+                                  -t ${DOCKER_IMAGE} \
+                                  -t ${DOCKER_IMAGE_NAME}:latest \
+                                  .
+                            """
+                            built = true
+                            
+                            echo "? Docker image built successfully!"
+                            echo "  - ${DOCKER_IMAGE}"
+                            echo "  - ${DOCKER_IMAGE_NAME}:latest"
 
-                    // Show image details
-                    sh "docker images | grep ${DOCKER_IMAGE_NAME}"
+                            // Show image details
+                            sh "docker images | grep ${DOCKER_IMAGE_NAME}"
+                        } catch (Exception e) {
+                            if (i < maxRetries - 1) {
+                                echo "Docker build failed: ${e.message}. Retrying..."
+                            } else {
+                                throw e
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -329,9 +374,9 @@ EOF
                     script {
                         echo "Logging in to Docker Hub as ${DOCKER_USER}..."
 
-                        sh '''
+                        sh ''
                             echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-                        '''
+                        ''
 
                         echo "Tagging images for Docker Hub..."
 
@@ -375,7 +420,7 @@ EOF
 
                 withCredentials([file(credentialsId: "${AWS_CREDENTIAL_ID}", variable: 'AWS_CREDENTIALS_FILE')]) {
                     dir(TERRAFORM_DIR) {
-                        sh '''
+                        sh ''
                             echo "Setting up AWS credentials..."
                             mkdir -p ~/.aws
                             cp $AWS_CREDENTIALS_FILE ~/.aws/credentials
@@ -613,7 +658,7 @@ EOF
                             echo "======================================"
                             echo "✓ Cleanup completed successfully"
                             echo "======================================"
-                        '''
+                        ''
                     }
                 }
 
@@ -643,7 +688,7 @@ EOF
 
                 withCredentials([file(credentialsId: "${AWS_CREDENTIAL_ID}", variable: 'AWS_CREDENTIALS_FILE')]) {
                     dir(TERRAFORM_DIR) {
-                        sh '''
+                        sh ''
                             echo "Setting up AWS credentials..."
                             mkdir -p ~/.aws
                             cp $AWS_CREDENTIALS_FILE ~/.aws/credentials
@@ -753,7 +798,7 @@ EOF
                             echo "======================================"
                             echo "✓ EC2 instance refreshed successfully"
                             echo "======================================"
-                        '''
+                        ''
                     }
                 }
 
@@ -779,7 +824,7 @@ EOF
 
                 withCredentials([file(credentialsId: "${AWS_CREDENTIAL_ID}", variable: 'AWS_CREDENTIALS_FILE')]) {
                     dir(TERRAFORM_DIR) {
-                        sh '''
+                        sh ''
                             echo "Setting up AWS credentials..."
                             mkdir -p ~/.aws
                             cp $AWS_CREDENTIALS_FILE ~/.aws/credentials
@@ -820,7 +865,7 @@ EOF
                             echo ""
                             echo "AWS Account:"
                             /usr/local/bin/aws sts get-caller-identity
-                        '''
+                        ''
                     }
                 }
 
@@ -845,7 +890,7 @@ EOF
 
                 withCredentials([file(credentialsId: "${AWS_CREDENTIAL_ID}", variable: 'AWS_CREDENTIALS_FILE')]) {
                     dir(TERRAFORM_DIR) {
-                        sh '''
+                        sh ''
                             echo "Setting up AWS credentials..."
                             mkdir -p ~/.aws
                             cp $AWS_CREDENTIALS_FILE ~/.aws/credentials
@@ -859,7 +904,7 @@ EOF
 
                             echo ""
                             echo "Plan saved to: tfplan"
-                        '''
+                        ''
                     }
                 }
 
@@ -892,7 +937,7 @@ EOF
 
                 withCredentials([file(credentialsId: "${AWS_CREDENTIAL_ID}", variable: 'AWS_CREDENTIALS_FILE')]) {
                     dir(TERRAFORM_DIR) {
-                        sh '''
+                        sh ''
                             echo "Setting up AWS credentials..."
                             mkdir -p ~/.aws
                             cp $AWS_CREDENTIALS_FILE ~/.aws/credentials
@@ -903,7 +948,7 @@ EOF
 
                             echo ""
                             echo "Deployment complete!"
-                        '''
+                        ''
                     }
                 }
 
@@ -985,7 +1030,7 @@ EOF
 
                 withCredentials([file(credentialsId: "${AWS_CREDENTIAL_ID}", variable: 'AWS_CREDENTIALS_FILE')]) {
                     dir(TERRAFORM_DIR) {
-                        sh '''
+                        sh ''
                             echo "Setting up AWS credentials..."
                             mkdir -p ~/.aws
                             cp $AWS_CREDENTIALS_FILE ~/.aws/credentials
@@ -1040,7 +1085,7 @@ EOF
                             else
                                 echo "Could not retrieve instance ID from Terraform"
                             fi
-                        '''
+                        ''
                     }
                 }
             }
@@ -1108,7 +1153,7 @@ EOF
                 dir('frontend') {
                     script {
                         // Get backend URL from Terraform output
-                        def backendUrl = ''
+                        def backendUrl = '
                         dir("../${TERRAFORM_DIR}") {
                             backendUrl = sh(
                                 script: 'terraform output -raw application_url 2>/dev/null || echo ""',
@@ -1129,10 +1174,10 @@ EOF
                         }
                         
                         // Install dependencies and build
-                        sh '''
+                        sh ''
                             npm install
                             npm run build
-                        '''
+                        ''
                     }
                 }
                 
@@ -1364,4 +1409,5 @@ EOF
         }
     }
 }
+
 
