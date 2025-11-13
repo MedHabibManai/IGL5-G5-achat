@@ -1273,12 +1273,18 @@ EOF
                             echo ""
                             echo "Waiting for deployment to be ready..."
                             sh """
+                                export AWS_SHARED_CREDENTIALS_FILE=/var/jenkins_home/.aws/credentials
+                                export AWS_CONFIG_FILE=/var/jenkins_home/.aws/config
+                                export AWS_PAGER=''
                                 kubectl wait --for=condition=available --timeout=300s deployment/achat-app -n achat-app || true
                             """
 
                             echo ""
                             echo "Getting deployment status..."
                             sh """
+                                export AWS_SHARED_CREDENTIALS_FILE=/var/jenkins_home/.aws/credentials
+                                export AWS_CONFIG_FILE=/var/jenkins_home/.aws/config
+                                export AWS_PAGER=''
                                 kubectl get all -n achat-app
                             """
 
@@ -1290,6 +1296,9 @@ EOF
                             // Get LoadBalancer URL
                             def lbUrl = sh(
                                 script: '''
+                                    export AWS_SHARED_CREDENTIALS_FILE=/var/jenkins_home/.aws/credentials
+                                    export AWS_CONFIG_FILE=/var/jenkins_home/.aws/config
+                                    export AWS_PAGER=''
                                     kubectl get svc achat-app-service -n achat-app -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo ""
                                 ''',
                                 returnStdout: true
