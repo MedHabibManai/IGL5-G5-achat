@@ -84,7 +84,9 @@ pipeline {
                 }
                 
                 // Use system Maven (wrapper files missing)
-                sh 'mvn clean compile'                script {
+                sh 'mvn clean compile'
+                
+                script {
                     echo 'âœ“ Build completed successfully'
                 }
             }
