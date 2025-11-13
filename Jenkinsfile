@@ -283,7 +283,7 @@ EOF
                         docker tag ${DOCKER_IMAGE_NAME}:latest ${DOCKER_REGISTRY}/rayenslouma/${DOCKER_IMAGE_NAME}:latest
                         docker push ${DOCKER_REGISTRY}/rayenslouma/${DOCKER_IMAGE}
                         docker push ${DOCKER_REGISTRY}/rayenslouma/${DOCKER_IMAGE_NAME}:latest
-                    '''
+                    """
 
                     sh 'docker logout ${DOCKER_REGISTRY}'
                 }
