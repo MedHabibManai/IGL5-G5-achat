@@ -26,17 +26,23 @@ pipeline {
         NEXUS_REPOSITORY = 'maven-releases'
         NEXUS_CREDENTIAL_ID = 'nexus-credentials'
 
-        // Docker
+        // Docker - Backend
         DOCKER_IMAGE_NAME = 'achat-app'
         DOCKER_IMAGE_TAG = "${BUILD_NUMBER}"
         DOCKER_IMAGE = "${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
         DOCKER_REGISTRY = 'docker.io'
         DOCKER_CREDENTIAL_ID = 'docker-hub-credentials'
 
+        // Docker - Frontend
+        FRONTEND_IMAGE_NAME = 'achat-frontend'
+        FRONTEND_IMAGE_TAG = "${BUILD_NUMBER}"
+        FRONTEND_IMAGE = "${FRONTEND_IMAGE_NAME}:${FRONTEND_IMAGE_TAG}"
+
         // AWS & Terraform
         AWS_REGION = 'us-east-1'
         TERRAFORM_DIR = 'terraform'
         TF_VAR_docker_image = "${DOCKER_REGISTRY}/rayenslouma/${DOCKER_IMAGE}"
+        TF_VAR_frontend_image = "${DOCKER_REGISTRY}/rayenslouma/${FRONTEND_IMAGE}"
         TF_VAR_deploy_mode = 'eks'
         TERRAFORM_STATE_DIR = "/var/jenkins_home/terraform-states/${JOB_NAME}"
     }
@@ -308,13 +314,73 @@ EOF
         }
 
         // ========================================================================
-        // STAGE 9: Test AWS Credentials
+        // STAGE 9: BUILD FRONTEND IMAGE
+        // ========================================================================
+        stage('BUILD FRONTEND IMAGE') {
+            steps {
+                script {
+                    echo '========================================='
+                    echo 'Stage 9: Building Frontend Docker Image'
+                    echo '========================================='
+                }
+
+                dir('frontend') {
+                    sh """
+                        docker build -t ${FRONTEND_IMAGE} .
+                        docker tag ${FRONTEND_IMAGE} ${FRONTEND_IMAGE_NAME}:latest
+                    """
+                }
+
+                script {
+                    echo 'Frontend Docker image built successfully'
+                    echo "Image: ${FRONTEND_IMAGE}"
+                }
+            }
+        }
+
+        // ========================================================================
+        // STAGE 10: DEPLOY FRONTEND IMAGE
+        // ========================================================================
+        stage('DEPLOY FRONTEND IMAGE') {
+            steps {
+                script {
+                    echo '========================================='
+                    echo 'Stage 10: Pushing Frontend Image to Registry'
+                    echo '========================================='
+                }
+
+                withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIAL_ID}",
+                                                  usernameVariable: 'DOCKER_USER',
+                                                  passwordVariable: 'DOCKER_PASS')]) {
+                    sh '''
+                        echo "${DOCKER_PASS}" | docker login -u "${DOCKER_USER}" --password-stdin ${DOCKER_REGISTRY}
+                    '''
+
+                    sh """
+                        docker tag ${FRONTEND_IMAGE} ${DOCKER_REGISTRY}/rayenslouma/${FRONTEND_IMAGE}
+                        docker tag ${FRONTEND_IMAGE_NAME}:latest ${DOCKER_REGISTRY}/rayenslouma/${FRONTEND_IMAGE_NAME}:latest
+                        docker push ${DOCKER_REGISTRY}/rayenslouma/${FRONTEND_IMAGE}
+                        docker push ${DOCKER_REGISTRY}/rayenslouma/${FRONTEND_IMAGE_NAME}:latest
+                    """
+
+                    sh 'docker logout ${DOCKER_REGISTRY}'
+                }
+
+                script {
+                    echo 'Frontend image pushed successfully'
+                    echo "Image: ${DOCKER_REGISTRY}/rayenslouma/${FRONTEND_IMAGE}"
+                }
+            }
+        }
+
+        // ========================================================================
+        // STAGE 11: Test AWS Credentials
         // ========================================================================
         stage('Test AWS Credentials') {
             steps {
                 script {
                     echo '========================================='
-                    echo 'Stage 9: Verify AWS Credentials'
+                    echo 'Stage 11: Verify AWS Credentials'
                     echo '========================================='
                 }
 
@@ -336,7 +402,7 @@ EOF
         }
 
         // ========================================================================
-        // STAGE 10: DEPLOY TO AWS KUBERNETES
+        // STAGE 12: DEPLOY TO AWS KUBERNETES
         // ========================================================================
         stage('DEPLOY TO AWS KUBERNETES') {
             steps {
@@ -532,25 +598,110 @@ spec:
   externalTrafficPolicy: Cluster
 EOF
 
-                    # Wait for deployment
+                    echo ""
+                    echo "========================================="
+                    echo "Deploying Frontend Application..."
+                    echo "========================================="
+
+                    # Deploy Frontend
+                    kubectl apply -f - <<EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: achat-frontend
+  namespace: achat-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: achat-frontend
+  template:
+    metadata:
+      labels:
+        app: achat-frontend
+    spec:
+      containers:
+      - name: achat-frontend
+        image: ${TF_VAR_frontend_image}
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 80
+          name: http
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+EOF
+
+                    # Deploy Frontend Service
+                    kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Service
+metadata:
+  name: achat-frontend-service
+  namespace: achat-app
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+spec:
+  type: LoadBalancer
+  selector:
+    app: achat-frontend
+  ports:
+  - name: http
+    protocol: TCP
+    port: 80
+    targetPort: 80
+  sessionAffinity: None
+  externalTrafficPolicy: Cluster
+EOF
+
+                    # Wait for deployments
                     kubectl wait --for=condition=available --timeout=300s deployment/achat-app -n achat-app
+                    kubectl wait --for=condition=available --timeout=300s deployment/achat-frontend -n achat-app
 
-                    # Get service URL
+                    # Get service URLs
                     echo ""
-                    echo "Application deployed successfully!"
+                    echo "========================================="
+                    echo "Applications deployed successfully!"
+                    echo "========================================="
                     echo ""
-                    echo "Service details:"
+                    echo "Backend Service:"
                     kubectl get svc achat-app-service -n achat-app
+                    echo ""
+                    echo "Frontend Service:"
+                    kubectl get svc achat-frontend-service -n achat-app
 
                     echo ""
-                    echo "Pods:"
+                    echo "All Pods:"
                     kubectl get pods -n achat-app
                 """
 
-                // Wait for LoadBalancer to get external IP
+                // Wait for LoadBalancer to get external IPs
                 script {
                     echo '========================================='
-                    echo 'Waiting for LoadBalancer URL...'
+                    echo 'Waiting for LoadBalancer URLs...'
                     echo '========================================='
                 }
 
@@ -564,57 +715,103 @@ EOF
                     # Configure kubectl
                     aws eks update-kubeconfig --name \${CLUSTER_NAME} --region ${AWS_REGION}
 
-                    echo "Waiting for LoadBalancer to get external IP (this may take 2-3 minutes)..."
+                    echo "Waiting for LoadBalancers to get external IPs (this may take 2-3 minutes)..."
 
-                    # Wait for LoadBalancer to get external IP (max 5 minutes)
+                    # Wait for Backend LoadBalancer
+                    echo ""
+                    echo "Waiting for Backend LoadBalancer..."
                     for i in {1..30}; do
-                        EXTERNAL_IP=\$(kubectl get svc achat-app-service -n achat-app -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
+                        BACKEND_IP=\$(kubectl get svc achat-app-service -n achat-app -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
 
-                        if [ -n "\${EXTERNAL_IP}" ] && [ "\${EXTERNAL_IP}" != "null" ]; then
-                            echo ""
-                            echo "✅ LoadBalancer is ready!"
-                            echo "External URL: \${EXTERNAL_IP}"
+                        if [ -n "\${BACKEND_IP}" ] && [ "\${BACKEND_IP}" != "null" ]; then
+                            echo "✅ Backend LoadBalancer is ready!"
+                            echo "Backend URL: \${BACKEND_IP}"
                             break
                         fi
 
-                        echo "Attempt \$i/30: LoadBalancer not ready yet, waiting 10 seconds..."
+                        echo "Attempt \$i/30: Backend LoadBalancer not ready yet, waiting 10 seconds..."
                         sleep 10
                     done
 
-                    # Get final LoadBalancer URL
-                    EXTERNAL_IP=\$(kubectl get svc achat-app-service -n achat-app -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+                    # Wait for Frontend LoadBalancer
+                    echo ""
+                    echo "Waiting for Frontend LoadBalancer..."
+                    for i in {1..30}; do
+                        FRONTEND_IP=\$(kubectl get svc achat-frontend-service -n achat-app -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
 
-                    if [ -z "\${EXTERNAL_IP}" ] || [ "\${EXTERNAL_IP}" = "null" ]; then
-                        echo "⚠️  LoadBalancer URL not available yet. Check manually with:"
-                        echo "   kubectl get svc achat-app-service -n achat-app"
-                    else
+                        if [ -n "\${FRONTEND_IP}" ] && [ "\${FRONTEND_IP}" != "null" ]; then
+                            echo "✅ Frontend LoadBalancer is ready!"
+                            echo "Frontend URL: \${FRONTEND_IP}"
+                            break
+                        fi
+
+                        echo "Attempt \$i/30: Frontend LoadBalancer not ready yet, waiting 10 seconds..."
+                        sleep 10
+                    done
+
+                    # Get final LoadBalancer URLs
+                    BACKEND_IP=\$(kubectl get svc achat-app-service -n achat-app -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+                    FRONTEND_IP=\$(kubectl get svc achat-frontend-service -n achat-app -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+
+                    echo ""
+                    echo "════════════════════════════════════════"
+                    echo "APPLICATION URLS:"
+                    echo "════════════════════════════════════════"
+
+                    if [ -n "\${FRONTEND_IP}" ] && [ "\${FRONTEND_IP}" != "null" ]; then
+                        echo "🌐 FRONTEND (Main Application):"
+                        echo "  → http://\${FRONTEND_IP}/"
                         echo ""
-                        echo "════════════════════════════════════════"
-                        echo "APPLICATION URLS:"
-                        echo "════════════════════════════════════════"
-                        echo "Main Application:"
-                        echo "  → http://\${EXTERNAL_IP}/SpringMVC/"
+                    else
+                        echo "⚠️  Frontend LoadBalancer URL not available yet"
+                        echo "   Check with: kubectl get svc achat-frontend-service -n achat-app"
+                        echo ""
+                    fi
+
+                    if [ -n "\${BACKEND_IP}" ] && [ "\${BACKEND_IP}" != "null" ]; then
+                        echo "🔧 BACKEND API:"
+                        echo "  → http://\${BACKEND_IP}/SpringMVC/"
                         echo ""
                         echo "Health Check:"
-                        echo "  → http://\${EXTERNAL_IP}/SpringMVC/actuator/health"
+                        echo "  → http://\${BACKEND_IP}/SpringMVC/actuator/health"
                         echo ""
                         echo "Swagger UI:"
-                        echo "  → http://\${EXTERNAL_IP}/SpringMVC/swagger-ui/"
-                        echo "════════════════════════════════════════"
-                        echo ""
+                        echo "  → http://\${BACKEND_IP}/SpringMVC/swagger-ui/"
+                    else
+                        echo "⚠️  Backend LoadBalancer URL not available yet"
+                        echo "   Check with: kubectl get svc achat-app-service -n achat-app"
+                    fi
 
-                        # Test health endpoint
-                        echo "Testing application health..."
+                    echo "════════════════════════════════════════"
+                    echo ""
+
+                    # Test health endpoints
+                    if [ -n "\${BACKEND_IP}" ] && [ "\${BACKEND_IP}" != "null" ]; then
+                        echo "Testing backend health..."
                         sleep 30  # Give app time to start
 
                         for i in {1..10}; do
-                            if curl -f -s "http://\${EXTERNAL_IP}/SpringMVC/actuator/health" > /dev/null 2>&1; then
-                                echo "✅ Application is healthy!"
-                                curl -s "http://\${EXTERNAL_IP}/SpringMVC/actuator/health" | head -20
+                            if curl -f -s "http://\${BACKEND_IP}/SpringMVC/actuator/health" > /dev/null 2>&1; then
+                                echo "✅ Backend is healthy!"
+                                curl -s "http://\${BACKEND_IP}/SpringMVC/actuator/health" | head -20
                                 break
                             else
-                                echo "Attempt \$i/10: Application not ready yet, waiting 15 seconds..."
+                                echo "Attempt \$i/10: Backend not ready yet, waiting 15 seconds..."
                                 sleep 15
+                            fi
+                        done
+                    fi
+
+                    if [ -n "\${FRONTEND_IP}" ] && [ "\${FRONTEND_IP}" != "null" ]; then
+                        echo ""
+                        echo "Testing frontend..."
+                        for i in {1..5}; do
+                            if curl -f -s "http://\${FRONTEND_IP}/" > /dev/null 2>&1; then
+                                echo "✅ Frontend is accessible!"
+                                break
+                            else
+                                echo "Attempt \$i/5: Frontend not ready yet, waiting 10 seconds..."
+                                sleep 10
                             fi
                         done
                     fi
@@ -624,13 +821,15 @@ EOF
                     echo '========================================='
                     echo 'Deployment Complete!'
                     echo '========================================='
-                    echo 'Application is now running on AWS EKS'
+                    echo 'Applications are now running on AWS EKS'
                     echo ''
                     echo 'Useful kubectl commands:'
                     echo '  kubectl get pods -n achat-app'
                     echo '  kubectl get svc -n achat-app'
                     echo '  kubectl logs -n achat-app -l app=achat-app'
+                    echo '  kubectl logs -n achat-app -l app=achat-frontend'
                     echo '  kubectl describe svc achat-app-service -n achat-app'
+                    echo '  kubectl describe svc achat-frontend-service -n achat-app'
                     echo ''
                     echo '========================================='
                     echo '✅ PIPELINE COMPLETED SUCCESSFULLY!'
