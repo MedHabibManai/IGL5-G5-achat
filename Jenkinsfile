@@ -1044,6 +1044,49 @@ EOF
                             cp $AWS_CREDENTIALS_FILE ~/.aws/credentials
                             chmod 600 ~/.aws/credentials
                             
+                            echo ""
+                            echo "Checking for existing resources that may conflict..."
+                            echo "================================================="
+                            
+                            # Check for existing EKS cluster
+                            EKS_EXISTS=$(aws eks describe-cluster --region ${AWS_REGION} --name achat-app-eks-cluster --query "cluster.name" --output text 2>/dev/null || echo "")
+                            if [ -n "$EKS_EXISTS" ] && [ "$EKS_EXISTS" != "None" ]; then
+                                echo "⚠ Found existing EKS cluster: $EKS_EXISTS"
+                                echo "  Importing into Terraform state..."
+                                terraform import -var="docker_image=${TF_VAR_docker_image}" 'aws_eks_cluster.main[0]' $EKS_EXISTS 2>/dev/null || echo "  (already imported or import failed)"
+                                
+                                # Check for node group
+                                NODE_GROUP=$(aws eks describe-nodegroup --region ${AWS_REGION} --cluster-name achat-app-eks-cluster --nodegroup-name achat-app-node-group --query "nodegroup.nodegroupName" --output text 2>/dev/null || echo "")
+                                if [ -n "$NODE_GROUP" ] && [ "$NODE_GROUP" != "None" ]; then
+                                    echo "  Found existing node group: $NODE_GROUP"
+                                    terraform import -var="docker_image=${TF_VAR_docker_image}" 'aws_eks_node_group.main[0]' achat-app-eks-cluster:$NODE_GROUP 2>/dev/null || echo "  (already imported or import failed)"
+                                fi
+                                
+                                # Import EKS security groups
+                                EKS_CLUSTER_SG=$(aws ec2 describe-security-groups --region ${AWS_REGION} --filters "Name=tag:Name,Values=achat-app-eks-cluster-sg" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || echo "")
+                                if [ -n "$EKS_CLUSTER_SG" ] && [ "$EKS_CLUSTER_SG" != "None" ]; then
+                                    echo "  Found existing EKS cluster SG: $EKS_CLUSTER_SG"
+                                    terraform import -var="docker_image=${TF_VAR_docker_image}" 'aws_security_group.eks_cluster[0]' $EKS_CLUSTER_SG 2>/dev/null || echo "  (already imported or import failed)"
+                                fi
+                                
+                                EKS_NODES_SG=$(aws ec2 describe-security-groups --region ${AWS_REGION} --filters "Name=tag:Name,Values=achat-app-eks-nodes-sg" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || echo "")
+                                if [ -n "$EKS_NODES_SG" ] && [ "$EKS_NODES_SG" != "None" ]; then
+                                    echo "  Found existing EKS nodes SG: $EKS_NODES_SG"
+                                    terraform import -var="docker_image=${TF_VAR_docker_image}" 'aws_security_group.eks_nodes[0]' $EKS_NODES_SG 2>/dev/null || echo "  (already imported or import failed)"
+                                fi
+                            fi
+                            
+                            # Check for existing DB subnet group
+                            DB_SUBNET_GROUP=$(aws rds describe-db-subnet-groups --region ${AWS_REGION} --query "DBSubnetGroups[?DBSubnetGroupName=='achat-app-db-subnet-group'].DBSubnetGroupName | [0]" --output text 2>/dev/null || echo "")
+                            if [ -n "$DB_SUBNET_GROUP" ] && [ "$DB_SUBNET_GROUP" != "None" ]; then
+                                echo "⚠ Found existing DB subnet group: $DB_SUBNET_GROUP"
+                                echo "  Importing into Terraform state..."
+                                terraform import -var="docker_image=${TF_VAR_docker_image}" aws_db_subnet_group.main $DB_SUBNET_GROUP 2>/dev/null || echo "  (already imported or import failed)"
+                            fi
+                            
+                            echo "================================================="
+                            echo ""
+                            
                             echo "Applying Terraform plan..."
                             terraform apply -auto-approve tfplan
 
