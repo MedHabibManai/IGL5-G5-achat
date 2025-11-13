@@ -1,9 +1,10 @@
 pipeline {
     agent any
 
-    tools {
-        maven 'Maven-3.8.6'
-        jdk 'JDK-8'
+    options {
+        skipDefaultCheckout(true)  // Skip automatic checkout to control it manually
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        timestamps()
     }
 
     environment {
@@ -52,11 +53,22 @@ pipeline {
                     echo '========================================='
                 }
 
+                // Manual checkout with tools installation
                 checkout scm
 
                 script {
+                    // Install Maven and JDK tools
+                    def mvnHome = tool name: 'Maven-3.8.6', type: 'maven'
+                    def jdkHome = tool name: 'JDK-8', type: 'jdk'
+
+                    env.PATH = "${mvnHome}/bin:${jdkHome}/bin:${env.PATH}"
+                    env.JAVA_HOME = jdkHome
+                    env.M2_HOME = mvnHome
+
                     echo "Successfully checked out branch: ${env.GIT_BRANCH}"
                     echo "Commit: ${env.GIT_COMMIT}"
+                    echo "Maven Home: ${mvnHome}"
+                    echo "Java Home: ${jdkHome}"
                 }
             }
         }
@@ -619,33 +631,24 @@ EOF
                     echo '  kubectl get svc -n achat-app'
                     echo '  kubectl logs -n achat-app -l app=achat-app'
                     echo '  kubectl describe svc achat-app-service -n achat-app'
+                    echo ''
+                    echo '========================================='
+                    echo '✅ PIPELINE COMPLETED SUCCESSFULLY!'
+                    echo '========================================='
+                    echo 'All stages executed successfully'
+                    echo 'Application deployed and accessible'
                 }
-            }
-        }
-    }
 
-    post {
-        success {
-            script {
-                echo '========================================='
-                echo '✅ PIPELINE COMPLETED SUCCESSFULLY!'
-                echo '========================================='
+                // Cleanup workspace
+                script {
+                    echo ''
+                    echo 'Cleaning up workspace...'
+                }
+                cleanWs()
             }
-        }
-        failure {
-            script {
-                echo '========================================='
-                echo '❌ PIPELINE FAILED!'
-                echo '========================================='
-            }
-        }
-        always {
-            script {
-                echo 'Cleaning up workspace...'
-            }
-            cleanWs()
         }
     }
+}
 }
 
 
