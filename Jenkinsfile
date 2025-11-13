@@ -67,10 +67,20 @@ pipeline {
                     echo 'Stage 1: Checking out code from GitHub'
                     echo '========================================='
                 }
-                
-                // Checkout code from GitHub
-                checkout scm
-                
+
+                // Checkout code from GitHub with retry logic
+                retry(3) {
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: [[name: '*/MohamedHabibManai-GL5-G5-Produit']],
+                        extensions: [
+                            [$class: 'CloneOption', timeout: 30, noTags: false, shallow: false],
+                            [$class: 'CheckoutOption', timeout: 30]
+                        ],
+                        userRemoteConfigs: [[url: 'https://github.com/MedHabibManai/IGL5-G5-achat.git']]
+                    ])
+                }
+
                 script {
                     echo "âœ“ Successfully checked out branch: ${env.GIT_BRANCH}"
                     echo "âœ“ Commit: ${env.GIT_COMMIT}"
