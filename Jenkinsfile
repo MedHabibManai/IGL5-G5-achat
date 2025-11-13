@@ -83,13 +83,8 @@ pipeline {
                     echo '========================================='
                 }
                 
-                // Make Maven wrapper executable
-                sh 'chmod +x mvnw'
-                
-                // Clean and compile the project
-                sh './mvnw clean compile'
-                
-                script {
+                // Use system Maven (wrapper files missing)
+                sh 'mvn clean compile'                script {
                     echo 'âœ“ Build completed successfully'
                 }
             }
@@ -104,7 +99,7 @@ pipeline {
                 }
                 
                 // Run tests
-                sh './mvnw test'
+                sh 'mvn test'
                 
                 script {
                     echo 'âœ“ All unit tests passed'
@@ -132,7 +127,7 @@ pipeline {
                 }
                 
                 // Package the application
-                sh './mvnw package -DskipTests'
+                sh 'mvn package -DskipTests'
                 
                 script {
                     echo "âœ“ Application packaged: ${ARTIFACT_NAME}"
@@ -162,7 +157,7 @@ pipeline {
                 // Run SonarQube analysis
                 withSonarQubeEnv('SonarQube') {
                     sh '''
-                        ./mvnw sonar:sonar \
+                        mvn sonar:sonar \
                           -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
                           -Dsonar.projectName="${SONAR_PROJECT_NAME}" \
                           -Dsonar.host.url=${SONAR_HOST_URL} \
