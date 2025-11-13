@@ -107,8 +107,8 @@ pipeline {
             }
             
             script {
-                    echo "âœ“ Successfully checked out branch: ${env.GIT_BRANCH}"
-                    echo "âœ“ Commit: ${env.GIT_COMMIT}"
+                    echo " Successfully checked out branch: ${env.GIT_BRANCH}"
+                    echo " Commit: ${env.GIT_COMMIT}"
                 }
             }
         }
@@ -196,14 +196,15 @@ pipeline {
 
                 // Run SonarQube analysis
                 withSonarQubeEnv('SonarQube') {
-                    sh ''
+                    sh '''
+
                         export MAVEN_OPTS="--add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.io=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED"
                         mvn sonar:sonar \
                           -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
                           -Dsonar.projectName="${SONAR_PROJECT_NAME}" \
                           -Dsonar.host.url=${SONAR_HOST_URL} \
                           -Dsonar.java.binaries=target/classes
-                    ''
+                    '''
                 }
 
                 script {
@@ -248,7 +249,8 @@ pipeline {
                 withCredentials([usernamePassword(credentialsId: "${NEXUS_CREDENTIAL_ID}",
                                                   usernameVariable: 'NEXUS_USER',
                                                   passwordVariable: 'NEXUS_PASS')]) {
-                    sh ''
+                    sh '''
+
                         # Create settings.xml with Nexus credentials
                         cat > settings.xml << EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -272,7 +274,7 @@ EOF
 
                         # Deploy to Nexus
                         mvn deploy -DskipTests -s settings.xml
-                    ''
+                    '''
                 }
 
                 script {
@@ -378,9 +380,9 @@ EOF
                     script {
                         echo "Logging in to Docker Hub as ${DOCKER_USER}..."
 
-                        sh ''
+                        sh '''
                             echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-                        ''
+                        '''
 
                         echo "Tagging images for Docker Hub..."
 
@@ -424,7 +426,7 @@ EOF
 
                 withCredentials([file(credentialsId: "${AWS_CREDENTIAL_ID}", variable: 'AWS_CREDENTIALS_FILE')]) {
                     dir(TERRAFORM_DIR) {
-                        sh ''
+                        sh '''
                             echo "Setting up AWS credentials..."
                             mkdir -p ~/.aws
                             cp $AWS_CREDENTIALS_FILE ~/.aws/credentials
@@ -662,7 +664,7 @@ EOF
                             echo "======================================"
                             echo "✓ Cleanup completed successfully"
                             echo "======================================"
-                        ''
+                        '''
                     }
                 }
 
@@ -692,7 +694,7 @@ EOF
 
                 withCredentials([file(credentialsId: "${AWS_CREDENTIAL_ID}", variable: 'AWS_CREDENTIALS_FILE')]) {
                     dir(TERRAFORM_DIR) {
-                        sh ''
+                        sh '''
                             echo "Setting up AWS credentials..."
                             mkdir -p ~/.aws
                             cp $AWS_CREDENTIALS_FILE ~/.aws/credentials
@@ -802,7 +804,7 @@ EOF
                             echo "======================================"
                             echo "✓ EC2 instance refreshed successfully"
                             echo "======================================"
-                        ''
+                        '''
                     }
                 }
 
@@ -828,7 +830,7 @@ EOF
 
                 withCredentials([file(credentialsId: "${AWS_CREDENTIAL_ID}", variable: 'AWS_CREDENTIALS_FILE')]) {
                     dir(TERRAFORM_DIR) {
-                        sh ''
+                        sh '''
                             echo "Setting up AWS credentials..."
                             mkdir -p ~/.aws
                             cp $AWS_CREDENTIALS_FILE ~/.aws/credentials
@@ -869,7 +871,7 @@ EOF
                             echo ""
                             echo "AWS Account:"
                             /usr/local/bin/aws sts get-caller-identity
-                        ''
+                        '''
                     }
                 }
 
@@ -894,7 +896,7 @@ EOF
 
                 withCredentials([file(credentialsId: "${AWS_CREDENTIAL_ID}", variable: 'AWS_CREDENTIALS_FILE')]) {
                     dir(TERRAFORM_DIR) {
-                        sh ''
+                        sh '''
                             echo "Setting up AWS credentials..."
                             mkdir -p ~/.aws
                             cp $AWS_CREDENTIALS_FILE ~/.aws/credentials
@@ -908,7 +910,7 @@ EOF
 
                             echo ""
                             echo "Plan saved to: tfplan"
-                        ''
+                        '''
                     }
                 }
 
@@ -941,7 +943,7 @@ EOF
 
                 withCredentials([file(credentialsId: "${AWS_CREDENTIAL_ID}", variable: 'AWS_CREDENTIALS_FILE')]) {
                     dir(TERRAFORM_DIR) {
-                        sh ''
+                        sh '''
                             echo "Setting up AWS credentials..."
                             mkdir -p ~/.aws
                             cp $AWS_CREDENTIALS_FILE ~/.aws/credentials
@@ -952,7 +954,7 @@ EOF
 
                             echo ""
                             echo "Deployment complete!"
-                        ''
+                        '''
                     }
                 }
 
@@ -1034,7 +1036,7 @@ EOF
 
                 withCredentials([file(credentialsId: "${AWS_CREDENTIAL_ID}", variable: 'AWS_CREDENTIALS_FILE')]) {
                     dir(TERRAFORM_DIR) {
-                        sh ''
+                        sh '''
                             echo "Setting up AWS credentials..."
                             mkdir -p ~/.aws
                             cp $AWS_CREDENTIALS_FILE ~/.aws/credentials
@@ -1089,7 +1091,7 @@ EOF
                             else
                                 echo "Could not retrieve instance ID from Terraform"
                             fi
-                        ''
+                        '''
                     }
                 }
             }
@@ -1178,10 +1180,10 @@ EOF
                         }
                         
                         // Install dependencies and build
-                        sh ''
+                        sh '''
                             npm install
                             npm run build
-                        ''
+                        '''
                     }
                 }
                 
