@@ -524,41 +524,97 @@ EOF
                                 for cluster_name in $EKS_CLUSTERS; do
                                     echo "  Found EKS cluster: $cluster_name"
                                     
+                                    # Check cluster status
+                                    CLUSTER_STATUS=$(aws eks describe-cluster \
+                                        --region ${AWS_REGION} \
+                                        --name $cluster_name \
+                                        --query 'cluster.status' \
+                                        --output text 2>/dev/null || echo "NOT_FOUND")
+                                    echo "    Current status: $CLUSTER_STATUS"
+                                    
+                                    if [ "$CLUSTER_STATUS" = "DELETING" ]; then
+                                        echo "    Cluster is already being deleted, waiting..."
+                                        aws eks wait cluster-deleted --region ${AWS_REGION} --name $cluster_name 2>&1 || echo "      Wait completed or timed out"
+                                        continue
+                                    fi
+                                    
+                                    if [ "$CLUSTER_STATUS" = "NOT_FOUND" ]; then
+                                        echo "    Cluster not found, skipping"
+                                        continue
+                                    fi
+                                    
                                     # Delete node groups first
-                                    echo "    Deleting node groups..."
+                                    echo "    Checking for node groups..."
                                     NODE_GROUPS=$(aws eks list-nodegroups \
                                         --region ${AWS_REGION} \
                                         --cluster-name $cluster_name \
                                         --query 'nodegroups[]' \
                                         --output text 2>/dev/null || echo "")
                                     
-                                    if [ -n "$NODE_GROUPS" ]; then
+                                    if [ -n "$NODE_GROUPS" ] && [ "$NODE_GROUPS" != "None" ]; then
+                                        echo "    Found node groups: $NODE_GROUPS"
                                         for node_group in $NODE_GROUPS; do
                                             echo "      Deleting node group: $node_group"
-                                            safe_delete "aws eks delete-nodegroup --region ${AWS_REGION} --cluster-name $cluster_name --nodegroup-name $node_group"
+                                            aws eks delete-nodegroup \
+                                                --region ${AWS_REGION} \
+                                                --cluster-name $cluster_name \
+                                                --nodegroup-name $node_group 2>&1 | grep -v "ResourceNotFoundException" || true
                                         done
                                         
                                         # Wait for node groups to delete
                                         echo "      Waiting for node groups to delete (this takes 3-5 minutes)..."
                                         for node_group in $NODE_GROUPS; do
+                                            echo "        Waiting for node group: $node_group"
                                             aws eks wait nodegroup-deleted \
                                                 --region ${AWS_REGION} \
                                                 --cluster-name $cluster_name \
-                                                --nodegroup-name $node_group 2>/dev/null || echo "        (node group already deleted)"
+                                                --nodegroup-name $node_group 2>&1 | head -5 || echo "        Node group deleted or not found"
                                         done
+                                        echo "      ✓ All node groups deleted"
                                     else
-                                        echo "      No node groups found"
+                                        echo "    No node groups found or already deleted"
                                     fi
                                     
                                     # Delete the cluster
                                     echo "    Deleting EKS cluster: $cluster_name"
-                                    safe_delete "aws eks delete-cluster --region ${AWS_REGION} --name $cluster_name"
+                                    DELETE_OUTPUT=$(aws eks delete-cluster --region ${AWS_REGION} --name $cluster_name 2>&1)
+                                    if echo "$DELETE_OUTPUT" | grep -q "ResourceNotFoundException"; then
+                                        echo "      Cluster already deleted"
+                                    elif echo "$DELETE_OUTPUT" | grep -q "error"; then
+                                        echo "      Error deleting cluster: $DELETE_OUTPUT"
+                                    else
+                                        echo "      Delete command sent successfully"
+                                        
+                                        # Wait for cluster deletion with timeout
+                                        echo "      Waiting for cluster to delete (this takes 5-10 minutes)..."
+                                        WAIT_START=$(date +%s)
+                                        TIMEOUT=900  # 15 minutes timeout
+                                        
+                                        while true; do
+                                            CURRENT_STATUS=$(aws eks describe-cluster \
+                                                --region ${AWS_REGION} \
+                                                --name $cluster_name \
+                                                --query 'cluster.status' \
+                                                --output text 2>/dev/null || echo "DELETED")
+                                            
+                                            if [ "$CURRENT_STATUS" = "DELETED" ] || echo "$CURRENT_STATUS" | grep -q "ResourceNotFoundException"; then
+                                                echo "      ✓ Cluster deleted successfully"
+                                                break
+                                            fi
+                                            
+                                            ELAPSED=$(($(date +%s) - WAIT_START))
+                                            if [ $ELAPSED -gt $TIMEOUT ]; then
+                                                echo "      ⚠ Timeout waiting for cluster deletion (${TIMEOUT}s)"
+                                                echo "      Current status: $CURRENT_STATUS"
+                                                break
+                                            fi
+                                            
+                                            echo "        Status: $CURRENT_STATUS (${ELAPSED}s elapsed)"
+                                            sleep 30
+                                        done
+                                    fi
                                     
-                                    # Wait for cluster deletion
-                                    echo "    Waiting for cluster to delete (this takes 5-10 minutes)..."
-                                    aws eks wait cluster-deleted --region ${AWS_REGION} --name $cluster_name 2>/dev/null || echo "      (cluster already deleted)"
-                                    
-                                    echo "    ✓ EKS cluster $cluster_name deleted"
+                                    echo "    ✓ EKS cluster $cluster_name processed"
                                 done
                             else
                                 echo "  No EKS clusters found"
