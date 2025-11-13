@@ -1268,10 +1268,43 @@ EOF
                             chmod 600 ~/.aws/credentials
                             
                             echo "Creating Terraform execution plan..."
-                            terraform plan \
-                              -var="docker_image=${TF_VAR_docker_image}" \
-                              -out=tfplan \
-                              -input=false
+                            
+                            # Retry terraform plan up to 3 times with exponential backoff
+                            MAX_RETRIES=3
+                            RETRY_COUNT=0
+                            SUCCESS=false
+                            
+                            while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$SUCCESS" = false ]; do
+                                RETRY_COUNT=$((RETRY_COUNT + 1))
+                                echo ""
+                                echo "=========================================="
+                                echo "Terraform Plan - Attempt $RETRY_COUNT of $MAX_RETRIES"
+                                echo "=========================================="
+                                
+                                if terraform plan \
+                                  -var="docker_image=${TF_VAR_docker_image}" \
+                                  -out=tfplan \
+                                  -input=false; then
+                                    echo ""
+                                    echo "✓ Terraform plan created successfully!"
+                                    SUCCESS=true
+                                else
+                                    EXIT_CODE=$?
+                                    echo ""
+                                    echo "✗ Terraform plan failed (exit code: $EXIT_CODE)"
+                                    
+                                    if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                                        DELAY=$((10 * 2**(RETRY_COUNT - 1)))  # 10s, 20s, 40s
+                                        echo "Retrying in ${DELAY} seconds..."
+                                        echo "(This may be a temporary network/TLS issue)"
+                                        sleep $DELAY
+                                    else
+                                        echo ""
+                                        echo "✗✗✗ Terraform plan failed after $MAX_RETRIES attempts ✗✗✗"
+                                        exit $EXIT_CODE
+                                    fi
+                                fi
+                            done
 
                             echo ""
                             echo "Plan saved to: tfplan"
@@ -1381,7 +1414,52 @@ EOF
                             echo "=========================================="
                             echo "Applying Terraform plan..."
                             echo "=========================================="
-                            terraform apply -auto-approve tfplan
+                            
+                            # Retry terraform apply up to 3 times with exponential backoff
+                            MAX_RETRIES=3
+                            RETRY_COUNT=0
+                            SUCCESS=false
+                            
+                            while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$SUCCESS" = false ]; do
+                                RETRY_COUNT=$((RETRY_COUNT + 1))
+                                echo ""
+                                echo "=========================================="
+                                echo "Terraform Apply - Attempt $RETRY_COUNT of $MAX_RETRIES"
+                                echo "=========================================="
+                                
+                                if terraform apply -auto-approve tfplan; then
+                                    echo ""
+                                    echo "✓ Terraform apply completed successfully!"
+                                    SUCCESS=true
+                                else
+                                    EXIT_CODE=$?
+                                    echo ""
+                                    echo "✗ Terraform apply failed (exit code: $EXIT_CODE)"
+                                    
+                                    if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                                        DELAY=$((10 * 2**(RETRY_COUNT - 1)))  # 10s, 20s, 40s
+                                        echo "Retrying in ${DELAY} seconds..."
+                                        echo "(This may be a temporary network/TLS issue)"
+                                        echo ""
+                                        echo "Note: Will need to recreate plan after retry..."
+                                        sleep $DELAY
+                                        
+                                        # Recreate plan for retry (plan file may be consumed)
+                                        echo "Recreating Terraform plan for retry..."
+                                        if ! terraform plan \
+                                          -var="docker_image=${TF_VAR_docker_image}" \
+                                          -out=tfplan \
+                                          -input=false; then
+                                            echo "✗ Failed to recreate plan for retry"
+                                            exit 1
+                                        fi
+                                    else
+                                        echo ""
+                                        echo "✗✗✗ Terraform apply failed after $MAX_RETRIES attempts ✗✗✗"
+                                        exit $EXIT_CODE
+                                    fi
+                                fi
+                            done
 
                             echo ""
                             echo "Deployment complete!"
