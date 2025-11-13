@@ -21,6 +21,9 @@ pipeline {
     // }
     
     environment {
+        // Git settings to avoid TLS issues
+        GIT_SSL_NO_VERIFY = 'true'
+        
         // Maven settings
         MAVEN_OPTS = '-Xmx1024m'
         
