@@ -1,4 +1,4 @@
-pipeline {
+﻿pipeline {
     agent any
 
     // Parameters to control pipeline behavior
@@ -467,7 +467,8 @@ EOF
                     echo '========================================='
                     echo 'Stage 9.5: Cleaning Up Old AWS Infrastructure'
                     echo '========================================='
-                    echo 'WARNING: This will destroy ALL AWS resources with name achat-app-vpc'
+                    echo 'WARNING: This will destroy ALL AWS resources'
+                    echo 'Method: Terraform Destroy (handles all resources including EKS)'
                 }
 
                 withCredentials([file(credentialsId: "${AWS_CREDENTIAL_ID}", variable: 'AWS_CREDENTIALS_FILE')]) {
@@ -479,13 +480,89 @@ EOF
                             chmod 600 ~/.aws/credentials
                             
                             echo "======================================"
-                            echo "Searching for resources to clean up..."
+                            echo "Using Terraform Destroy for Clean Removal"
+                            echo "======================================"
+                            echo ""
+                            
+                            # Check if Terraform state exists
+                            if [ -f "terraform.tfstate" ]; then
+                                echo "✓ Terraform state found. Using terraform destroy..."
+                                echo ""
+                                
+                                # Initialize Terraform
+                                terraform init -upgrade
+                                
+                                # Destroy all resources
+                                echo "Destroying all infrastructure (this may take 10-15 minutes for EKS)..."
+                                terraform destroy -auto-approve \
+                                    -var="docker_image=${DOCKER_REGISTRY}/${DOCKER_HUB_USER}/${DOCKER_IMAGE_NAME}:${BUILD_NUMBER}"
+                                
+                                echo ""
+                                echo "✓ Terraform destroy completed successfully"
+                            else
+                                echo "⚠ No Terraform state found. Using manual cleanup..."
+                                echo ""
+                            
+                            echo "======================================"
+                            echo "Manual Cleanup (fallback method)"
                             echo "======================================"
                             
                             # Function to safely delete resources
                             safe_delete() {
                                 eval "$1" 2>/dev/null || echo "  (already deleted or not found)"
                             }
+                            
+                            # Step 0: Delete EKS Clusters first (if any exist)
+                            echo ""
+                            echo "Step 0: Deleting EKS Clusters..."
+                            EKS_CLUSTERS=$(aws eks list-clusters \
+                                --region ${AWS_REGION} \
+                                --query 'clusters[?contains(@, `achat-app`) == `true`]' \
+                                --output text 2>/dev/null || echo "")
+                            
+                            if [ -n "$EKS_CLUSTERS" ]; then
+                                for cluster_name in $EKS_CLUSTERS; do
+                                    echo "  Found EKS cluster: $cluster_name"
+                                    
+                                    # Delete node groups first
+                                    echo "    Deleting node groups..."
+                                    NODE_GROUPS=$(aws eks list-nodegroups \
+                                        --region ${AWS_REGION} \
+                                        --cluster-name $cluster_name \
+                                        --query 'nodegroups[]' \
+                                        --output text 2>/dev/null || echo "")
+                                    
+                                    if [ -n "$NODE_GROUPS" ]; then
+                                        for node_group in $NODE_GROUPS; do
+                                            echo "      Deleting node group: $node_group"
+                                            safe_delete "aws eks delete-nodegroup --region ${AWS_REGION} --cluster-name $cluster_name --nodegroup-name $node_group"
+                                        done
+                                        
+                                        # Wait for node groups to delete
+                                        echo "      Waiting for node groups to delete (this takes 3-5 minutes)..."
+                                        for node_group in $NODE_GROUPS; do
+                                            aws eks wait nodegroup-deleted \
+                                                --region ${AWS_REGION} \
+                                                --cluster-name $cluster_name \
+                                                --nodegroup-name $node_group 2>/dev/null || echo "        (node group already deleted)"
+                                        done
+                                    else
+                                        echo "      No node groups found"
+                                    fi
+                                    
+                                    # Delete the cluster
+                                    echo "    Deleting EKS cluster: $cluster_name"
+                                    safe_delete "aws eks delete-cluster --region ${AWS_REGION} --name $cluster_name"
+                                    
+                                    # Wait for cluster deletion
+                                    echo "    Waiting for cluster to delete (this takes 5-10 minutes)..."
+                                    aws eks wait cluster-deleted --region ${AWS_REGION} --name $cluster_name 2>/dev/null || echo "      (cluster already deleted)"
+                                    
+                                    echo "    ✓ EKS cluster $cluster_name deleted"
+                                done
+                            else
+                                echo "  No EKS clusters found"
+                            fi
                             
                             # Find VPCs with name "achat-app-vpc" (regardless of tags)
                             echo ""
@@ -710,6 +787,7 @@ EOF
                             echo "======================================"
                             echo "✓ Cleanup completed successfully"
                             echo "======================================"
+                            fi
                         '''
                     }
                 }
