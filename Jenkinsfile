@@ -24,6 +24,10 @@ pipeline {
         // Git settings to avoid TLS issues
         GIT_SSL_NO_VERIFY = 'true'
         
+        // Docker client timeout settings to handle network issues
+        DOCKER_CLIENT_TIMEOUT = '300'
+        COMPOSE_HTTP_TIMEOUT = '300'
+        
         // Maven settings
         MAVEN_OPTS = '-Xmx1024m'
         
