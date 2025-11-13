@@ -6,6 +6,85 @@
 # Only created when deploy_mode = "eks"
 
 # ============================================================================
+# Private Subnet for EKS (must be created BEFORE cluster)
+# ============================================================================
+
+resource "aws_subnet" "private" {
+  count                   = var.deploy_mode == "eks" ? 1 : 0
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.2.0/24"
+  availability_zone       = local.availability_zones[1]
+  map_public_ip_on_launch = false
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name                              = "${var.project_name}-private-subnet"
+      "kubernetes.io/role/internal-elb" = "1"
+      "kubernetes.io/cluster/${var.project_name}-eks-cluster" = "shared"
+    }
+  )
+}
+
+# Route table for private subnet
+resource "aws_route_table" "private" {
+  count  = var.deploy_mode == "eks" ? 1 : 0
+  vpc_id = aws_vpc.main.id
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name = "${var.project_name}-private-rt"
+    }
+  )
+}
+
+# Associate private subnet with private route table
+resource "aws_route_table_association" "private" {
+  count          = var.deploy_mode == "eks" ? 1 : 0
+  subnet_id      = aws_subnet.private[0].id
+  route_table_id = aws_route_table.private[0].id
+}
+
+# NAT Gateway for private subnet (allows nodes to pull images from internet)
+resource "aws_eip" "nat" {
+  count  = var.deploy_mode == "eks" ? 1 : 0
+  domain = "vpc"
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name = "${var.project_name}-nat-eip"
+    }
+  )
+
+  depends_on = [aws_internet_gateway.main]
+}
+
+resource "aws_nat_gateway" "main" {
+  count         = var.deploy_mode == "eks" ? 1 : 0
+  allocation_id = aws_eip.nat[0].id
+  subnet_id     = aws_subnet.public.id
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name = "${var.project_name}-nat-gateway"
+    }
+  )
+
+  depends_on = [aws_internet_gateway.main]
+}
+
+# Route for private subnet to use NAT gateway
+resource "aws_route" "private_nat" {
+  count                  = var.deploy_mode == "eks" ? 1 : 0
+  route_table_id         = aws_route_table.private[0].id
+  destination_cidr_block = "0.0.0.0/0"
+  nat_gateway_id         = aws_nat_gateway.main[0].id
+}
+
+# ============================================================================
 # Security Group for EKS Cluster
 # ============================================================================
 
@@ -133,7 +212,7 @@ resource "aws_eks_cluster" "main" {
   version  = var.eks_cluster_version
 
   vpc_config {
-    subnet_ids              = [aws_subnet.public.id, aws_subnet.private.id]
+    subnet_ids              = [aws_subnet.public.id, aws_subnet.private[0].id]
     security_group_ids      = [aws_security_group.eks_cluster[0].id]
     endpoint_public_access  = true
     endpoint_private_access = true
@@ -152,7 +231,8 @@ resource "aws_eks_cluster" "main" {
 
   depends_on = [
     aws_subnet.public,
-    aws_subnet.private
+    aws_subnet.private,
+    aws_nat_gateway.main
   ]
 }
 
@@ -165,7 +245,7 @@ resource "aws_eks_node_group" "main" {
   cluster_name    = aws_eks_cluster.main[0].name
   node_group_name = "${var.project_name}-eks-node-group"
   node_role_arn   = local.lab_role_arn
-  subnet_ids      = [aws_subnet.public.id, aws_subnet.private.id]
+  subnet_ids      = [aws_subnet.public.id, aws_subnet.private[0].id]
 
   scaling_config {
     desired_size = var.eks_node_desired_size
@@ -197,7 +277,8 @@ resource "aws_eks_node_group" "main" {
   )
 
   depends_on = [
-    aws_eks_cluster.main
+    aws_eks_cluster.main,
+    aws_route.private_nat
   ]
 
   lifecycle {
@@ -243,77 +324,5 @@ resource "aws_eks_addon" "kube_proxy" {
   ]
 }
 
-# ============================================================================
-# Private Subnet for EKS Nodes (required for EKS best practices)
-# ============================================================================
 
-resource "aws_subnet" "private" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.2.0/24"
-  availability_zone       = local.availability_zones[1]
-  map_public_ip_on_launch = false
-
-  tags = merge(
-    var.common_tags,
-    {
-      Name                              = "${var.project_name}-private-subnet"
-      "kubernetes.io/role/internal-elb" = "1"
-      "kubernetes.io/cluster/${var.project_name}-eks-cluster" = "shared"
-    }
-  )
-}
-
-# Route table for private subnet
-resource "aws_route_table" "private" {
-  vpc_id = aws_vpc.main.id
-
-  tags = merge(
-    var.common_tags,
-    {
-      Name = "${var.project_name}-private-rt"
-    }
-  )
-}
-
-# Associate private subnet with private route table
-resource "aws_route_table_association" "private" {
-  subnet_id      = aws_subnet.private.id
-  route_table_id = aws_route_table.private.id
-}
-
-# NAT Gateway for private subnet (allows nodes to pull images from internet)
-resource "aws_eip" "nat" {
-  count  = var.deploy_mode == "eks" ? 1 : 0
-  domain = "vpc"
-
-  tags = merge(
-    var.common_tags,
-    {
-      Name = "${var.project_name}-nat-eip"
-    }
-  )
-}
-
-resource "aws_nat_gateway" "main" {
-  count         = var.deploy_mode == "eks" ? 1 : 0
-  allocation_id = aws_eip.nat[0].id
-  subnet_id     = aws_subnet.public.id
-
-  tags = merge(
-    var.common_tags,
-    {
-      Name = "${var.project_name}-nat-gateway"
-    }
-  )
-
-  depends_on = [aws_internet_gateway.main]
-}
-
-# Route for private subnet to use NAT gateway
-resource "aws_route" "private_nat" {
-  count                  = var.deploy_mode == "eks" ? 1 : 0
-  route_table_id         = aws_route_table.private.id
-  destination_cidr_block = "0.0.0.0/0"
-  nat_gateway_id         = aws_nat_gateway.main[0].id
-}
 

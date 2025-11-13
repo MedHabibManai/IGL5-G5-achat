@@ -625,11 +625,25 @@ EOF
     }
 
     post {
-        always {
-            cleanWs()
+        success {
             script {
-                echo 'Pipeline completed successfully!'
+                echo '========================================='
+                echo '✅ PIPELINE COMPLETED SUCCESSFULLY!'
+                echo '========================================='
             }
+        }
+        failure {
+            script {
+                echo '========================================='
+                echo '❌ PIPELINE FAILED!'
+                echo '========================================='
+            }
+        }
+        always {
+            script {
+                echo 'Cleaning up workspace...'
+            }
+            cleanWs()
         }
     }
 }

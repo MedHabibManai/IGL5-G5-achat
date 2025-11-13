@@ -84,7 +84,22 @@ output "eks_cluster_arn" {
 
 output "eks_cluster_security_group_id" {
   description = "Security group ID attached to the EKS cluster"
-  value       = var.deploy_mode == "eks" ? aws_eks_cluster.main[0].vpc_config[0].cluster_security_group_id : "N/A"
+  value       = var.deploy_mode == "eks" ? aws_security_group.eks_cluster[0].id : "N/A"
+}
+
+output "eks_nodes_security_group_id" {
+  description = "Security group ID for EKS worker nodes"
+  value       = var.deploy_mode == "eks" ? aws_security_group.eks_nodes[0].id : "N/A"
+}
+
+output "private_subnet_id" {
+  description = "ID of the private subnet (EKS mode only)"
+  value       = var.deploy_mode == "eks" ? aws_subnet.private[0].id : "N/A"
+}
+
+output "nat_gateway_id" {
+  description = "ID of the NAT Gateway (EKS mode only)"
+  value       = var.deploy_mode == "eks" ? aws_nat_gateway.main[0].id : "N/A"
 }
 
 output "eks_node_group_id" {
