@@ -1159,7 +1159,7 @@ EOF
                 dir('frontend') {
                     script {
                         // Get backend URL from Terraform output
-                        def backendUrl = '
+                        def backendUrl = ''
                         dir("../${TERRAFORM_DIR}") {
                             backendUrl = sh(
                                 script: 'terraform output -raw application_url 2>/dev/null || echo ""',
