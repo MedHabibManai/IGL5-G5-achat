@@ -385,8 +385,26 @@ EOF
                                     if [ -n "$INSTANCE_IDS" ]; then
                                         echo "    Found instances: $INSTANCE_IDS"
                                         safe_delete "aws ec2 terminate-instances --region ${AWS_REGION} --instance-ids $INSTANCE_IDS"
-                                        echo "    Waiting for instances to terminate..."
-                                        aws ec2 wait instance-terminated --region ${AWS_REGION} --instance-ids $INSTANCE_IDS 2>/dev/null || sleep 30
+                                        echo "    Waiting for instances to terminate (checking every 5 seconds)..."
+                                        
+                                        WAIT_COUNT=0
+                                        MAX_WAIT=60  # 60 * 5 seconds = 5 minutes max
+                                        while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
+                                            STATUS=$(aws ec2 describe-instances \
+                                                --region ${AWS_REGION} \
+                                                --instance-ids $INSTANCE_IDS \
+                                                --query 'Reservations[].Instances[].State.Name' \
+                                                --output text 2>/dev/null || echo "terminated")
+                                            
+                                            if [ "$STATUS" = "terminated" ] || [ -z "$STATUS" ]; then
+                                                echo "      ✓ All instances terminated"
+                                                break
+                                            else
+                                                echo "      Status: $STATUS (waiting...)"
+                                                sleep 5
+                                                WAIT_COUNT=$((WAIT_COUNT + 1))
+                                            fi
+                                        done
                                     else
                                         echo "    No instances found"
                                     fi
@@ -404,25 +422,24 @@ EOF
                                             echo "    Deleting RDS instance: $db_id"
                                             safe_delete "aws rds delete-db-instance --region ${AWS_REGION} --db-instance-identifier $db_id --skip-final-snapshot"
                                         done
-                                        echo "    Waiting for RDS instances to delete (this may take 5-10 minutes)..."
-                                        echo "    Checking deletion status every 30 seconds..."
+                                        echo "    Waiting for RDS instances to delete (checking every 5 seconds)..."
                                         for db_id in $DB_INSTANCES; do
                                             WAIT_COUNT=0
-                                            MAX_WAIT=20  # 20 * 30 seconds = 10 minutes max
-                                            while [ \$WAIT_COUNT -lt \$MAX_WAIT ]; do
-                                                DB_STATUS=\$(aws rds describe-db-instances \
+                                            MAX_WAIT=120  # 120 * 5 seconds = 10 minutes max
+                                            while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
+                                                DB_STATUS=$(aws rds describe-db-instances \
                                                     --region ${AWS_REGION} \
-                                                    --db-instance-identifier \$db_id \
+                                                    --db-instance-identifier $db_id \
                                                     --query 'DBInstances[0].DBInstanceStatus' \
                                                     --output text 2>/dev/null || echo "deleted")
                                                 
-                                                if [ "\$DB_STATUS" = "deleted" ] || [ "\$DB_STATUS" = "None" ]; then
-                                                    echo "      ✓ RDS instance \$db_id fully deleted"
+                                                if [ "$DB_STATUS" = "deleted" ] || [ "$DB_STATUS" = "None" ]; then
+                                                    echo "      ✓ RDS instance $db_id fully deleted"
                                                     break
                                                 else
-                                                    echo "      Status: \$DB_STATUS (waiting...)"
-                                                    sleep 30
-                                                    WAIT_COUNT=\$((WAIT_COUNT + 1))
+                                                    echo "      Status: $DB_STATUS (waiting...)"
+                                                    sleep 5
+                                                    WAIT_COUNT=$((WAIT_COUNT + 1))
                                                 fi
                                             done
                                         done
@@ -465,20 +482,19 @@ EOF
                                                 safe_delete "aws eks delete-nodegroup --region ${AWS_REGION} --cluster-name achat-app-eks-cluster --nodegroup-name $node_group"
                                             done
                                             
-                                            echo "    Waiting for node groups to delete (may take 3-5 minutes)..."
-                                            echo "    Checking deletion status every 30 seconds..."
+                                            echo "    Waiting for node groups to delete (checking every 5 seconds)..."
                                             WAIT_COUNT=0
-                                            MAX_WAIT=10  # 10 * 30 seconds = 5 minutes max
-                                            while [ \$WAIT_COUNT -lt \$MAX_WAIT ]; do
+                                            MAX_WAIT=60  # 60 * 5 seconds = 5 minutes max
+                                            while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
                                                 REMAINING=$(aws eks list-nodegroups --region ${AWS_REGION} --cluster-name achat-app-eks-cluster --query "nodegroups[*]" --output text 2>/dev/null | wc -w || echo "0")
                                                 
-                                                if [ "\$REMAINING" = "0" ]; then
+                                                if [ "$REMAINING" = "0" ]; then
                                                     echo "      ✓ All node groups deleted"
                                                     break
                                                 else
-                                                    echo "      Still \$REMAINING node group(s) deleting..."
-                                                    sleep 30
-                                                    WAIT_COUNT=\$((WAIT_COUNT + 1))
+                                                    echo "      Still $REMAINING node group(s) deleting..."
+                                                    sleep 5
+                                                    WAIT_COUNT=$((WAIT_COUNT + 1))
                                                 fi
                                             done
                                         else
@@ -489,20 +505,19 @@ EOF
                                         echo "    Deleting EKS cluster: $EKS_CLUSTER"
                                         safe_delete "aws eks delete-cluster --region ${AWS_REGION} --name achat-app-eks-cluster"
                                         
-                                        echo "    Waiting for cluster deletion (may take 10-15 minutes)..."
-                                        echo "    Checking status every 30 seconds..."
+                                        echo "    Waiting for cluster deletion (checking every 5 seconds)..."
                                         WAIT_COUNT=0
-                                        MAX_WAIT=30  # 30 * 30 seconds = 15 minutes max
-                                        while [ \$WAIT_COUNT -lt \$MAX_WAIT ]; do
+                                        MAX_WAIT=180  # 180 * 5 seconds = 15 minutes max
+                                        while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
                                             CLUSTER_STATUS=$(aws eks describe-cluster --region ${AWS_REGION} --name achat-app-eks-cluster --query "cluster.status" --output text 2>/dev/null || echo "DELETED")
                                             
-                                            if [ "\$CLUSTER_STATUS" = "DELETED" ] || [ -z "\$CLUSTER_STATUS" ]; then
+                                            if [ "$CLUSTER_STATUS" = "DELETED" ] || [ -z "$CLUSTER_STATUS" ]; then
                                                 echo "      ✓ EKS cluster deleted"
                                                 break
                                             else
-                                                echo "      Status: \$CLUSTER_STATUS (waiting...)"
-                                                sleep 30
-                                                WAIT_COUNT=\$((WAIT_COUNT + 1))
+                                                echo "      Status: $CLUSTER_STATUS (waiting...)"
+                                                sleep 5
+                                                WAIT_COUNT=$((WAIT_COUNT + 1))
                                             fi
                                         done
                                     else
@@ -523,8 +538,26 @@ EOF
                                             echo "    Deleting NAT Gateway: $nat_id"
                                             safe_delete "aws ec2 delete-nat-gateway --region ${AWS_REGION} --nat-gateway-id $nat_id"
                                         done
-                                        echo "    Waiting for NAT Gateways to delete..."
-                                        sleep 30
+                                        echo "    Waiting for NAT Gateways to delete (checking every 5 seconds)..."
+                                        
+                                        WAIT_COUNT=0
+                                        MAX_WAIT=36  # 36 * 5 seconds = 3 minutes
+                                        while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
+                                            REMAINING=$(aws ec2 describe-nat-gateways \
+                                                --region ${AWS_REGION} \
+                                                --nat-gateway-ids $NAT_GW_IDS \
+                                                --query 'NatGateways[?State==`available` || State==`deleting`].NatGatewayId' \
+                                                --output text 2>/dev/null | wc -w || echo "0")
+                                            
+                                            if [ "$REMAINING" = "0" ]; then
+                                                echo "      ✓ All NAT Gateways deleted"
+                                                break
+                                            else
+                                                echo "      Still $REMAINING NAT Gateway(s) deleting..."
+                                                sleep 5
+                                                WAIT_COUNT=$((WAIT_COUNT + 1))
+                                            fi
+                                        done
                                     else
                                         echo "    No NAT Gateways found"
                                     fi
