@@ -87,7 +87,7 @@ pipeline {
                             $class: 'GitSCM',
                             branches: [[name: '*/MohamedHabibManai-GL5-G5-Produit']],
                             extensions: [
-                                [$class: 'CloneOption', timeout: 60, noTags: false, shallow: false],
+                                [$class: 'CloneOption', timeout: 60, noTags: true, shallow: true, depth: 1],
                                 [$class: 'CheckoutOption', timeout: 60]
                             ],
                             userRemoteConfigs: [[url: 'https://github.com/MedHabibManai/IGL5-G5-achat.git']]
