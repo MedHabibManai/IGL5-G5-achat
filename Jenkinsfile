@@ -89,7 +89,7 @@ pipeline {
                     try {
                         retryCount++
                         if (retryCount > 1) {
-                            def waitTime = Math.pow(2, retryCount - 1) * 10 // 10s, 20s, 40s, 80s
+                            def waitTime = Math.pow(2.0, (retryCount - 1) as double) * 10 // 10s, 20s, 40s, 80s
                             echo "Retry attempt ${retryCount}/${maxRetries} after ${waitTime}s wait..."
                             sleep(time: waitTime, unit: 'SECONDS')
                         }
@@ -315,7 +315,7 @@ EOF
                     for (int i = 0; i < maxRetries && !pulled; i++) {
                         try {
                             if (i > 0) {
-                                def delay = Math.pow(2, i) * 10
+                                def delay = Math.pow(2.0, i as double) * 10
                                 echo "Retry ${i + 1}/${maxRetries} - waiting ${delay}s before pulling base image..."
                                 sleep(time: delay.toInteger(), unit: 'SECONDS')
                             }
@@ -339,7 +339,7 @@ EOF
                     for (int i = 0; i < maxRetries && !built; i++) {
                         try {
                             if (i > 0) {
-                                def delay = Math.pow(2, i) * 10
+                                def delay = Math.pow(2.0, i as double) * 10
                                 echo "Retry ${i + 1}/${maxRetries} - waiting ${delay}s before building..."
                                 sleep(time: delay.toInteger(), unit: 'SECONDS')
                             }
