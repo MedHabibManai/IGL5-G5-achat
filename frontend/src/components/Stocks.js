@@ -14,11 +14,14 @@ function Stocks() {
     try {
       setLoading(true);
       const response = await apiService.getAllStocks();
-      setStocks(response.data);
+      // Ensure data is always an array
+      const data = Array.isArray(response.data) ? response.data : [];
+      setStocks(data);
       setError(null);
     } catch (err) {
       setError('Failed to fetch stocks: ' + err.message);
       console.error('Error fetching stocks:', err);
+      setStocks([]);
     } finally {
       setLoading(false);
     }

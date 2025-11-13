@@ -14,11 +14,14 @@ function Reglements() {
     try {
       setLoading(true);
       const response = await apiService.getAllReglements();
-      setReglements(response.data);
+      // Ensure data is always an array
+      const data = Array.isArray(response.data) ? response.data : [];
+      setReglements(data);
       setError(null);
     } catch (err) {
       setError('Failed to fetch reglements: ' + err.message);
       console.error('Error fetching reglements:', err);
+      setReglements([]);
     } finally {
       setLoading(false);
     }

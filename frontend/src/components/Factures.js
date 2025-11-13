@@ -14,11 +14,14 @@ function Factures() {
     try {
       setLoading(true);
       const response = await apiService.getAllFactures();
-      setFactures(response.data);
+      // Ensure data is always an array
+      const data = Array.isArray(response.data) ? response.data : [];
+      setFactures(data);
       setError(null);
     } catch (err) {
       setError('Failed to fetch factures: ' + err.message);
       console.error('Error fetching factures:', err);
+      setFactures([]);
     } finally {
       setLoading(false);
     }

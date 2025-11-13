@@ -14,11 +14,14 @@ function Fournisseurs() {
     try {
       setLoading(true);
       const response = await apiService.getAllFournisseurs();
-      setFournisseurs(response.data);
+      // Ensure data is always an array
+      const data = Array.isArray(response.data) ? response.data : [];
+      setFournisseurs(data);
       setError(null);
     } catch (err) {
       setError('Failed to fetch fournisseurs: ' + err.message);
       console.error('Error fetching fournisseurs:', err);
+      setFournisseurs([]);
     } finally {
       setLoading(false);
     }

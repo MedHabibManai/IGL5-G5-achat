@@ -14,11 +14,14 @@ function Produits() {
     try {
       setLoading(true);
       const response = await apiService.getAllProduits();
-      setProduits(response.data);
+      // Ensure data is always an array
+      const data = Array.isArray(response.data) ? response.data : [];
+      setProduits(data);
       setError(null);
     } catch (err) {
       setError('Failed to fetch produits: ' + err.message);
       console.error('Error fetching produits:', err);
+      setProduits([]);
     } finally {
       setLoading(false);
     }

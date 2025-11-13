@@ -90,7 +90,7 @@ function Home() {
       <div className="card">
         <h2>Quick Links</h2>
         <div style={{ marginTop: '1rem' }}>
-          <a href="/SpringMVC/swagger-ui/" target="_blank" rel="noopener noreferrer" className="btn btn-primary">
+          <a href="/SpringMVC/swagger-ui/index.html" target="_blank" rel="noopener noreferrer" className="btn btn-primary">
             📚 API Documentation (Swagger)
           </a>
           <a href="/SpringMVC/actuator/health" target="_blank" rel="noopener noreferrer" className="btn btn-secondary">

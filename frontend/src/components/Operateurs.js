@@ -14,11 +14,14 @@ function Operateurs() {
     try {
       setLoading(true);
       const response = await apiService.getAllOperateurs();
-      setOperateurs(response.data);
+      // Ensure data is always an array
+      const data = Array.isArray(response.data) ? response.data : [];
+      setOperateurs(data);
       setError(null);
     } catch (err) {
       setError('Failed to fetch operateurs: ' + err.message);
       console.error('Error fetching operateurs:', err);
+      setOperateurs([]);
     } finally {
       setLoading(false);
     }
