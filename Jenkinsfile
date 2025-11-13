@@ -68,20 +68,39 @@ pipeline {
                     echo '========================================='
                 }
 
-                // Checkout code from GitHub with retry logic
-                retry(3) {
-                    checkout([
-                        $class: 'GitSCM',
-                        branches: [[name: '*/MohamedHabibManai-GL5-G5-Produit']],
-                        extensions: [
-                            [$class: 'CloneOption', timeout: 30, noTags: false, shallow: false],
-                            [$class: 'CheckoutOption', timeout: 30]
-                        ],
-                        userRemoteConfigs: [[url: 'https://github.com/MedHabibManai/IGL5-G5-achat.git']]
-                    ])
+            // Checkout code from GitHub with retry logic and exponential backoff
+            script {
+                def maxRetries = 5
+                def retryCount = 0
+                def success = false
+                
+                while (retryCount < maxRetries && !success) {
+                    try {
+                        retryCount++
+                        if (retryCount > 1) {
+                            def waitTime = Math.pow(2, retryCount - 1) * 10 // 10s, 20s, 40s, 80s
+                            echo "Retry attempt ${retryCount}/${maxRetries} after ${waitTime}s wait..."
+                            sleep(time: waitTime, unit: 'SECONDS')
+                        }
+                        
+                        checkout([
+                            $class: 'GitSCM',
+                            branches: [[name: '*/MohamedHabibManai-GL5-G5-Produit']],
+                            extensions: [
+                                [$class: 'CloneOption', timeout: 60, noTags: false, shallow: false],
+                                [$class: 'CheckoutOption', timeout: 60]
+                            ],
+                            userRemoteConfigs: [[url: 'https://github.com/MedHabibManai/IGL5-G5-achat.git']]
+                        ])
+                        success = true
+                    } catch (Exception e) {
+                        if (retryCount >= maxRetries) {
+                            throw e
+                        }
+                        echo "Checkout failed: ${e.message}. Retrying..."
+                    }
                 }
-
-                script {
+            }                script {
                     echo "âœ“ Successfully checked out branch: ${env.GIT_BRANCH}"
                     echo "âœ“ Commit: ${env.GIT_COMMIT}"
                 }
