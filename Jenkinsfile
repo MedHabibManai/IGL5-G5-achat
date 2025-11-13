@@ -1,4 +1,4 @@
-﻿pipeline {
+pipeline {
     agent any
 
     // Disable automatic checkout to use our custom retry logic instead
@@ -14,9 +14,9 @@
             name: 'DEPLOYMENT_MODE',
             choices: ['NORMAL', 'CLEANUP_AND_DEPLOY', 'REUSE_INFRASTRUCTURE'],
             description: '''Deployment mode:
-            • NORMAL: Deploy fresh infrastructure (may fail if VPC limit reached)
-            • CLEANUP_AND_DEPLOY: Destroy old resources first, then deploy new ones
-            • REUSE_INFRASTRUCTURE: Keep VPC/RDS, only recreate EC2 instance (fastest for testing)'''
+            â€¢ NORMAL: Deploy fresh infrastructure (may fail if VPC limit reached)
+            â€¢ CLEANUP_AND_DEPLOY: Destroy old resources first, then deploy new ones
+            â€¢ REUSE_INFRASTRUCTURE: Keep VPC/RDS, only recreate EC2 instance (fastest for testing)'''
         )
     }
 
@@ -132,7 +132,7 @@
                 sh 'mvn clean compile'
                 
                 script {
-                    echo 'âœ“ Build completed successfully'
+                    echo 'Ã¢Å“â€œ Build completed successfully'
                 }
             }
         }
@@ -149,7 +149,7 @@
                 sh 'mvn test'
                 
                 script {
-                    echo 'âœ“ All unit tests passed'
+                    echo 'Ã¢Å“â€œ All unit tests passed'
                 }
             }
             
@@ -159,7 +159,7 @@
                     junit '**/target/surefire-reports/*.xml'
                     
                     script {
-                        echo 'âœ“ Test results published'
+                        echo 'Ã¢Å“â€œ Test results published'
                     }
                 }
             }
@@ -177,7 +177,7 @@
                 sh 'mvn package -DskipTests'
                 
                 script {
-                    echo "âœ“ Application packaged: ${ARTIFACT_NAME}"
+                    echo "Ã¢Å“â€œ Application packaged: ${ARTIFACT_NAME}"
                 }
             }
             
@@ -187,7 +187,7 @@
                     archiveArtifacts artifacts: '**/target/*.jar', fingerprint: true
                     
                     script {
-                        echo 'âœ“ Artifacts archived successfully'
+                        echo 'Ã¢Å“â€œ Artifacts archived successfully'
                     }
                 }
             }
@@ -215,8 +215,8 @@
                 }
 
                 script {
-                    echo 'âœ“ SonarQube analysis completed'
-                    echo "âœ“ View results at: ${SONAR_HOST_URL}/dashboard?id=${SONAR_PROJECT_KEY}"
+                    echo 'Ã¢Å“â€œ SonarQube analysis completed'
+                    echo "Ã¢Å“â€œ View results at: ${SONAR_HOST_URL}/dashboard?id=${SONAR_PROJECT_KEY}"
                 }
             }
         }
@@ -234,10 +234,10 @@
                     script {
                         def qg = waitForQualityGate()
                         if (qg.status != 'OK') {
-                            echo "âš  Quality Gate status: ${qg.status}"
-                            echo "âš  Pipeline will continue but code quality needs attention"
+                            echo "Ã¢Å¡Â  Quality Gate status: ${qg.status}"
+                            echo "Ã¢Å¡Â  Pipeline will continue but code quality needs attention"
                         } else {
-                            echo 'âœ“ Quality Gate passed!'
+                            echo 'Ã¢Å“â€œ Quality Gate passed!'
                         }
                     }
                 }
@@ -285,8 +285,8 @@ EOF
                 }
 
                 script {
-                    echo 'âœ“ Artifacts deployed to Nexus successfully'
-                    echo "âœ“ View artifacts at: http://localhost:8081/#browse/browse:maven-releases"
+                    echo 'Ã¢Å“â€œ Artifacts deployed to Nexus successfully'
+                    echo "Ã¢Å“â€œ View artifacts at: http://localhost:8081/#browse/browse:maven-releases"
                 }
             }
         }
@@ -405,7 +405,7 @@ EOF
                                 '''
                                 
                                 loginSuccess = true
-                                echo "✓ Docker login successful!"
+                                echo "âœ“ Docker login successful!"
                             } catch (Exception e) {
                                 echo "Docker login attempt ${i + 1} failed: ${e.message}"
                                 if (i == maxRetries - 1) {
@@ -443,7 +443,7 @@ EOF
                                 """
                                 
                                 pushSuccess = true
-                                echo "âœ“ Docker push successful!"
+                                echo "Ã¢Å“â€œ Docker push successful!"
                             } catch (Exception e) {
                                 echo "Docker push attempt ${i + 1} failed: ${e.message}"
                                 if (i == maxRetries - 1) {
@@ -452,7 +452,7 @@ EOF
                             }
                         }
 
-                        echo "âœ“ Docker images pushed successfully!"
+                        echo "Ã¢Å“â€œ Docker images pushed successfully!"
                         echo "  - ${DOCKER_USER}/${DOCKER_IMAGE}"
                         echo "  - ${DOCKER_USER}/${DOCKER_IMAGE_NAME}:latest"
                         echo ""
@@ -493,7 +493,7 @@ EOF
                             
                             # Check if Terraform state exists
                             if [ -f "terraform.tfstate" ]; then
-                                echo "✓ Terraform state found. Using terraform destroy..."
+                                echo "âœ“ Terraform state found. Using terraform destroy..."
                                 echo ""
                                 
                                 # Initialize Terraform
@@ -505,9 +505,9 @@ EOF
                                     -var="docker_image=${DOCKER_REGISTRY}/${DOCKER_HUB_USER}/${DOCKER_IMAGE_NAME}:${BUILD_NUMBER}"
                                 
                                 echo ""
-                                echo "✓ Terraform destroy completed successfully"
+                                echo "âœ“ Terraform destroy completed successfully"
                             else
-                                echo "⚠ No Terraform state found. Using manual cleanup..."
+                                echo "âš  No Terraform state found. Using manual cleanup..."
                                 echo ""
                             
                             echo "======================================"
@@ -577,7 +577,7 @@ EOF
                                                 --cluster-name $cluster_name \
                                                 --nodegroup-name $node_group 2>&1 | head -5 || echo "        Node group deleted or not found"
                                         done
-                                        echo "      ✓ All node groups deleted"
+                                        echo "      âœ“ All node groups deleted"
                                     else
                                         echo "    No node groups found or already deleted"
                                     fi
@@ -605,13 +605,13 @@ EOF
                                                 --output text 2>/dev/null || echo "DELETED")
                                             
                                             if [ "$CURRENT_STATUS" = "DELETED" ] || echo "$CURRENT_STATUS" | grep -q "ResourceNotFoundException"; then
-                                                echo "      ✓ Cluster deleted successfully"
+                                                echo "      âœ“ Cluster deleted successfully"
                                                 break
                                             fi
                                             
                                             ELAPSED=$(($(date +%s) - WAIT_START))
                                             if [ $ELAPSED -gt $TIMEOUT ]; then
-                                                echo "      ⚠ Timeout waiting for cluster deletion (${TIMEOUT}s)"
+                                                echo "      âš  Timeout waiting for cluster deletion (${TIMEOUT}s)"
                                                 echo "      Current status: $CURRENT_STATUS"
                                                 break
                                             fi
@@ -621,7 +621,7 @@ EOF
                                         done
                                     fi
                                     
-                                    echo "    ✓ EKS cluster $cluster_name processed"
+                                    echo "    âœ“ EKS cluster $cluster_name processed"
                                 done
                             else
                                 echo "  No EKS clusters found"
@@ -672,7 +672,7 @@ EOF
                                             --db-instance-identifier $db_id 2>&1)
                                         
                                         if echo "$DB_CHECK" | grep -q "DBInstanceNotFound"; then
-                                            echo "        ✓ RDS instance $db_id fully deleted (not found)"
+                                            echo "        âœ“ RDS instance $db_id fully deleted (not found)"
                                             break
                                         fi
                                         
@@ -680,7 +680,7 @@ EOF
                                         DB_STATUS=$(echo "$DB_CHECK" | grep -o '"DBInstanceStatus": "[^"]*"' | cut -d'"' -f4 || echo "unknown")
                                         
                                         if [ "$DB_STATUS" = "unknown" ] || [ -z "$DB_STATUS" ]; then
-                                            echo "        ✓ RDS instance $db_id fully deleted (no status)"
+                                            echo "        âœ“ RDS instance $db_id fully deleted (no status)"
                                             break
                                         else
                                             echo "        Status: $DB_STATUS (attempt $WAIT_COUNT/$MAX_WAIT, waiting 30s...)"
@@ -693,7 +693,7 @@ EOF
                                         echo "        WARNING: Timeout waiting for $db_id deletion, but continuing..."
                                     fi
                                 done
-                                echo "    ✓ All RDS instances processed"
+                                echo "    âœ“ All RDS instances processed"
                             else
                                 echo "    No RDS instances found"
                             fi
@@ -729,10 +729,10 @@ EOF
                                     echo "    Cannot safely delete DB subnet groups. Skipping subnet group deletion."
                                     echo "    Please manually delete these RDS instances and subnet groups later."
                                 else
-                                    echo "    ✓ All RDS instances confirmed deleted"
+                                    echo "    âœ“ All RDS instances confirmed deleted"
                                 fi
                             else
-                                echo "    ✓ No RDS instances found - safe to delete subnet groups"
+                                echo "    âœ“ No RDS instances found - safe to delete subnet groups"
                             fi
                             
                             # Only proceed with subnet group deletion if no RDS instances remain
@@ -756,7 +756,7 @@ EOF
                                 elif echo "$DELETE_SG_OUTPUT" | grep -qi "error"; then
                                     echo "      Error deleting DB subnet group: $DELETE_SG_OUTPUT"
                                 else
-                                    echo "      ✓ DB subnet group deleted successfully"
+                                    echo "      âœ“ DB subnet group deleted successfully"
                                 fi
                             else
                                 echo "    DB subnet group not found (already deleted)"
@@ -775,15 +775,15 @@ EOF
                                     aws rds delete-db-subnet-group \
                                         --region ${AWS_REGION} \
                                         --db-subnet-group-name $db_sg_name 2>&1 | grep -v "DBSubnetGroupNotFoundFault" || true
-                                    echo "      ✓ Processed DB subnet group: $db_sg_name"
+                                    echo "      âœ“ Processed DB subnet group: $db_sg_name"
                                 done
                             else
                                 echo "    No additional DB subnet groups found"
                             fi
                             
-                            echo "  ✓ DB subnet group cleanup completed"
+                            echo "  âœ“ DB subnet group cleanup completed"
                             else
-                                echo "  ⚠ Skipping DB subnet group deletion due to remaining RDS instances"
+                                echo "  âš  Skipping DB subnet group deletion due to remaining RDS instances"
                             fi
                             
                             # Find VPCs with name "achat-app-vpc" (regardless of tags)
@@ -850,7 +850,7 @@ EOF
                                                     --output text 2>/dev/null || echo "deleted")
                                                 
                                                 if [ "\$DB_STATUS" = "deleted" ] || [ "\$DB_STATUS" = "None" ]; then
-                                                    echo "      ✓ RDS instance \$db_id fully deleted"
+                                                    echo "      âœ“ RDS instance \$db_id fully deleted"
                                                     break
                                                 else
                                                     echo "      Status: \$DB_STATUS (waiting...)"
@@ -996,9 +996,9 @@ EOF
                                     echo "  9. Deleting VPC..."
                                     echo "    Deleting VPC: $vpc_id"
                                     if aws ec2 delete-vpc --region ${AWS_REGION} --vpc-id $vpc_id 2>/dev/null; then
-                                        echo "    ✓ VPC $vpc_id deleted successfully"
+                                        echo "    âœ“ VPC $vpc_id deleted successfully"
                                     else
-                                        echo "    ✗ Failed to delete VPC $vpc_id (may have dependencies)"
+                                        echo "    âœ— Failed to delete VPC $vpc_id (may have dependencies)"
                                     fi
                                     
                                     echo "=========================================="
@@ -1007,7 +1007,7 @@ EOF
                             
                             echo ""
                             echo "======================================"
-                            echo "✓ Cleanup completed successfully"
+                            echo "âœ“ Cleanup completed successfully"
                             echo "======================================"
                             fi
                         '''
@@ -1148,7 +1148,7 @@ EOF
                               -var="docker_image=${TF_VAR_docker_image}"
                             
                             echo "======================================"
-                            echo "✓ EC2 instance refreshed successfully"
+                            echo "âœ“ EC2 instance refreshed successfully"
                             echo "======================================"
                         '''
                     }
@@ -1268,21 +1268,21 @@ EOF
                             echo "  Cluster status: $CLUSTER_STATUS"
                             
                             if [ "$CLUSTER_STATUS" = "ACTIVE" ]; then
-                                echo "  ❌ ERROR: EKS cluster '${CLUSTER_NAME}' already exists!"
+                                echo "  âŒ ERROR: EKS cluster '${CLUSTER_NAME}' already exists!"
                                 echo "  This will cause Terraform to fail with 'cluster already exists' error."
                                 echo "  Please run CLEANUP_AND_DEPLOY mode to delete existing resources first."
                                 exit 1
                             elif [ "$CLUSTER_STATUS" = "CREATING" ]; then
-                                echo "  ❌ ERROR: EKS cluster '${CLUSTER_NAME}' is currently CREATING!"
+                                echo "  âŒ ERROR: EKS cluster '${CLUSTER_NAME}' is currently CREATING!"
                                 echo "  Please wait for creation to complete or delete it manually."
                                 exit 1
                             elif [ "$CLUSTER_STATUS" = "DELETING" ]; then
-                                echo "  ⚠ WARNING: EKS cluster '${CLUSTER_NAME}' is currently DELETING."
+                                echo "  âš  WARNING: EKS cluster '${CLUSTER_NAME}' is currently DELETING."
                                 echo "  This is expected if cleanup just ran. Terraform Apply will wait for deletion."
                             elif [ "$CLUSTER_STATUS" = "NOT_FOUND" ]; then
-                                echo "  ✓ EKS cluster does not exist - ready to create"
+                                echo "  âœ“ EKS cluster does not exist - ready to create"
                             else
-                                echo "  ⚠ Unexpected cluster status: $CLUSTER_STATUS"
+                                echo "  âš  Unexpected cluster status: $CLUSTER_STATUS"
                             fi
                             
                             echo ""
@@ -1300,7 +1300,7 @@ EOF
                                 --output text 2>/dev/null || echo "NOT_FOUND")
                             
                             if [ "$DB_SG_EXISTS" != "NOT_FOUND" ] && [ -n "$DB_SG_EXISTS" ]; then
-                                echo "  ❌ ERROR: DB subnet group '${DB_SUBNET_GROUP_NAME}' already exists!"
+                                echo "  âŒ ERROR: DB subnet group '${DB_SUBNET_GROUP_NAME}' already exists!"
                                 echo "  This will cause Terraform to fail with 'DBSubnetGroupAlreadyExists' error."
                                 echo "  Please run CLEANUP_AND_DEPLOY mode to delete existing resources first."
                                 echo ""
@@ -1308,7 +1308,7 @@ EOF
                                 echo "    aws rds delete-db-subnet-group --db-subnet-group-name ${DB_SUBNET_GROUP_NAME} --region ${AWS_REGION}"
                                 exit 1
                             else
-                                echo "  ✓ DB subnet group does not exist - ready to create"
+                                echo "  âœ“ DB subnet group does not exist - ready to create"
                             fi
                             
                             echo ""
@@ -1323,7 +1323,7 @@ EOF
                                 --output text 2>/dev/null || echo "")
                             
                             if [ -n "$RDS_INSTANCES" ]; then
-                                echo "  ⚠ WARNING: Found existing RDS instances: $RDS_INSTANCES"
+                                echo "  âš  WARNING: Found existing RDS instances: $RDS_INSTANCES"
                                 for rds_id in $RDS_INSTANCES; do
                                     RDS_STATUS=$(aws rds describe-db-instances \
                                         --region ${AWS_REGION} \
@@ -1335,21 +1335,21 @@ EOF
                                 
                                 # Only fail if RDS is in a problematic state
                                 if echo "$RDS_STATUS" | grep -qE "available|creating|backing-up"; then
-                                    echo "  ❌ ERROR: Active RDS instance(s) found!"
+                                    echo "  âŒ ERROR: Active RDS instance(s) found!"
                                     echo "  Please run CLEANUP_AND_DEPLOY mode to delete existing resources first."
                                     exit 1
                                 fi
                             else
-                                echo "  ✓ No RDS instances found - ready to create"
+                                echo "  âœ“ No RDS instances found - ready to create"
                             fi
                             
                             echo ""
                             echo "=========================================="
-                            echo "✓ All Pre-Checks Passed!"
+                            echo "âœ“ All Pre-Checks Passed!"
                             echo "=========================================="
-                            echo "  • EKS cluster: Ready"
-                            echo "  • DB subnet group: Ready"
-                            echo "  • RDS instances: Ready"
+                            echo "  â€¢ EKS cluster: Ready"
+                            echo "  â€¢ DB subnet group: Ready"
+                            echo "  â€¢ RDS instances: Ready"
                             echo ""
                             echo "Proceeding with Terraform Plan..."
                         '''
@@ -1402,12 +1402,12 @@ EOF
                                   -out=tfplan \
                                   -input=false; then
                                     echo ""
-                                    echo "✓ Terraform plan created successfully!"
+                                    echo "âœ“ Terraform plan created successfully!"
                                     SUCCESS=true
                                 else
                                     EXIT_CODE=$?
                                     echo ""
-                                    echo "✗ Terraform plan failed (exit code: $EXIT_CODE)"
+                                    echo "âœ— Terraform plan failed (exit code: $EXIT_CODE)"
                                     
                                     if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
                                         # Calculate delay: 10s, 20s, 40s (using case for sh compatibility)
@@ -1422,7 +1422,7 @@ EOF
                                         sleep $DELAY
                                     else
                                         echo ""
-                                        echo "✗✗✗ Terraform plan failed after $MAX_RETRIES attempts ✗✗✗"
+                                        echo "âœ—âœ—âœ— Terraform plan failed after $MAX_RETRIES attempts âœ—âœ—âœ—"
                                         exit $EXIT_CODE
                                     fi
                                 fi
@@ -1483,7 +1483,7 @@ EOF
                                 --output text 2>/dev/null || echo "NOT_FOUND")
                             
                             if [ "$CLUSTER_STATUS" != "NOT_FOUND" ]; then
-                                echo "⚠ Found existing cluster: $CLUSTER_NAME"
+                                echo "âš  Found existing cluster: $CLUSTER_NAME"
                                 echo "  Current status: $CLUSTER_STATUS"
                                 
                                 if [ "$CLUSTER_STATUS" = "DELETING" ]; then
@@ -1505,13 +1505,13 @@ EOF
                                             --output text 2>/dev/null || echo "DELETED")
                                         
                                         if [ "$CURRENT_STATUS" = "DELETED" ] || echo "$CURRENT_STATUS" | grep -q "ResourceNotFoundException"; then
-                                            echo "✓ Cluster $CLUSTER_NAME is now fully deleted"
+                                            echo "âœ“ Cluster $CLUSTER_NAME is now fully deleted"
                                             break
                                         fi
                                         
                                         ELAPSED=$(($(date +%s) - WAIT_START))
                                         if [ $ELAPSED -gt $MAX_WAIT ]; then
-                                            echo "✗ Timeout waiting for cluster deletion (${MAX_WAIT}s)"
+                                            echo "âœ— Timeout waiting for cluster deletion (${MAX_WAIT}s)"
                                             echo "  Current status: $CURRENT_STATUS"
                                             exit 1
                                         fi
@@ -1520,16 +1520,16 @@ EOF
                                     done
                                     echo ""
                                 elif [ "$CLUSTER_STATUS" = "ACTIVE" ]; then
-                                    echo "✗ ERROR: Cluster $CLUSTER_NAME is still ACTIVE!"
+                                    echo "âœ— ERROR: Cluster $CLUSTER_NAME is still ACTIVE!"
                                     echo "  This should have been deleted by the cleanup stage."
                                     echo "  Please run with CLEANUP_AND_DEPLOY mode or manually delete the cluster."
                                     exit 1
                                 else
-                                    echo "⚠ Unexpected cluster status: $CLUSTER_STATUS"
+                                    echo "âš  Unexpected cluster status: $CLUSTER_STATUS"
                                     echo "  Proceeding anyway..."
                                 fi
                             else
-                                echo "✓ No existing cluster found - name is available"
+                                echo "âœ“ No existing cluster found - name is available"
                             fi
                             
                             echo ""
@@ -1551,12 +1551,12 @@ EOF
                                 
                                 if terraform apply -auto-approve tfplan; then
                                     echo ""
-                                    echo "✓ Terraform apply completed successfully!"
+                                    echo "âœ“ Terraform apply completed successfully!"
                                     SUCCESS=true
                                 else
                                     EXIT_CODE=$?
                                     echo ""
-                                    echo "✗ Terraform apply failed (exit code: $EXIT_CODE)"
+                                    echo "âœ— Terraform apply failed (exit code: $EXIT_CODE)"
                                     
                                     if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
                                         # Calculate delay: 10s, 20s, 40s (using case for sh compatibility)
@@ -1578,12 +1578,12 @@ EOF
                                           -var="docker_image=${TF_VAR_docker_image}" \
                                           -out=tfplan \
                                           -input=false; then
-                                            echo "✗ Failed to recreate plan for retry"
+                                            echo "âœ— Failed to recreate plan for retry"
                                             exit 1
                                         fi
                                     else
                                         echo ""
-                                        echo "✗✗✗ Terraform apply failed after $MAX_RETRIES attempts ✗✗✗"
+                                        echo "âœ—âœ—âœ— Terraform apply failed after $MAX_RETRIES attempts âœ—âœ—âœ—"
                                         exit $EXIT_CODE
                                     fi
                                 fi
@@ -1790,7 +1790,7 @@ EOF
                                     
                                     if (response == '200') {
                                         healthy = true
-                                        echo "✓ Application is healthy! (HTTP ${response})"
+                                        echo "âœ“ Application is healthy! (HTTP ${response})"
                                         
                                         // Show actual health response
                                         sh "curl -s ${healthUrl} || echo 'Could not fetch health details'"
@@ -1815,9 +1815,9 @@ EOF
                             }
                             
                             echo ""
-                            echo "════════════════════════════════════════"
-                            echo "✓ Application is healthy and responding!"
-                            echo "════════════════════════════════════════"
+                            echo "â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•"
+                            echo "âœ“ Application is healthy and responding!"
+                            echo "â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•"
                         } else {
                             echo "Could not retrieve application URL"
                         }
@@ -1869,7 +1869,7 @@ EOF
                 }
                 
                 script {
-                    echo '✓ Frontend built successfully'
+                    echo 'âœ“ Frontend built successfully'
                 }
             }
         }
@@ -1895,10 +1895,10 @@ EOF
                               echo "Frontend docker build attempt \${attempt}..."
                               if docker build -t ${DOCKER_REGISTRY}/habibmanai/achat-frontend:${BUILD_NUMBER} .; then
                                 docker tag ${DOCKER_REGISTRY}/habibmanai/achat-frontend:${BUILD_NUMBER} ${DOCKER_REGISTRY}/habibmanai/achat-frontend:latest
-                                echo "✓ Frontend docker build succeeded on attempt \${attempt}"
+                                echo "âœ“ Frontend docker build succeeded on attempt \${attempt}"
                                 break
                               else
-                                echo "Frontend docker build failed on attempt \${attempt} — retrying after 15s (likely network/TLS error)"
+                                echo "Frontend docker build failed on attempt \${attempt} â€” retrying after 15s (likely network/TLS error)"
                                 sleep 15
                               fi
                             done
@@ -1907,7 +1907,7 @@ EOF
                 }
                 
                 script {
-                    echo '✓ Frontend Docker image built successfully'
+                    echo 'âœ“ Frontend Docker image built successfully'
                 }
             }
         }
@@ -1948,7 +1948,7 @@ EOF
                                 """
                                 
                                 loginSuccess = true
-                                echo "✓ Docker login successful!"
+                                echo "âœ“ Docker login successful!"
                             } catch (Exception e) {
                                 echo "Docker login attempt ${i + 1} failed: ${e.message}"
                                 if (i == maxRetries - 1) {
@@ -1976,7 +1976,7 @@ EOF
                                 """
                                 
                                 pushSuccess = true
-                                echo "✓ Frontend Docker push successful!"
+                                echo "âœ“ Frontend Docker push successful!"
                             } catch (Exception e) {
                                 echo "Frontend push attempt ${i + 1} failed: ${e.message}"
                                 if (i == maxRetries - 1) {
@@ -1988,7 +1988,7 @@ EOF
                 }
                 
                 script {
-                    echo '✓ Frontend image pushed to Docker Hub'
+                    echo 'âœ“ Frontend image pushed to Docker Hub'
                     echo "Image: ${DOCKER_REGISTRY}/habibmanai/achat-frontend:${BUILD_NUMBER}"
                 }
             }
@@ -2101,9 +2101,9 @@ EOF
                                     echo "Backend will be accessible at: http://\${BACKEND_URL}/SpringMVC"
                                 """
                                 
-                                echo '✓ Application deployed to EKS successfully!'
+                                echo 'âœ“ Application deployed to EKS successfully!'
                             } else {
-                                echo '⚠ EKS cluster not found. Skipping EKS deployment.'
+                                echo 'âš  EKS cluster not found. Skipping EKS deployment.'
                                 echo 'Run terraform apply to create EKS cluster first.'
                             }
                         }
@@ -2140,7 +2140,7 @@ EOF
                 }
                 
                 script {
-                    echo 'âœ“ Application deployed to Kubernetes'
+                    echo 'Ã¢Å“â€œ Application deployed to Kubernetes'
                 }
             }
         }
@@ -2163,7 +2163,7 @@ EOF
         
         success {
             script {
-                echo 'âœ“âœ“âœ“ Pipeline completed successfully! âœ“âœ“âœ“'
+                echo 'Ã¢Å“â€œÃ¢Å“â€œÃ¢Å“â€œ Pipeline completed successfully! Ã¢Å“â€œÃ¢Å“â€œÃ¢Å“â€œ'
             }
             
             // Send notification (optional - requires email plugin)
@@ -2176,7 +2176,7 @@ EOF
         
         failure {
             script {
-                echo '✗✗✗ Pipeline failed! ✗✗✗'
+                echo 'âœ—âœ—âœ— Pipeline failed! âœ—âœ—âœ—'
             }
             
             // Send notification (optional - requires email plugin)
@@ -2189,7 +2189,7 @@ EOF
         
         unstable {
             script {
-                echo 'âš  Pipeline is unstable âš '
+                echo 'Ã¢Å¡Â  Pipeline is unstable Ã¢Å¡Â '
             }
         }
     }
