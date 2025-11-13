@@ -1855,7 +1855,9 @@ EOF
                             done
                         """
                     }
-                }                script {
+                }
+                
+                script {
                     echo '✓ Frontend Docker image built successfully'
                 }
             }
