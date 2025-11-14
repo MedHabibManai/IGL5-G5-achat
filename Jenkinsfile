@@ -385,34 +385,39 @@ EOF
                                                   usernameVariable: 'DOCKER_USER',
                                                   passwordVariable: 'DOCKER_PASS')]) {
                     script {
+
                         echo "Logging in to Docker Hub as ${DOCKER_USER}..."
 
-                        // Retry Docker login with exponential backoff
-                        def maxRetries = 3
-                        def retryDelay = 10
+                        // Infinite retry for Docker login (handles TLS handshake timeouts)
                         def loginSuccess = false
                         
-                        for (int i = 0; i < maxRetries && !loginSuccess; i++) {
+                        while (!loginSuccess) {
                             try {
-                                if (i > 0) {
-                                    echo "Retry attempt ${i + 1}/${maxRetries} after ${retryDelay}s delay..."
-                                    sleep(retryDelay)
-                                    retryDelay *= 2
-                                }
-                                
                                 sh '''
-                                    echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                                    attempt=0
+                                    while true; do
+                                        attempt=$((attempt + 1))
+                                        echo "Attempting Docker login (attempt $attempt)..."
+                                        
+                                        if echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin; then
+                                            echo "V Docker login successful!"
+                                            break
+                                        else
+                                            echo "? Login failed (likely network/TLS error), retrying in 15s..."
+                                            sleep 15
+                                        fi
+                                    done
                                 '''
                                 
                                 loginSuccess = true
-                                echo "ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ Docker login successful!"
+                                echo "V Docker login completed!"
                             } catch (Exception e) {
-                                echo "Docker login attempt ${i + 1} failed: ${e.message}"
-                                if (i == maxRetries - 1) {
-                                    error("Failed to login to Docker Hub after ${maxRetries} attempts")
-                                }
+                                echo "Unexpected error in login block: ${e.message}"
+                                echo "Retrying entire login sequence in 15s..."
+                                sleep(15)
                             }
                         }
+                    }
 
                         echo "Tagging images for Docker Hub..."
 
