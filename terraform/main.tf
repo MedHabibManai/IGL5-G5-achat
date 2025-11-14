@@ -5,29 +5,15 @@
 # Data Sources
 # ============================================================================
 
-# Get latest Amazon Linux 2023 AMI
-data "aws_ami" "amazon_linux_2023" {
-  most_recent = true
-  owners      = ["amazon"]
-
-  filter {
-    name   = "name"
-    values = ["al2023-ami-*-x86_64"]
-  }
-
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
+# Use hardcoded AMI ID for Amazon Linux 2023 (us-east-1)
+# AWS Academy restricts DescribeImages permission
+locals {
+  amazon_linux_2023_ami = "ami-0453ec754f44f9a4a"  # Amazon Linux 2023 in us-east-1
+  availability_zones    = ["us-east-1a", "us-east-1b", "us-east-1c"]
 }
 
 # Get current AWS account ID
 data "aws_caller_identity" "current" {}
-
-# Get available availability zones
-data "aws_availability_zones" "available" {
-  state = "available"
-}
 
 # ============================================================================
 # VPC and Networking
@@ -63,7 +49,7 @@ resource "aws_internet_gateway" "main" {
 resource "aws_subnet" "public" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = var.public_subnet_cidr
-  availability_zone       = var.availability_zone != "" ? var.availability_zone : data.aws_availability_zones.available.names[0]
+  availability_zone       = var.availability_zone != "" ? var.availability_zone : local.availability_zones[0]
   map_public_ip_on_launch = true
 
   tags = merge(
@@ -150,15 +136,12 @@ resource "aws_security_group" "app" {
 # IAM Role for EC2 - Use existing LabRole from AWS Learner Lab
 # ============================================================================
 
-# Use the existing LabRole provided by AWS Learner Lab
-data "aws_iam_role" "lab_role" {
-  name = "LabRole"
-}
-
-# Use existing LabInstanceProfile from AWS Learner Lab
-# Most learner labs provide this pre-configured instance profile
-data "aws_iam_instance_profile" "lab_profile" {
-  name = "LabInstanceProfile"
+# Use hardcoded IAM role and instance profile names
+# AWS Academy restricts iam:GetRole and iam:GetInstanceProfile permissions
+locals {
+  lab_role_name             = "LabRole"
+  lab_instance_profile_name = "LabInstanceProfile"
+  lab_role_arn              = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/LabRole"
 }
 
 # ============================================================================
@@ -216,7 +199,7 @@ resource "aws_security_group" "rds" {
 resource "aws_subnet" "private" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = "10.0.2.0/24"
-  availability_zone = data.aws_availability_zones.available.names[1]
+  availability_zone = local.availability_zones[1]
 
   tags = merge(
     var.common_tags,
@@ -386,11 +369,11 @@ locals {
 
 # EC2 Instance
 resource "aws_instance" "app" {
-  ami                    = var.ami_id != "" ? var.ami_id : data.aws_ami.amazon_linux_2023.id
+  ami                    = var.ami_id != "" ? var.ami_id : local.amazon_linux_2023_ami
   instance_type          = var.instance_type
   subnet_id              = aws_subnet.public.id
   vpc_security_group_ids = [aws_security_group.app.id]
-  iam_instance_profile   = data.aws_iam_instance_profile.lab_profile.name
+  iam_instance_profile   = local.lab_instance_profile_name
   key_name               = var.key_name != "" ? var.key_name : null
   
   user_data = local.user_data

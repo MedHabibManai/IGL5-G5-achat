@@ -6,7 +6,7 @@
 resource "aws_eks_cluster" "main" {
   count    = var.create_eks ? 1 : 0
   name     = "${var.project_name}-eks-cluster"
-  role_arn = data.aws_iam_role.lab_role.arn
+  role_arn = local.lab_role_arn
   version  = "1.28"
 
   vpc_config {
@@ -42,7 +42,7 @@ resource "aws_eks_node_group" "main" {
   count           = var.create_eks ? 1 : 0
   cluster_name    = aws_eks_cluster.main[0].name
   node_group_name = "${var.project_name}-node-group"
-  node_role_arn   = data.aws_iam_role.lab_role.arn
+  node_role_arn   = local.lab_role_arn
   subnet_ids      = [aws_subnet.public.id, aws_subnet.private.id]
 
   scaling_config {

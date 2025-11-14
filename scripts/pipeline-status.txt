@@ -1,0 +1,51 @@
+﻿=== JENKINS PIPELINE - POTENTIAL ISSUES & FIXES ===
+
+✅ ALREADY FIXED:
+1. Maven wrapper missing → Replaced with system Maven (mvn)
+2. Syntax error on line 87 → Added missing newline
+3. Git TLS handshake error → Configured git with:
+   - http.sslVerify = false
+   - http.postBuffer = 524288000  
+   - http.version = HTTP/1.1
+   - Applied system-wide and in Jenkins home directory
+4. Jenkins restarted to apply all configs
+
+⚠️ POTENTIAL ISSUES TO WATCH FOR:
+
+BUILD STAGE (Currently at):
+- Issue: Maven dependencies download
+- Solution: First build will be slower, subsequent builds cached
+
+UNIT TESTS STAGE:
+- Issue: Tests might fail if database not configured
+- Solution: Check application.properties for test profile
+
+SONARQUBE STAGE:
+- Issue: SonarQube server might not be running
+- Solution: Either skip this stage or start SonarQube container
+
+NEXUS STAGE:
+- Issue: Nexus credentials not configured in Jenkins
+- Solution: Add 'nexus-credentials' in Jenkins credentials
+
+DOCKER BUILD/PUSH STAGES:
+- Issue: Docker Hub credentials needed
+- Solution: Ensure 'docker-hub-credentials' exist in Jenkins
+
+AWS/TERRAFORM STAGES:
+- Issue: AWS credentials might be expired (session tokens expire)
+- Solution: Refresh AWS credentials before deployment stages
+- Issue: Terraform state conflicts
+- Solution: Use REUSE_INFRASTRUCTURE mode for testing
+
+EKS DEPLOYMENT STAGE:
+- Issue: EKS cluster might not exist
+- Solution: Create EKS cluster first or skip this stage
+
+RECOMMENDATIONS:
+1. Try the build now - TLS issue should be fixed
+2. If it fails on SonarQube, we can skip that stage
+3. If it fails on Nexus, we can skip that stage  
+4. If it fails on Docker, check Docker Hub credentials
+5. For AWS stages, we'll need to refresh credentials
+
