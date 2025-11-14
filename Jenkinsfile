@@ -2180,7 +2180,7 @@ EOF
                             } else {
                                 echo 'Ã¢Å¡Â   EKS cluster not found. Skipping EKS deployment.'
                                 echo 'Run terraform apply to create EKS cluster first.'
-                            
+                            }
                         }
                     }
                 }
