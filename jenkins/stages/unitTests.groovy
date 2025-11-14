@@ -1,4 +1,4 @@
-﻿// BOM Fix
+// BOM Fix
 // jenkins/stages/unitTests.groovy
 def call() {
     stage('Unit Tests') {
