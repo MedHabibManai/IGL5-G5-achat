@@ -1,3 +1,4 @@
+// BOM Fix
 // jenkins/stages/pushFrontendDocker.groovy
 def call() {
     stage('Push Frontend Docker Image') {

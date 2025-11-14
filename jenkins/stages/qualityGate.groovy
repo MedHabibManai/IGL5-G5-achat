@@ -1,3 +1,4 @@
+// BOM Fix
 // jenkins/stages/qualityGate.groovy
 def call() {
     stage('Quality Gate') {

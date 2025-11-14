@@ -1,3 +1,4 @@
+// BOM Fix
 // jenkins/stages/buildFrontendDocker.groovy
 def call() {
     stage('Build Frontend Docker Image') {

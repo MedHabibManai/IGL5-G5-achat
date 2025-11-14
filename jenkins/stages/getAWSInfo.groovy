@@ -1,3 +1,4 @@
+// BOM Fix
 // jenkins/stages/getAWSInfo.groovy
 def call() {
     stage('Get AWS Deployment Info') {

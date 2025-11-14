@@ -1,3 +1,4 @@
+// BOM Fix
 // jenkins/stages/buildDockerImage.groovy
 def call() {
     stage('Build Docker Image') {

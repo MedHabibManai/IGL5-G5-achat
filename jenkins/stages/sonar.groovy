@@ -1,3 +1,4 @@
+// BOM Fix
 // jenkins/stages/sonar.groovy
 def call() {
     stage('Code Quality Analysis - SonarQube') {

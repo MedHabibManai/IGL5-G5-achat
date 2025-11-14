@@ -1,3 +1,4 @@
+// BOM Fix
 // jenkins/stages/buildFrontend.groovy
 def call() {
     stage('Build Frontend') {
