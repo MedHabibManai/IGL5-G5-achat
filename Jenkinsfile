@@ -1,4 +1,4 @@
-pipeline {
+﻿pipeline {
     agent any
 
     // Disable automatic checkout to use our custom retry logic instead
@@ -2090,13 +2090,30 @@ EOF
                                 
                                 // Deploy to EKS
                                 sh """
+                                    # Helper function for kubectl with retry
+                                    kubectl_retry() {
+                                        local cmd="\$@"
+                                        local attempt=0
+                                        while true; do
+                                            attempt=\$((attempt + 1))
+                                            echo "Attempt \$attempt: \$cmd"
+                                            if eval "\$cmd"; then
+                                                echo "✓ Success"
+                                                return 0
+                                            else
+                                                echo "✗ Failed (TLS timeout likely), retrying in 15s..."
+                                                sleep 15
+                                            fi
+                                        done
+                                    }
+                                    
                                     # Create namespace first
                                     echo "Creating namespace..."
-                                    kubectl apply -f ../k8s/namespace.yaml
+                                    kubectl_retry kubectl apply -f ../k8s/namespace.yaml
                                     
                                     # Apply secrets and configmaps
                                     echo "Applying secrets and configmaps..."
-                                    kubectl apply -f ../k8s/secret.yaml
+                                    kubectl_retry kubectl apply -f ../k8s/secret.yaml
                                     
                                     # Update ConfigMap with actual RDS endpoint
                                     if [ -n "${rdsEndpoint}" ]; then
@@ -2106,38 +2123,38 @@ EOF
                                             kubectl apply -f -
                                     else
                                         echo "WARNING: Applying ConfigMap without RDS endpoint update!"
-                                        kubectl apply -f ../k8s/configmap.yaml
+                                        kubectl_retry kubectl apply -f ../k8s/configmap.yaml
                                     fi
                                     
                                     # Apply all other Kubernetes manifests (deployments, services, etc.)
                                     echo "Applying deployments and services..."
-                                    kubectl apply -f ../k8s/deployment.yaml
-                                    kubectl apply -f ../k8s/frontend-deployment.yaml
-                                    kubectl apply -f ../k8s/service.yaml
-                                    kubectl apply -f ../k8s/hpa.yaml
+                                    kubectl_retry kubectl apply -f ../k8s/deployment.yaml
+                                    kubectl_retry kubectl apply -f ../k8s/frontend-deployment.yaml
+                                    kubectl_retry kubectl apply -f ../k8s/service.yaml
+                                    kubectl_retry kubectl apply -f ../k8s/hpa.yaml
                                     
                                     # Now update deployment images to specific build versions
                                     echo "Updating deployment images to build ${BUILD_NUMBER}..."
-                                    kubectl set image deployment/achat-app -n achat-app \\
+                                    kubectl_retry kubectl set image deployment/achat-app -n achat-app \\
                                         achat-app=${DOCKER_REGISTRY}/habibmanai/${DOCKER_IMAGE_NAME}:${BUILD_NUMBER} \\
                                         --record
                                     
-                                    kubectl set image deployment/achat-frontend -n achat-app \\
+                                    kubectl_retry kubectl set image deployment/achat-frontend -n achat-app \\
                                         frontend=${DOCKER_REGISTRY}/habibmanai/achat-frontend:${BUILD_NUMBER} \\
                                         --record
                                     
                                     # Wait for backend rollout
                                     echo "Waiting for backend deployment..."
-                                    kubectl rollout status deployment/achat-app -n achat-app --timeout=5m
+                                    kubectl_retry kubectl rollout status deployment/achat-app -n achat-app --timeout=5m
                                     
                                     # Wait for frontend rollout
                                     echo "Waiting for frontend deployment..."
-                                    kubectl rollout status deployment/achat-frontend -n achat-app --timeout=5m
+                                    kubectl_retry kubectl rollout status deployment/achat-frontend -n achat-app --timeout=5m
                                     
                                     # Get service endpoints
                                     echo ""
                                     echo "=== EKS Services ==="
-                                    kubectl get svc -n achat-app
+                                    kubectl_retry kubectl get svc -n achat-app
                                     
                                     # Get Load Balancer URLs
                                     echo ""
