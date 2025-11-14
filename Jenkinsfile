@@ -531,24 +531,24 @@ EOF
                                 echo "ÃƒÂ¢Ã…Â¡Ã‚Â  No Terraform state found. Using manual cleanup..."
                                 echo ""
                             
-                            echo "======================================"
-                            echo "Manual Cleanup (fallback method)"
-                            echo "======================================"
+                                echo "======================================"
+                                echo "Manual Cleanup (fallback method)"
+                                echo "======================================"
                             
-                            # Function to safely delete resources
-                            safe_delete() {
+                                # Function to safely delete resources
+                                safe_delete() {
                                 eval "$1" 2>/dev/null || echo "  (already deleted or not found)"
-                            }
+                                }
                             
-                            # Step 0: Delete EKS Clusters first (if any exist)
-                            echo ""
-                            echo "Step 0: Deleting EKS Clusters..."
-                            EKS_CLUSTERS=$(aws eks list-clusters \
+                                # Step 0: Delete EKS Clusters first (if any exist)
+                                echo ""
+                                echo "Step 0: Deleting EKS Clusters..."
+                                EKS_CLUSTERS=$(aws eks list-clusters \
                                 --region ${AWS_REGION} \
                                 --query 'clusters[?contains(@, `achat-app`) == `true`]' \
                                 --output text 2>/dev/null || echo "")
                             
-                            if [ -n "$EKS_CLUSTERS" ]; then
+                                if [ -n "$EKS_CLUSTERS" ]; then
                                 for cluster_name in $EKS_CLUSTERS; do
                                     echo "  Found EKS cluster: $cluster_name"
                                     
@@ -644,22 +644,22 @@ EOF
                                     
                                     echo "    ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ EKS cluster $cluster_name processed"
                                 done
-                            else
+                                else
                                 echo "  No EKS clusters found"
-                            fi
+                                fi
                             
-                            # Step 0.5: Delete RDS Instances FIRST (before DB subnet groups)
-                            echo ""
-                            echo "Step 0.5: Deleting RDS Instances..."
+                                # Step 0.5: Delete RDS Instances FIRST (before DB subnet groups)
+                                echo ""
+                                echo "Step 0.5: Deleting RDS Instances..."
                             
-                            # Find all achat-app RDS instances
-                            echo "  Checking for achat-app RDS instances..."
-                            RDS_INSTANCES=$(aws rds describe-db-instances \
+                                # Find all achat-app RDS instances
+                                echo "  Checking for achat-app RDS instances..."
+                                RDS_INSTANCES=$(aws rds describe-db-instances \
                                 --region ${AWS_REGION} \
                                 --query 'DBInstances[?contains(DBInstanceIdentifier, `achat-app`) == `true`].DBInstanceIdentifier' \
                                 --output text 2>/dev/null || echo "")
                             
-                            if [ -n "$RDS_INSTANCES" ]; then
+                                if [ -n "$RDS_INSTANCES" ]; then
                                 echo "    Found RDS instances: $RDS_INSTANCES"
                                 
                                 # Delete each RDS instance
@@ -715,22 +715,22 @@ EOF
                                     fi
                                 done
                                 echo "    ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ All RDS instances processed"
-                            else
+                                else
                                 echo "    No RDS instances found"
-                            fi
+                                fi
                             
-                            # Step 0.6: Delete DB Subnet Groups (AFTER RDS instances are deleted)
-                            echo ""
-                            echo "Step 0.6: Deleting DB Subnet Groups..."
+                                # Step 0.6: Delete DB Subnet Groups (AFTER RDS instances are deleted)
+                                echo ""
+                                echo "Step 0.6: Deleting DB Subnet Groups..."
                             
-                            # Verify no RDS instances exist before deleting subnet groups
-                            echo "  Double-checking that all RDS instances are deleted..."
-                            REMAINING_RDS=$(aws rds describe-db-instances \
+                                # Verify no RDS instances exist before deleting subnet groups
+                                echo "  Double-checking that all RDS instances are deleted..."
+                                REMAINING_RDS=$(aws rds describe-db-instances \
                                 --region ${AWS_REGION} \
                                 --query 'DBInstances[?contains(DBInstanceIdentifier, `achat-app`) == `true`].DBInstanceIdentifier' \
                                 --output text 2>/dev/null || echo "")
                             
-                            if [ -n "$REMAINING_RDS" ]; then
+                                if [ -n "$REMAINING_RDS" ]; then
                                 echo "    WARNING: Found remaining RDS instances: $REMAINING_RDS"
                                 echo "    Waiting additional time for RDS deletion..."
                                 
@@ -752,21 +752,21 @@ EOF
                                 else
                                     echo "    ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ All RDS instances confirmed deleted"
                                 fi
-                            else
+                                else
                                 echo "    ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ No RDS instances found - safe to delete subnet groups"
-                            fi
+                                fi
                             
-                            # Only proceed with subnet group deletion if no RDS instances remain
-                            if [ -z "$REMAINING_RDS" ]; then
+                                # Only proceed with subnet group deletion if no RDS instances remain
+                                if [ -z "$REMAINING_RDS" ]; then
                                 # Delete by specific name first (Terraform-managed)
                                 echo "  Checking for Terraform-managed DB subnet group: achat-app-db-subnet-group"
-                            DB_SG_CHECK=$(aws rds describe-db-subnet-groups \
+                                DB_SG_CHECK=$(aws rds describe-db-subnet-groups \
                                 --region ${AWS_REGION} \
                                 --db-subnet-group-name achat-app-db-subnet-group \
                                 --query 'DBSubnetGroups[0].DBSubnetGroupName' \
                                 --output text 2>/dev/null || echo "NOT_FOUND")
                             
-                            if [ "$DB_SG_CHECK" != "NOT_FOUND" ] && [ -n "$DB_SG_CHECK" ]; then
+                                if [ "$DB_SG_CHECK" != "NOT_FOUND" ] && [ -n "$DB_SG_CHECK" ]; then
                                 echo "    Found DB subnet group: $DB_SG_CHECK"
                                 DELETE_SG_OUTPUT=$(aws rds delete-db-subnet-group \
                                     --region ${AWS_REGION} \
@@ -779,18 +779,18 @@ EOF
                                 else
                                     echo "      ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ DB subnet group deleted successfully"
                                 fi
-                            else
+                                else
                                 echo "    DB subnet group not found (already deleted)"
-                            fi
+                                fi
                             
-                            # Also check for any other achat-app related DB subnet groups
-                            echo "  Checking for other achat-app DB subnet groups..."
-                            ALL_DB_SUBNET_GROUPS=$(aws rds describe-db-subnet-groups \
+                                # Also check for any other achat-app related DB subnet groups
+                                echo "  Checking for other achat-app DB subnet groups..."
+                                ALL_DB_SUBNET_GROUPS=$(aws rds describe-db-subnet-groups \
                                 --region ${AWS_REGION} \
                                 --query 'DBSubnetGroups[?contains(DBSubnetGroupName, `achat-app`) == `true`].DBSubnetGroupName' \
                                 --output text 2>/dev/null || echo "")
                             
-                            if [ -n "$ALL_DB_SUBNET_GROUPS" ]; then
+                                if [ -n "$ALL_DB_SUBNET_GROUPS" ]; then
                                 for db_sg_name in $ALL_DB_SUBNET_GROUPS; do
                                     echo "    Found additional DB subnet group: $db_sg_name"
                                     aws rds delete-db-subnet-group \
@@ -798,27 +798,27 @@ EOF
                                         --db-subnet-group-name $db_sg_name 2>&1 | grep -v "DBSubnetGroupNotFoundFault" || true
                                     echo "      ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ Processed DB subnet group: $db_sg_name"
                                 done
-                            else
+                                else
                                 echo "    No additional DB subnet groups found"
-                            fi
+                                fi
                             
-                            echo "  ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ DB subnet group cleanup completed"
-                            else
+                                echo "  ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ DB subnet group cleanup completed"
+                                else
                                 echo "  ÃƒÂ¢Ã…Â¡Ã‚Â  Skipping DB subnet group deletion due to remaining RDS instances"
-                            fi
+                                fi
                             
-                            # Find VPCs with name "achat-app-vpc" (regardless of tags)
-                            echo ""
-                            echo "Step 1: Finding VPCs named 'achat-app-vpc'..."
-                            VPC_IDS=$(aws ec2 describe-vpcs \
+                                # Find VPCs with name "achat-app-vpc" (regardless of tags)
+                                echo ""
+                                echo "Step 1: Finding VPCs named 'achat-app-vpc'..."
+                                VPC_IDS=$(aws ec2 describe-vpcs \
                                 --region ${AWS_REGION} \
                                 --filters "Name=tag:Name,Values=achat-app-vpc" \
                                 --query "Vpcs[].VpcId" \
                                 --output text 2>/dev/null || echo "")
                             
-                            if [ -z "$VPC_IDS" ]; then
+                                if [ -z "$VPC_IDS" ]; then
                                 echo "  No VPCs named 'achat-app-vpc' found. Nothing to clean up."
-                            else
+                                else
                                 echo "  Found VPCs to delete: $VPC_IDS"
                                 
                                 for vpc_id in $VPC_IDS; do
@@ -1024,12 +1024,12 @@ EOF
                                     
                                     echo "=========================================="
                                 done
-                            fi
+                                fi
                             
-                            echo ""
-                            echo "======================================"
-                            echo "ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ Cleanup completed successfully"
-                            echo "======================================"
+                                echo ""
+                                echo "======================================"
+                                echo "ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ Cleanup completed successfully"
+                                echo "======================================"
                             fi
                         '''
                     }
