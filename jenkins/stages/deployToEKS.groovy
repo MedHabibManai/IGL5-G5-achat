@@ -127,12 +127,19 @@ def call() {
                                         # Try to add the rule (will fail silently if it already exists)
                                         echo "Ensuring RDS security group allows MySQL (port 3306) from EKS nodes..."
                                         # Use JSON format for ip-permissions (required by newer AWS CLI)
-                                        # Create JSON payload
-                                        IP_PERMISSIONS_JSON="[{\\\"IpProtocol\\\": \\\"tcp\\\", \\\"FromPort\\\": 3306, \\\"ToPort\\\": 3306, \\\"UserIdGroupPairs\\\": [{\\\"GroupId\\\": \\\"\$EKS_NODES_SG_ID\\\"}]}]"
-                                        aws ec2 authorize-security-group-ingress \\
+                                        # Create JSON payload with proper escaping
+                                        IP_PERMISSIONS_JSON='[{"IpProtocol": "tcp", "FromPort": 3306, "ToPort": 3306, "UserIdGroupPairs": [{"GroupId": "'"\$EKS_NODES_SG_ID"'"}]}]'
+                                        OUTPUT=\$(aws ec2 authorize-security-group-ingress \\
                                             --region us-east-1 \\
                                             --group-id \$RDS_SG_ID \\
-                                            --ip-permissions "\$IP_PERMISSIONS_JSON" 2>&1 | grep -v "already exists" || true
+                                            --ip-permissions "\$IP_PERMISSIONS_JSON" 2>&1)
+                                        if echo "\$OUTPUT" | grep -q "already exists"; then
+                                            echo "RDS security group rule already exists"
+                                        elif echo "\$OUTPUT" | grep -q "SecurityGroupIngress"; then
+                                            echo "RDS security group rule added successfully"
+                                        else
+                                            echo "RDS security group update result: \$OUTPUT"
+                                        fi
                                         echo "RDS security group rule check/update completed"
                                     else
                                         echo "WARNING: Could not find RDS or EKS nodes security groups"
