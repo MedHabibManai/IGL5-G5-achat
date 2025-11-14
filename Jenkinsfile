@@ -1,4 +1,4 @@
-pipeline {
+﻿pipeline {
     agent any
 
     // Disable automatic checkout to use our custom retry logic instead
@@ -89,7 +89,7 @@ pipeline {
                     try {
                         retryCount++
                         if (retryCount > 1) {
-                            def waitTime = Math.pow(2.0, (retryCount - 1) as double) * 10 // 10s, 20s, 40s, 80s
+                            def waitTime = (int)(Math.pow(2, retryCount - 1) * 10) // 10s, 20s, 40s, 80s
                             echo "Retry attempt ${retryCount}/${maxRetries} after ${waitTime}s wait..."
                             sleep(time: waitTime, unit: 'SECONDS')
                         }
