@@ -424,35 +424,56 @@ EOF
 
                         echo "Pushing images to Docker Hub..."
 
-                        // Retry Docker push with exponential backoff
-                        maxRetries = 3
-                        retryDelay = 10
+
+                        // Infinite retry for Docker push (handles TLS handshake timeouts)
                         def pushSuccess = false
                         
-                        for (int i = 0; i < maxRetries && !pushSuccess; i++) {
+                        while (!pushSuccess) {
                             try {
-                                if (i > 0) {
-                                    echo "Retry push attempt ${i + 1}/${maxRetries} after ${retryDelay}s delay..."
-                                    sleep(retryDelay)
-                                    retryDelay *= 2
-                                }
-                                
+                                // Push with BUILD_NUMBER tag using infinite retry in shell
                                 sh """
-                                    docker push ${DOCKER_USER}/${DOCKER_IMAGE}
-                                    docker push ${DOCKER_USER}/${DOCKER_IMAGE_NAME}:latest
+                                    attempt=0
+                                    while true; do
+                                        attempt=\$((attempt + 1))
+                                        echo "Attempting to push ${DOCKER_USER}/${DOCKER_IMAGE} (attempt \$attempt)..."
+                                        
+                                        if docker push ${DOCKER_USER}/${DOCKER_IMAGE}; then
+                                            echo "✓ Successfully pushed ${DOCKER_USER}/${DOCKER_IMAGE}"
+                                            break
+                                        else
+                                            echo "✗ Push failed (likely network/TLS error), retrying in 15s..."
+                                            sleep 15
+                                        fi
+                                    done
+                                """
+                                
+                                // Push with latest tag using infinite retry in shell
+                                sh """
+                                    attempt=0
+                                    while true; do
+                                        attempt=\$((attempt + 1))
+                                        echo "Attempting to push ${DOCKER_USER}/${DOCKER_IMAGE_NAME}:latest (attempt \$attempt)..."
+                                        
+                                        if docker push ${DOCKER_USER}/${DOCKER_IMAGE_NAME}:latest; then
+                                            echo "✓ Successfully pushed ${DOCKER_USER}/${DOCKER_IMAGE_NAME}:latest"
+                                            break
+                                        else
+                                            echo "✗ Push failed (likely network/TLS error), retrying in 15s..."
+                                            sleep 15
+                                        fi
+                                    done
                                 """
                                 
                                 pushSuccess = true
-                                echo "ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ Docker push successful!"
+                                echo "✓ Docker push successful!"
                             } catch (Exception e) {
-                                echo "Docker push attempt ${i + 1} failed: ${e.message}"
-                                if (i == maxRetries - 1) {
-                                    error("Failed to push to Docker Hub after ${maxRetries} attempts")
-                                }
+                                echo "Unexpected error in push block: ${e.message}"
+                                echo "Retrying entire push sequence in 15s..."
+                                sleep(15)
                             }
                         }
 
-                        echo "ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ Docker images pushed successfully!"
+                        echo "✓ Docker images pushed successfully!"
                         echo "  - ${DOCKER_USER}/${DOCKER_IMAGE}"
                         echo "  - ${DOCKER_USER}/${DOCKER_IMAGE_NAME}:latest"
                         echo ""
