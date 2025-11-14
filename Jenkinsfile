@@ -1,4 +1,4 @@
-﻿// Main Jenkinsfile - Refactored to load stages from external files
+// Main Jenkinsfile - Refactored to load stages from external files
 // BOM fix
 
 // Define stage files in order
