@@ -14,9 +14,9 @@
             name: 'DEPLOYMENT_MODE',
             choices: ['NORMAL', 'CLEANUP_AND_DEPLOY', 'REUSE_INFRASTRUCTURE'],
             description: '''Deployment mode:
-            ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ NORMAL: Deploy fresh infrastructure (may fail if VPC limit reached)
-            ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ CLEANUP_AND_DEPLOY: Destroy old resources first, then deploy new ones
-            ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ REUSE_INFRASTRUCTURE: Keep VPC/RDS, only recreate EC2 instance (fastest for testing)'''
+            - NORMAL: Deploy fresh infrastructure (may fail if VPC limit reached)
+            - CLEANUP_AND_DEPLOY: Destroy old resources first, then deploy new ones
+            - REUSE_INFRASTRUCTURE: Keep VPC/RDS, only recreate EC2 instance (fastest for testing)'''
         )
     }
 
@@ -132,7 +132,7 @@
                 sh 'mvn clean compile'
                 
                 script {
-                    echo 'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ Build completed successfully'
+                    echo 'Build completed successfully'
                 }
             }
         }
@@ -149,7 +149,7 @@
                 sh 'mvn test'
                 
                 script {
-                    echo 'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ All unit tests passed'
+                    echo 'All unit tests passed'
                 }
             }
             
@@ -159,7 +159,7 @@
                     junit '**/target/surefire-reports/*.xml'
                     
                     script {
-                        echo 'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ Test results published'
+                        echo 'Test results published'
                     }
                 }
             }
@@ -177,7 +177,7 @@
                 sh 'mvn package -DskipTests'
                 
                 script {
-                    echo "ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ Application packaged: ${ARTIFACT_NAME}"
+                    echo "Application packaged: ${ARTIFACT_NAME}"
                 }
             }
             
@@ -187,7 +187,7 @@
                     archiveArtifacts artifacts: '**/target/*.jar', fingerprint: true
                     
                     script {
-                        echo 'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ Artifacts archived successfully'
+                        echo 'Artifacts archived successfully'
                     }
                 }
             }
@@ -215,8 +215,8 @@
                 }
 
                 script {
-                    echo 'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ SonarQube analysis completed'
-                    echo "ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ View results at: ${SONAR_HOST_URL}/dashboard?id=${SONAR_PROJECT_KEY}"
+                    echo 'SonarQube analysis completed'
+                    echo "View results at: ${SONAR_HOST_URL}/dashboard?id=${SONAR_PROJECT_KEY}"
                 }
             }
         }
@@ -234,10 +234,10 @@
                     script {
                         def qg = waitForQualityGate()
                         if (qg.status != 'OK') {
-                            echo "ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â  Quality Gate status: ${qg.status}"
-                            echo "ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â  Pipeline will continue but code quality needs attention"
+                            echo "Quality Gate status: ${qg.status}"
+                            echo "Pipeline will continue but code quality needs attention"
                         } else {
-                            echo 'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ Quality Gate passed!'
+                            echo 'Quality Gate passed!'
                         
                         }
                     }
@@ -286,8 +286,8 @@ EOF
                 }
 
                 script {
-                    echo 'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ Artifacts deployed to Nexus successfully'
-                    echo "ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ View artifacts at: http://localhost:8081/#browse/browse:maven-releases"
+                    echo 'Artifacts deployed to Nexus successfully'
+                    echo "View artifacts at: http://localhost:8081/#browse/browse:maven-releases"
                 }
             }
         }
@@ -355,7 +355,7 @@ EOF
                             """
                             built = true
                             
-                            echo "? Docker image built successfully!"
+                            echo "V Docker image built successfully!"
                             echo "  - ${DOCKER_IMAGE}"
                             echo "  - ${DOCKER_IMAGE_NAME}:latest"
 
@@ -444,10 +444,10 @@ EOF
                                         echo "Attempting to push ${DOCKER_USER}/${DOCKER_IMAGE} (attempt \$attempt)..."
                                         
                                         if docker push ${DOCKER_USER}/${DOCKER_IMAGE}; then
-                                            echo "Ã¢Å“â€œ Successfully pushed ${DOCKER_USER}/${DOCKER_IMAGE}"
+                                            echo "Successfully pushed ${DOCKER_USER}/${DOCKER_IMAGE}"
                                             break
                                         else
-                                            echo "Ã¢Å“â€” Push failed (likely network/TLS error), retrying in 15s..."
+                                            echo "Push failed (likely network/TLS error), retrying in 15s..."
                                             sleep 15
                                         fi
                                     done
@@ -461,17 +461,17 @@ EOF
                                         echo "Attempting to push ${DOCKER_USER}/${DOCKER_IMAGE_NAME}:latest (attempt \$attempt)..."
                                         
                                         if docker push ${DOCKER_USER}/${DOCKER_IMAGE_NAME}:latest; then
-                                            echo "Ã¢Å“â€œ Successfully pushed ${DOCKER_USER}/${DOCKER_IMAGE_NAME}:latest"
+                                            echo "Successfully pushed ${DOCKER_USER}/${DOCKER_IMAGE_NAME}:latest"
                                             break
                                         else
-                                            echo "Ã¢Å“â€” Push failed (likely network/TLS error), retrying in 15s..."
+                                            echo "Push failed (likely network/TLS error), retrying in 15s..."
                                             sleep 15
                                         fi
                                     done
                                 """
                                 
                                 pushSuccess = true
-                                echo "Ã¢Å“â€œ Docker push successful!"
+                                echo "Docker push successful!"
                             } catch (Exception e) {
                                 echo "Unexpected error in push block: ${e.message}"
                                 echo "Retrying entire push sequence in 15s..."
@@ -479,7 +479,7 @@ EOF
                             }
                         }
 
-                        echo "Ã¢Å“â€œ Docker images pushed successfully!"
+                        echo "Docker images pushed successfully!"
                         echo "  - ${DOCKER_USER}/${DOCKER_IMAGE}"
                         echo "  - ${DOCKER_USER}/${DOCKER_IMAGE_NAME}:latest"
                         echo ""
@@ -520,7 +520,7 @@ EOF
                             
                             # Check if Terraform state exists
                             if [ -f "terraform.tfstate" ]; then
-                                echo "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ Terraform state found. Using terraform destroy..."
+                                echo "Terraform state found. Using terraform destroy..."
                                 echo ""
                                 
                                 # Initialize Terraform
@@ -532,9 +532,9 @@ EOF
                                     -var="docker_image=${DOCKER_REGISTRY}/${DOCKER_HUB_USER}/${DOCKER_IMAGE_NAME}:${BUILD_NUMBER}"
                                 
                                 echo ""
-                                echo "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ Terraform destroy completed successfully"
+                                echo "Terraform destroy completed successfully"
                             else
-                                echo "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â  No Terraform state found. Using manual cleanup..."
+                                echo "No Terraform state found. Using manual cleanup..."
                                 echo ""
                             
                                 echo "======================================"
@@ -2104,10 +2104,10 @@ EOF
                                             attempt=\$((attempt + 1))
                                             echo "Attempt \$attempt: \$cmd"
                                             if eval "\$cmd"; then
-                                                echo "Ã¢Å“â€œ Success"
+                                                echo "Success"
                                                 return 0
                                             else
-                                                echo "Ã¢Å“â€” Failed (TLS timeout likely), retrying in 15s..."
+                                                echo "Failed (TLS timeout likely), retrying in 15s..."
                                                 sleep 15
                                             fi
                                         done
@@ -2174,9 +2174,9 @@ EOF
                                     echo "Backend will be accessible at: http://\${BACKEND_URL}/SpringMVC"
                                 """
                                 
-                                echo 'Ã¢Å“â€œ Application deployed to EKS successfully!'
+                                echo 'Application deployed to EKS successfully!'
                             } else {
-                                echo 'Ã¢Å¡Â   EKS cluster not found. Skipping EKS deployment.'
+                                echo 'EKS cluster not found. Skipping EKS deployment.'
                                 echo 'Run terraform apply to create EKS cluster first.'
                             }
                         }
@@ -2214,7 +2214,7 @@ EOF
                 }
                 
                 script {
-                    echo 'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ Application deployed to Kubernetes'
+                    echo 'Application deployed to Kubernetes'
                 }
             }
         }
@@ -2250,7 +2250,7 @@ EOF
         
         failure {
             script {
-                echo 'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Pipeline failed! ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â'
+                echo 'Pipeline failed!'
             }
             
             // Send notification (optional - requires email plugin)
