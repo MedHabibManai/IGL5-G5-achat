@@ -14,7 +14,7 @@ def call() {
             // Configure kubectl for EKS - using withCredentials instead of withAWS
             withCredentials([file(credentialsId: "${AWS_CREDENTIAL_ID}", variable: 'AWS_CREDENTIALS_FILE')]) {
                 dir("${TERRAFORM_DIR}") {
-                        // Get EKS cluster name from Terraform
+                        // Get EKS cluster name from Terraform, fallback to AWS API if not in state
                         def eksClusterName = sh(
                             script: '''
                                 # Parse and export AWS credentials
@@ -23,12 +23,43 @@ def call() {
                                 export AWS_SESSION_TOKEN=$(grep aws_session_token "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
                                 export AWS_DEFAULT_REGION=us-east-1
                                 
-                                terraform output -raw eks_cluster_name 2>/dev/null || echo ""
+                                # Try to get from Terraform output first
+                                CLUSTER_NAME=$(terraform output -raw eks_cluster_name 2>/dev/null || echo "")
+                                
+                                # If not in Terraform state (e.g., REUSE_INFRASTRUCTURE mode), check AWS directly
+                                if [ -z "$CLUSTER_NAME" ] || [ "$CLUSTER_NAME" = "" ]; then
+                                    echo "EKS cluster not in Terraform state, checking AWS directly..."
+                                    # Try the default cluster name pattern
+                                    CLUSTER_NAME="achat-app-eks-cluster"
+                                    # Verify cluster exists and is active in AWS
+                                    CLUSTER_STATUS=$(aws eks describe-cluster --region us-east-1 --name "$CLUSTER_NAME" --query 'cluster.status' --output text 2>/dev/null || echo "NOT_FOUND")
+                                    if [ "$CLUSTER_STATUS" = "NOT_FOUND" ]; then
+                                        # Try to find any EKS cluster with matching name pattern
+                                        echo "Cluster 'achat-app-eks-cluster' not found, searching for matching clusters..."
+                                        CLUSTER_NAME=$(aws eks list-clusters --region us-east-1 --output text 2>/dev/null | grep "achat-app" | head -1 || echo "")
+                                        if [ -z "$CLUSTER_NAME" ] || [ "$CLUSTER_NAME" = "None" ]; then
+                                            echo "No EKS cluster found matching 'achat-app' pattern" >&2
+                                            echo ""
+                                            exit 0
+                                        fi
+                                        # Verify the found cluster is active
+                                        CLUSTER_STATUS=$(aws eks describe-cluster --region us-east-1 --name "$CLUSTER_NAME" --query 'cluster.status' --output text 2>/dev/null || echo "NOT_FOUND")
+                                    fi
+                                    if [ "$CLUSTER_STATUS" != "ACTIVE" ]; then
+                                        echo "EKS cluster '$CLUSTER_NAME' exists but is not ACTIVE (status: $CLUSTER_STATUS)" >&2
+                                        echo "Cannot deploy to non-active cluster" >&2
+                                        echo ""
+                                        exit 0
+                                    fi
+                                    echo "Found active EKS cluster in AWS: $CLUSTER_NAME (status: $CLUSTER_STATUS)"
+                                fi
+                                
+                                echo "$CLUSTER_NAME"
                             ''',
                             returnStdout: true
                         ).trim()
                         
-                        if (eksClusterName) {
+                        if (eksClusterName && eksClusterName != "") {
                             echo "Configuring kubectl for EKS cluster: ${eksClusterName}"
                             
                             // Update kubeconfig and deploy
@@ -70,19 +101,84 @@ def call() {
                             
                             // Deploy to EKS
                             sh """
-                                # Helper function for kubectl with retry
+                                # Helper function for kubectl with retry (only for connection errors)
                                 kubectl_retry() {
                                     local cmd="\$@"
                                     local attempt=0
-                                    while true; do
+                                    local max_attempts=3
+                                    while [ \$attempt -lt \$max_attempts ]; do
                                         attempt=\$((attempt + 1))
-                                        echo "Attempt \$attempt: \$cmd"
+                                        echo "Attempt \$attempt/\$max_attempts: \$cmd"
                                         if eval "\$cmd"; then
                                             echo "Success"
                                             return 0
                                         else
-                                            echo "Failed (TLS timeout likely), retrying in 15s..."
+                                            local exit_code=\$?
+                                            # Check if it's a connection/TLS error (exit code 1 with specific error messages)
+                                            if echo "\$cmd" | grep -q "rollout status" && [ \$exit_code -eq 1 ]; then
+                                                # Rollout status failures are deployment issues, not connection errors
+                                                echo "Deployment rollout failed (not a connection error)"
+                                                return 1
+                                            fi
+                                            echo "Failed (connection error likely), retrying in 15s..."
                                             sleep 15
+                                        fi
+                                    done
+                                    echo "Failed after \$max_attempts attempts"
+                                    return 1
+                                }
+                                
+                                # Helper function to diagnose deployment failures
+                                diagnose_deployment() {
+                                    local deployment=\$1
+                                    local namespace=\$2
+                                    echo ""
+                                    echo "=========================================="
+                                    echo "Diagnosing deployment failure: \$deployment"
+                                    echo "=========================================="
+                                    echo ""
+                                    echo "=== Deployment Status ==="
+                                    kubectl get deployment \$deployment -n \$namespace -o wide || true
+                                    echo ""
+                                    echo "=== Deployment Details ==="
+                                    kubectl describe deployment \$deployment -n \$namespace | tail -50 || true
+                                    echo ""
+                                    echo "=== Pod Status (all pods in namespace) ==="
+                                    kubectl get pods -n \$namespace -o wide || true
+                                    echo ""
+                                    echo "=== Pod Status (matching deployment) ==="
+                                    # Try to get pods using app label (works for both achat-app and achat-frontend)
+                                    kubectl get pods -n \$namespace -l app=\$deployment -o wide || true
+                                    echo ""
+                                    echo "=== Recent Events (all in namespace) ==="
+                                    kubectl get events -n \$namespace --sort-by='.lastTimestamp' | tail -30 || true
+                                    echo ""
+                                    echo "=== Pod Logs (all pods, including failed/not ready) ==="
+                                    # Get pods using app label
+                                    pods=\$(kubectl get pods -n \$namespace -l app=\$deployment -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || echo "")
+                                    if [ -z "\$pods" ]; then
+                                        # Fallback: get all pods in namespace
+                                        pods=\$(kubectl get pods -n \$namespace -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || echo "")
+                                    fi
+                                    for pod in \$pods; do
+                                        if [ -n "\$pod" ]; then
+                                            pod_status=\$(kubectl get pod \$pod -n \$namespace -o jsonpath='{.status.phase}' 2>/dev/null || echo "Unknown")
+                                            echo "--- Pod: \$pod (status: \$pod_status) ---"
+                                            echo "--- Logs ---"
+                                            kubectl logs -n \$namespace \$pod --tail=50 || true
+                                            echo ""
+                                            echo "--- Describe Pod ---"
+                                            kubectl describe pod \$pod -n \$namespace | tail -40 || true
+                                            echo ""
+                                        fi
+                                    done
+                                    echo ""
+                                    echo "=== Container Status Details ==="
+                                    for pod in \$pods; do
+                                        if [ -n "\$pod" ]; then
+                                            echo "--- Container statuses for pod: \$pod ---"
+                                            kubectl get pod \$pod -n \$namespace -o jsonpath='{range .status.containerStatuses[*]}{"  Name: "}{.name}{"\\n"}{"  Image: "}{.image}{"\\n"}{"  Ready: "}{.ready}{"\\n"}{"  Restart Count: "}{.restartCount}{"\\n"}{"  State: "}{.state}{"\\n"}{"  Last State: "}{.lastState}{"\\n"}{end}' || true
+                                            echo ""
                                         fi
                                     done
                                 }
@@ -123,13 +219,23 @@ def call() {
                                     frontend=${DOCKER_REGISTRY}/habibmanai/achat-frontend:${BUILD_NUMBER} \\
                                     --record
                                 
-                                # Wait for backend rollout
-                                echo "Waiting for backend deployment..."
-                                kubectl_retry kubectl rollout status deployment/achat-app -n achat-app --timeout=5m
+                                # Wait for backend rollout with diagnostics on failure
+                                echo "Waiting for backend deployment (timeout: 10 minutes)..."
+                                if ! kubectl rollout status deployment/achat-app -n achat-app --timeout=10m; then
+                                    diagnose_deployment "achat-app" "achat-app"
+                                    echo "ERROR: Backend deployment failed!"
+                                    exit 1
+                                fi
+                                echo "Backend deployment successful!"
                                 
-                                # Wait for frontend rollout
-                                echo "Waiting for frontend deployment..."
-                                kubectl_retry kubectl rollout status deployment/achat-frontend -n achat-app --timeout=5m
+                                # Wait for frontend rollout with diagnostics on failure
+                                echo "Waiting for frontend deployment (timeout: 10 minutes)..."
+                                if ! kubectl rollout status deployment/achat-frontend -n achat-app --timeout=10m; then
+                                    diagnose_deployment "achat-frontend" "achat-app"
+                                    echo "ERROR: Frontend deployment failed!"
+                                    exit 1
+                                fi
+                                echo "Frontend deployment successful!"
                                 
                                 # Get service endpoints
                                 echo ""
@@ -151,7 +257,9 @@ def call() {
                             echo 'Application deployed to EKS successfully!'
                         } else {
                             echo 'EKS cluster not found. Skipping EKS deployment.'
-                            echo 'Run terraform apply to create EKS cluster first.'
+                            echo 'Checked both Terraform state and AWS directly.'
+                            echo 'If cluster exists, ensure it is named "achat-app-eks-cluster" or contains "achat-app" in the name.'
+                            echo 'Otherwise, run terraform apply with create_eks=true to create EKS cluster first.'
                         }
                 }
             }
