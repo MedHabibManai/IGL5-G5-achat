@@ -16,7 +16,4 @@ spec:
   selector:
     app: achat-app
     tier: backend
-  sessionAffinity: ClientIP
-  sessionAffinityConfig:
-    clientIP:
-      timeoutSeconds: 10800
+  # Note: sessionAffinity removed - AWS LoadBalancer doesn't support ClientIP affinity

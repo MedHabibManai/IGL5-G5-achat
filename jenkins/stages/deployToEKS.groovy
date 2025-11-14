@@ -99,6 +99,48 @@ def call() {
                                 echo "WARNING: Could not retrieve RDS endpoint!"
                             }
                             
+                            // Ensure RDS security group allows traffic from EKS nodes
+                            echo "Ensuring RDS security group allows EKS nodes access..."
+                            sh """
+                                # Parse and export AWS credentials
+                                export AWS_ACCESS_KEY_ID=\$(grep aws_access_key_id "\$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                export AWS_SECRET_ACCESS_KEY=\$(grep aws_secret_access_key "\$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                export AWS_SESSION_TOKEN=\$(grep aws_session_token "\$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                export AWS_DEFAULT_REGION=us-east-1
+                                
+                                # Get VPC ID
+                                VPC_ID=\$(aws ec2 describe-vpcs --region us-east-1 --filters "Name=tag:Name,Values=achat-app-vpc" --query "Vpcs[0].VpcId" --output text 2>/dev/null || echo "")
+                                if [ -z "\$VPC_ID" ] || [ "\$VPC_ID" = "None" ]; then
+                                    echo "WARNING: Could not find VPC, skipping RDS security group update"
+                                else
+                                    # Get RDS security group ID
+                                    RDS_SG_ID=\$(aws ec2 describe-security-groups --region us-east-1 --filters "Name=vpc-id,Values=\$VPC_ID" "Name=group-name,Values=achat-app-rds-sg" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || echo "")
+                                    
+                                    # Get EKS nodes security group ID
+                                    EKS_NODES_SG_ID=\$(aws ec2 describe-security-groups --region us-east-1 --filters "Name=vpc-id,Values=\$VPC_ID" "Name=group-name,Values=achat-app-eks-nodes-sg" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || echo "")
+                                    
+                                    if [ -n "\$RDS_SG_ID" ] && [ "\$RDS_SG_ID" != "None" ] && [ -n "\$EKS_NODES_SG_ID" ] && [ "\$EKS_NODES_SG_ID" != "None" ]; then
+                                        echo "RDS Security Group: \$RDS_SG_ID"
+                                        echo "EKS Nodes Security Group: \$EKS_NODES_SG_ID"
+                                        
+                                        # Try to add the rule (will fail silently if it already exists)
+                                        echo "Ensuring RDS security group allows MySQL (port 3306) from EKS nodes..."
+                                        aws ec2 authorize-security-group-ingress \\
+                                            --region us-east-1 \\
+                                            --group-id \$RDS_SG_ID \\
+                                            --ip-protocol tcp \\
+                                            --from-port 3306 \\
+                                            --to-port 3306 \\
+                                            --source-group \$EKS_NODES_SG_ID 2>&1 | grep -v "already exists" || true
+                                        echo "RDS security group rule check/update completed"
+                                    else
+                                        echo "WARNING: Could not find RDS or EKS nodes security groups"
+                                        echo "RDS SG ID: \$RDS_SG_ID"
+                                        echo "EKS Nodes SG ID: \$EKS_NODES_SG_ID"
+                                    fi
+                                fi
+                            """
+                            
                             // Deploy to EKS
                             sh """
                                 # Helper function for kubectl with retry (only for connection errors)
