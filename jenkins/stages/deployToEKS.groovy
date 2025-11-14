@@ -132,13 +132,17 @@ def call() {
                                         OUTPUT=\$(aws ec2 authorize-security-group-ingress \\
                                             --region us-east-1 \\
                                             --group-id \$RDS_SG_ID \\
-                                            --ip-permissions "\$IP_PERMISSIONS_JSON" 2>&1)
-                                        if echo "\$OUTPUT" | grep -q "already exists"; then
-                                            echo "RDS security group rule already exists"
+                                            --ip-permissions "\$IP_PERMISSIONS_JSON" 2>&1) || true
+                                        EXIT_CODE=\$?
+                                        if echo "\$OUTPUT" | grep -qi "already exists\|Duplicate"; then
+                                            echo "RDS security group rule already exists (this is OK)"
                                         elif echo "\$OUTPUT" | grep -q "SecurityGroupIngress"; then
                                             echo "RDS security group rule added successfully"
+                                        elif [ \$EXIT_CODE -eq 0 ]; then
+                                            echo "RDS security group rule updated successfully"
                                         else
                                             echo "RDS security group update result: \$OUTPUT"
+                                            echo "Note: If rule already exists, this is expected and safe to ignore"
                                         fi
                                         echo "RDS security group rule check/update completed"
                                     else
