@@ -2005,21 +2005,38 @@ EOF
                     echo '========================================='
                 }
                 
-                // Configure kubectl for EKS
-                withAWS(credentials: "${AWS_CREDENTIAL_ID}", region: "${AWS_REGION}") {
+                // Configure kubectl for EKS - using withCredentials instead of withAWS
+                withCredentials([file(credentialsId: "${AWS_CREDENTIAL_ID}", variable: 'AWS_CREDENTIALS_FILE')]) {
                     dir("${TERRAFORM_DIR}") {
                         script {
                             // Get EKS cluster name from Terraform
                             def eksClusterName = sh(
-                                script: 'terraform output -raw eks_cluster_name 2>/dev/null || echo ""',
+                                script: '''
+                                    # Parse and export AWS credentials
+                                    export AWS_ACCESS_KEY_ID=$(grep aws_access_key_id "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                    export AWS_SECRET_ACCESS_KEY=$(grep aws_secret_access_key "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                    export AWS_SESSION_TOKEN=$(grep aws_session_token "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                    export AWS_DEFAULT_REGION=us-east-1
+                                    
+                                    terraform output -raw eks_cluster_name 2>/dev/null || echo ""
+                                ''',
                                 returnStdout: true
                             ).trim()
                             
                             if (eksClusterName) {
                                 echo "Configuring kubectl for EKS cluster: ${eksClusterName}"
                                 
-                                // Update kubeconfig
+                                // Update kubeconfig and deploy
                                 sh """
+                                    # Parse and export AWS credentials
+                                    export AWS_ACCESS_KEY_ID=\$(grep aws_access_key_id "\$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                    export AWS_SECRET_ACCESS_KEY=\$(grep aws_secret_access_key "\$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                    export AWS_SESSION_TOKEN=\$(grep aws_session_token "\$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                    export AWS_DEFAULT_REGION=us-east-1
+                                    
+                                    echo "AWS credentials configured from file"
+                                    
+                                    # Update kubeconfig
                                     aws eks update-kubeconfig \\
                                         --region ${AWS_REGION} \\
                                         --name ${eksClusterName}
@@ -2027,7 +2044,15 @@ EOF
                                 
                                 // Get RDS endpoint from Terraform
                                 def rdsEndpoint = sh(
-                                    script: 'terraform output -raw rds_endpoint 2>/dev/null || echo ""',
+                                    script: '''
+                                        # Parse and export AWS credentials
+                                        export AWS_ACCESS_KEY_ID=$(grep aws_access_key_id "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                        export AWS_SECRET_ACCESS_KEY=$(grep aws_secret_access_key "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                        export AWS_SESSION_TOKEN=$(grep aws_session_token "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                        export AWS_DEFAULT_REGION=us-east-1
+                                        
+                                        terraform output -raw rds_endpoint 2>/dev/null || echo ""
+                                    ''',
                                     returnStdout: true
                                 ).trim()
                                 
@@ -2101,9 +2126,9 @@ EOF
                                     echo "Backend will be accessible at: http://\${BACKEND_URL}/SpringMVC"
                                 """
                                 
-                                echo 'ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ Application deployed to EKS successfully!'
+                                echo '✓ Application deployed to EKS successfully!'
                             } else {
-                                echo 'ÃƒÂ¢Ã…Â¡Ã‚Â  EKS cluster not found. Skipping EKS deployment.'
+                                echo '⚠  EKS cluster not found. Skipping EKS deployment.'
                                 echo 'Run terraform apply to create EKS cluster first.'
                             }
                         }
