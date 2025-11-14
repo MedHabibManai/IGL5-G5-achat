@@ -6,6 +6,7 @@ def call() {
             echo 'Skipping EC2 refresh: not in REUSE_INFRASTRUCTURE mode or terraform config missing'
             return
         }
+
                 echo '========================================='
                 echo 'Stage 9.6: Refreshing EC2 Instance Only'
                 echo '========================================='
@@ -134,3 +135,5 @@ def call() {
     }
 }
 return this
+
+
