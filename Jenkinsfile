@@ -1,4 +1,4 @@
-// Main Jenkinsfile - Refactored to load stages from external files
+﻿// Main Jenkinsfile - Refactored to load stages from external files
 // BOM fix
 
 // Define stage files in order
@@ -97,6 +97,12 @@ pipeline {
         stage('Load Stages') {
             steps {
                 script {
+                    // Ensure stage scripts are present in the workspace before loading them
+                    if (!fileExists('jenkins/stages/checkout.groovy')) {
+                        echo 'Stage scripts were not found in the workspace. Performing SCM checkout to bootstrap stage files...'
+                        checkout scm
+                    }
+
                     // Load and execute each stage file
                     stageFiles.each { file ->
                         try {
