@@ -1,4 +1,4 @@
-pipeline {
+﻿pipeline {
     agent any
 
     // Disable automatic checkout to use our custom retry logic instead
@@ -417,7 +417,6 @@ EOF
                                 sleep(15)
                             }
                         }
-                    }
 
                         echo "Tagging images for Docker Hub..."
 
