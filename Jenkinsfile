@@ -1,4 +1,4 @@
-﻿pipeline {
+pipeline {
     agent any
 
     // Disable automatic checkout to use our custom retry logic instead
@@ -238,10 +238,11 @@
                             echo "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â  Pipeline will continue but code quality needs attention"
                         } else {
                             echo 'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ Quality Gate passed!'
+                        
                         }
                     }
                 }
-            }
+
         }
         
         stage('Deploy to Nexus') {
@@ -365,10 +366,11 @@ EOF
                                 echo "Docker build failed: ${e.message}. Retrying..."
                             } else {
                                 throw e
-                            }
+                            
                         }
                     }
                 }
+
             }
         }
         
@@ -1679,10 +1681,11 @@ EOF
                             echo "Public IP: ${publicIp}"
                             echo "Instance ID: ${instanceId}"
                             echo "========================================="
+                        
                         }
                     }
                 }
-            }
+
         }
 
         stage('Debug EC2 Instance') {
@@ -1845,10 +1848,11 @@ EOF
                             echo "ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚Â"
                         } else {
                             echo "Could not retrieve application URL"
+                        
                         }
                     }
                 }
-            }
+
         }
 
         stage('Build Frontend') {
@@ -1955,61 +1959,68 @@ EOF
                         usernameVariable: 'DOCKER_USER',
                         passwordVariable: 'DOCKER_PASS'
                     )]) {
-                        // Retry Docker login with exponential backoff
-                        def maxRetries = 3
-                        def retryDelay = 10
+                        // Infinite retry for Docker login with TLS timeout handling
                         def loginSuccess = false
                         
-                        for (int i = 0; i < maxRetries && !loginSuccess; i++) {
+                        while (!loginSuccess) {
                             try {
-                                if (i > 0) {
-                                    echo "Retry login attempt ${i + 1}/${maxRetries} after ${retryDelay}s delay..."
-                                    sleep(retryDelay)
-                                    retryDelay *= 2
-                                }
-                                
-                                sh """
-                                    echo "\${DOCKER_PASS}" | docker login -u "\${DOCKER_USER}" --password-stdin ${DOCKER_REGISTRY}
-                                """
-                                
+                                echo "Attempting Docker login..."
+                                sh '''
+                                    while true; do
+                                        if echo "${DOCKER_PASS}" | docker login -u "${DOCKER_USER}" --password-stdin $DOCKER_REGISTRY; then
+                                            echo "Docker login successful!"
+                                            break
+                                        else
+                                            echo "Docker login failed, retrying in 15 seconds..."
+                                            sleep 15
+                                        fi
+                                    done
+                                '''
                                 loginSuccess = true
-                                echo "ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ Docker login successful!"
                             } catch (Exception e) {
-                                echo "Docker login attempt ${i + 1} failed: ${e.message}"
-                                if (i == maxRetries - 1) {
-                                    error("Failed to login to Docker Hub after ${maxRetries} attempts")
-                                }
+                                echo "Docker login error: ${e.message}. Retrying in 15 seconds..."
+                                sleep(15)
                             }
+                        
                         }
                         
-                        // Retry Docker push with exponential backoff
-                        maxRetries = 3
-                        retryDelay = 10
+                        // Infinite retry for Docker push with TLS timeout handling
                         def pushSuccess = false
                         
-                        for (int i = 0; i < maxRetries && !pushSuccess; i++) {
+                        while (!pushSuccess) {
                             try {
-                                if (i > 0) {
-                                    echo "Retry push attempt ${i + 1}/${maxRetries} after ${retryDelay}s delay..."
-                                    sleep(retryDelay)
-                                    retryDelay *= 2
-                                }
-                                
-                                sh """
-                                    docker push ${DOCKER_REGISTRY}/habibmanai/achat-frontend:${BUILD_NUMBER}
-                                    docker push ${DOCKER_REGISTRY}/habibmanai/achat-frontend:latest
-                                """
-                                
+                                echo "Attempting to push frontend images..."
+                                sh '''
+                                    while true; do
+                                        if docker push $DOCKER_REGISTRY/habibmanai/achat-frontend:$BUILD_NUMBER; then
+                                            echo "Build number tag pushed successfully!"
+                                            break
+                                        else
+                                            echo "Push failed, retrying in 15 seconds..."
+                                            sleep 15
+                                        fi
+                                    done
+                                    
+                                    while true; do
+                                        if docker push $DOCKER_REGISTRY/habibmanai/achat-frontend:latest; then
+                                            echo "Latest tag pushed successfully!"
+                                            break
+                                        else
+                                            echo "Push failed, retrying in 15 seconds..."
+                                            sleep 15
+                                        fi
+                                    done
+                                '''
                                 pushSuccess = true
-                                echo "ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ Frontend Docker push successful!"
+                                echo "Frontend Docker images pushed successfully!"
                             } catch (Exception e) {
-                                echo "Frontend push attempt ${i + 1} failed: ${e.message}"
-                                if (i == maxRetries - 1) {
-                                    error("Failed to push frontend to Docker Hub after ${maxRetries} attempts")
-                                }
-                            }
+                                echo "Docker push error: ${e.message}. Retrying in 15 seconds..."
+                                sleep(15)
+                            
                         }
                     }
+                }
+
                 }
                 
                 script {
@@ -2172,10 +2183,11 @@ EOF
                             } else {
                                 echo 'âš   EKS cluster not found. Skipping EKS deployment.'
                                 echo 'Run terraform apply to create EKS cluster first.'
-                            }
+                            
                         }
                     }
                 }
+
             }
         }
 
