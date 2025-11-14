@@ -122,6 +122,10 @@ k8s/secrets/
 logs/
 *.log
 
+# Console output files (may contain sensitive credentials)
+scripts/console_output.txt
+console_output.txt
+
 # Temporary files
 *.tmp
 *.temp
