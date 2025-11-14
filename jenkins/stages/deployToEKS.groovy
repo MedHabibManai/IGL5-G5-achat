@@ -6,7 +6,6 @@ def call() {
             echo 'Skipping EKS deploy: k8s manifests not found'
             return
         }
-
                 echo '========================================='
                 echo 'Stage 13: Deploying to AWS EKS'
                 echo '========================================='
@@ -159,5 +158,3 @@ def call() {
     }
 }
 return this
-
-
