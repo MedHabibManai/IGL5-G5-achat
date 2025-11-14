@@ -1,4 +1,4 @@
-pipeline {
+﻿pipeline {
     agent any
 
     // Disable automatic checkout to use our custom retry logic instead
@@ -2016,7 +2016,7 @@ EOF
                             } catch (Exception e) {
                                 echo "Docker push error: ${e.message}. Retrying in 15 seconds..."
                                 sleep(15)
-                            
+                            }
                         }
                     }
                 }
