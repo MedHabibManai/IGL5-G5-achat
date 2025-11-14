@@ -1981,7 +1981,6 @@ EOF
                                 echo "Docker login error: ${e.message}. Retrying in 15 seconds..."
                                 sleep(15)
                             }
-                        
                         }
                         
                         // Infinite retry for Docker push with TLS timeout handling
