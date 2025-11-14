@@ -28,14 +28,14 @@ def call() {
                                 
                                 # If not in Terraform state (e.g., REUSE_INFRASTRUCTURE mode), check AWS directly
                                 if [ -z "$CLUSTER_NAME" ] || [ "$CLUSTER_NAME" = "" ]; then
-                                    echo "EKS cluster not in Terraform state, checking AWS directly..."
+                                    echo "EKS cluster not in Terraform state, checking AWS directly..." >&2
                                     # Try the default cluster name pattern
                                     CLUSTER_NAME="achat-app-eks-cluster"
                                     # Verify cluster exists and is active in AWS
                                     CLUSTER_STATUS=$(aws eks describe-cluster --region us-east-1 --name "$CLUSTER_NAME" --query 'cluster.status' --output text 2>/dev/null || echo "NOT_FOUND")
                                     if [ "$CLUSTER_STATUS" = "NOT_FOUND" ]; then
                                         # Try to find any EKS cluster with matching name pattern
-                                        echo "Cluster 'achat-app-eks-cluster' not found, searching for matching clusters..."
+                                        echo "Cluster 'achat-app-eks-cluster' not found, searching for matching clusters..." >&2
                                         CLUSTER_NAME=$(aws eks list-clusters --region us-east-1 --output text 2>/dev/null | grep "achat-app" | head -1 || echo "")
                                         if [ -z "$CLUSTER_NAME" ] || [ "$CLUSTER_NAME" = "None" ]; then
                                             echo "No EKS cluster found matching 'achat-app' pattern" >&2
@@ -51,9 +51,10 @@ def call() {
                                         echo ""
                                         exit 0
                                     fi
-                                    echo "Found active EKS cluster in AWS: $CLUSTER_NAME (status: $CLUSTER_STATUS)"
+                                    echo "Found active EKS cluster in AWS: $CLUSTER_NAME (status: $CLUSTER_STATUS)" >&2
                                 fi
                                 
+                                # Only output the cluster name to stdout (for returnStdout capture)
                                 echo "$CLUSTER_NAME"
                             ''',
                             returnStdout: true
