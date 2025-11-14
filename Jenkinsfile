@@ -1,4 +1,4 @@
-﻿pipeline {
+pipeline {
     agent any
 
     // Disable automatic checkout to use our custom retry logic instead
@@ -2243,3 +2243,4 @@ EOF
             }
         }
     }
+}
