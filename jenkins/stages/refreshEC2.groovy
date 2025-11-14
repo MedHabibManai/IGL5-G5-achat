@@ -119,9 +119,10 @@ def call() {
                         echo "Creating new EC2 instance..."
                         echo "======================================"
                         
-                        # Apply full configuration (will reuse existing VPC/RDS, create new EC2)
-                        terraform apply -auto-approve \
-                          -var="docker_image=${TF_VAR_docker_image}"
+                        # Apply only EC2-related resources to avoid conflicts with existing EKS/NAT resources
+                        # Use -target to only apply EC2 instance, EIP, and EIP association
+                        # IMPORTANT: Use single line to avoid shell variable expansion issues
+                        terraform apply -auto-approve -target=aws_eip.app -target=aws_eip_association.app -target=aws_instance.app -var="docker_image=${TF_VAR_docker_image}"
                         
                         echo "======================================"
                         echo "EC2 instance refreshed successfully"
