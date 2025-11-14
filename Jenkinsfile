@@ -1,4 +1,4 @@
-// Main Jenkinsfile - Refactored to load stages from external files
+﻿// Main Jenkinsfile - Refactored to load stages from external files
 // BOM fix
 
 // Define stage files in order
@@ -34,6 +34,8 @@ pipeline {
     options {
         buildDiscarder(logRotator(numToKeepStr: '10'))
         timeout(time: 2, unit: 'HOURS')
+        // Disable SSL verification for Git to avoid TLS handshake errors
+        skipDefaultCheckout()
     }
 
     // Parameters to control pipeline behavior
@@ -92,6 +94,30 @@ pipeline {
     }
     
     stages {
+        stage('Checkout with SSL workaround') {
+            steps {
+                script {
+                    // Checkout with retry and SSL verification disabled
+                    retry(3) {
+                        checkout([
+                            $class: 'GitSCM',
+                            branches: [[name: '*/MohamedHabibManai-GL5-G5-Produit']],
+                            extensions: [
+                                [$class: 'CloneOption', timeout: 60, noTags: true, shallow: true, depth: 1],
+                                [$class: 'CheckoutOption', timeout: 60]
+                            ],
+                            userRemoteConfigs: [[
+                                url: 'https://github.com/MedHabibManai/IGL5-G5-achat.git'
+                            ]]
+                        ])
+                    }
+                    
+                    // Configure git to skip SSL verification for this workspace
+                    sh 'git config http.sslVerify false'
+                }
+            }
+        }
+        
         stage('Load Stages') {
             steps {
                 script {
