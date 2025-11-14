@@ -1,4 +1,5 @@
 ﻿// Main Jenkinsfile - Refactored to load stages from external files
+// BOM fix
 
 // Define stage files in order
 def stageFiles = [
