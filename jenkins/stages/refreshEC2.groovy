@@ -66,7 +66,7 @@ def call() {
                                 
                                 # Import route table association
                                 if [ -n "$PUBLIC_SUBNET_ID" ]; then
-                                    RTB_ASSOC_ID=$(aws ec2 describe-route-tables --region ${AWS_REGION} --route-table-id $RTB_ID --query "RouteTables[0].Associations[?SubnetId=='$PUBLIC_SUBNET_ID'].RouteTableAssociationId | [0]" --output text 2>/dev/null || echo "")
+                                    RTB_ASSOC_ID=$(aws ec2 describe-route-tables --region ${AWS_REGION} --route-table-id $RTB_ID --query "RouteTables[0].Associations[?SubnetId=='\''$PUBLIC_SUBNET_ID'\''].RouteTableAssociationId | [0]" --output text 2>/dev/null || echo "")
                                     if [ -n "$RTB_ASSOC_ID" ] && [ "$RTB_ASSOC_ID" != "None" ]; then
                                         echo "Importing route table association: $RTB_ASSOC_ID"
                                         terraform import -var="docker_image=${TF_VAR_docker_image}" aws_route_table_association.public $RTB_ASSOC_ID 2>/dev/null || echo "  (already in state)"
@@ -88,14 +88,14 @@ def call() {
                             fi
                             
                             # Import RDS
-                            DB_ID=$(aws rds describe-db-instances --region ${AWS_REGION} --query "DBInstances[?DBName=='achatdb'].DBInstanceIdentifier | [0]" --output text 2>/dev/null || echo "")
+                            DB_ID=$(aws rds describe-db-instances --region ${AWS_REGION} --query "DBInstances[?DBName=='\''achatdb'\''].DBInstanceIdentifier | [0]" --output text 2>/dev/null || echo "")
                             if [ -n "$DB_ID" ] && [ "$DB_ID" != "None" ]; then
                                 echo "Importing RDS instance: $DB_ID"
                                 terraform import -var="docker_image=${TF_VAR_docker_image}" aws_db_instance.mysql $DB_ID 2>/dev/null || echo "  (already in state)"
                             fi
                             
                             # Import DB subnet group
-                            DB_SUBNET_GROUP=$(aws rds describe-db-subnet-groups --region ${AWS_REGION} --query "DBSubnetGroups[?DBSubnetGroupName=='achat-app-db-subnet-group'].DBSubnetGroupName | [0]" --output text 2>/dev/null || echo "")
+                            DB_SUBNET_GROUP=$(aws rds describe-db-subnet-groups --region ${AWS_REGION} --query "DBSubnetGroups[?DBSubnetGroupName=='\''achat-app-db-subnet-group'\''].DBSubnetGroupName | [0]" --output text 2>/dev/null || echo "")
                             if [ -n "$DB_SUBNET_GROUP" ] && [ "$DB_SUBNET_GROUP" != "None" ]; then
                                 echo "Importing DB subnet group: $DB_SUBNET_GROUP"
                                 terraform import -var="docker_image=${TF_VAR_docker_image}" aws_db_subnet_group.main $DB_SUBNET_GROUP 2>/dev/null || echo "  (already in state)"
@@ -112,7 +112,7 @@ def call() {
                           -target=aws_eip_association.app \
                           -target=aws_eip.app \
                           -target=aws_instance.app \
-                          -var="docker_image=${TF_VAR_docker_image}" 2>/dev/null || echo "EC2 resources don't exist yet"
+                          -var="docker_image=${TF_VAR_docker_image}" 2>/dev/null || echo "EC2 resources don'\''t exist yet"
                         
                         echo ""
                         echo "======================================"
@@ -135,5 +135,3 @@ def call() {
     }
 }
 return this
-
-
