@@ -2,7 +2,7 @@ Started by user Mohamed Habib Manai
 Obtained Jenkinsfile from git https://github.com/MedHabibManai/IGL5-G5-achat.git
 [Pipeline] Start of Pipeline
 [Pipeline] End of Pipeline
-Also:   org.jenkinsci.plugins.workflow.actions.ErrorAction$ErrorId: 3d4178f1-0c94-4a63-b67e-db7b65a10485
+Also:   org.jenkinsci.plugins.workflow.actions.ErrorAction$ErrorId: a7d500be-c14c-4f5b-b2bc-02a6eb1172dd
 groovy.lang.MissingPropertyException: No such property: ﻿ for class: groovy.lang.Binding
 	at groovy.lang.Binding.getVariable(Binding.java:63)
 	at PluginClassLoader for script-security//org.jenkinsci.plugins.scriptsecurity.sandbox.groovy.SandboxInterceptor.onGetProperty(SandboxInterceptor.java:285)
