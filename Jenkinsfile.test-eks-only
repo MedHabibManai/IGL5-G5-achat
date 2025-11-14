@@ -1,0 +1,53 @@
+// Test Jenkinsfile - Only runs deployToEKS stage
+// Usage: Create a new Jenkins job and point it to this file, or use "Replay" feature
+
+pipeline {
+    agent any
+
+    options {
+        timeout(time: 30, unit: 'MINUTES')
+        skipDefaultCheckout()
+    }
+
+    environment {
+        GIT_SSL_NO_VERIFY = 'true'
+        AWS_REGION = 'us-east-1'
+        AWS_CREDENTIAL_ID = 'aws-sandbox-credentials'
+        TERRAFORM_DIR = 'terraform'
+        DOCKER_REGISTRY = 'docker.io'
+        DOCKER_IMAGE_NAME = 'achat-app'
+        // Use the latest build number or set a test value
+        BUILD_NUMBER = "${env.BUILD_NUMBER ?: '999'}"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Deploy to EKS (Test Only)') {
+            steps {
+                script {
+                    // Load and execute only the deployToEKS stage
+                    def deployToEKS = load 'jenkins/stages/deployToEKS.groovy'
+                    deployToEKS.call()
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            script {
+                echo '========================================='
+                echo 'EKS Deployment Test Summary'
+                echo '========================================='
+                echo "Build Number: ${BUILD_NUMBER}"
+                echo "Build Status: ${currentBuild.currentResult}"
+            }
+        }
+    }
+}
+
