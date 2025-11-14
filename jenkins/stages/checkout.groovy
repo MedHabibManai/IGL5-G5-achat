@@ -1,3 +1,4 @@
+// BOM Fix
 // jenkins/stages/checkout.groovy
 def call() {
     stage('Checkout') {
@@ -5,7 +6,6 @@ def call() {
         echo 'Stage 1: Checking out code from GitHub'
         echo '========================================='
         
-        // Checkout code from GitHub with retry logic and exponential backoff
         def maxRetries = 5
         def retryCount = 0
         def success = false
@@ -14,7 +14,7 @@ def call() {
             try {
                 retryCount++
                 if (retryCount > 1) {
-                    def waitTime = (int)(Math.pow(2, retryCount - 1) * 10) // 10s, 20s, 40s, 80s
+                    def waitTime = (int)(Math.pow(2, retryCount - 1) * 10)
                     echo "Retry attempt ${retryCount}/${maxRetries} after ${waitTime}s wait..."
                     sleep(time: waitTime, unit: 'SECONDS')
                 }
@@ -37,8 +37,8 @@ def call() {
             }
         }
         
-        echo "✓ Successfully checked out branch: ${env.GIT_BRANCH}"
-        echo "✓ Commit: ${env.GIT_COMMIT}"
+        echo "Successfully checked out branch: ${env.GIT_BRANCH}"
+        echo "Commit: ${env.GIT_COMMIT}"
     }
 }
 return this
