@@ -25,7 +25,8 @@ def stageFiles = [
     'jenkins/stages/buildFrontendDocker.groovy',
     'jenkins/stages/pushFrontendDocker.groovy',
     'jenkins/stages/deployToEKS.groovy',
-    'jenkins/stages/deployToLocalK8s.groovy'
+    'jenkins/stages/deployToLocalK8s.groovy',
+    'jenkins/stages/finalSummary.groovy'
 ]
 
 pipeline {
@@ -158,12 +159,17 @@ pipeline {
     post {
         always {
             script {
+                echo ''
                 echo '========================================='
                 echo 'Pipeline Execution Summary'
                 echo '========================================='
                 echo "Build Number: ${BUILD_NUMBER}"
                 echo "Build Status: ${currentBuild.currentResult}"
                 echo "Duration: ${currentBuild.durationString}"
+                echo "Deployment Mode: ${params.DEPLOYMENT_MODE}"
+                echo ''
+                echo 'For all deployment URLs, see the "Final Deployment Summary" stage above.'
+                echo '========================================='
             }
             
             // Clean workspace
