@@ -192,27 +192,36 @@ def call() {
                             
                             // Deploy to EKS
                             sh """
-                                # Helper function for kubectl with retry (only for connection errors)
+                                # Helper function for kubectl with retry (handles TLS handshake timeouts and connection errors)
                                 kubectl_retry() {
                                     local cmd="\$@"
                                     local attempt=0
-                                    local max_attempts=3
+                                    local max_attempts=5  # Increased from 3 to 5 for better resilience
                                     while [ \$attempt -lt \$max_attempts ]; do
                                         attempt=\$((attempt + 1))
                                         echo "Attempt \$attempt/\$max_attempts: \$cmd"
-                                        if eval "\$cmd"; then
+                                        
+                                        # Run command and capture output to check for TLS errors
+                                        OUTPUT=\$(eval "\$cmd" 2>&1)
+                                        local exit_code=\$?
+                                        
+                                        if [ \$exit_code -eq 0 ]; then
                                             echo "Success"
                                             return 0
                                         else
-                                            local exit_code=\$?
-                                            # Check if it's a connection/TLS error (exit code 1 with specific error messages)
-                                            if echo "\$cmd" | grep -q "rollout status" && [ \$exit_code -eq 1 ]; then
+                                            # Check if it's a TLS handshake timeout or connection error
+                                            if echo "\$OUTPUT" | grep -qiE "(TLS handshake timeout|net/http.*timeout|connection.*timeout|Unable to connect)"; then
+                                                echo "TLS/connection error detected, retrying in 20s..."
+                                                echo "Error: \$(echo "\$OUTPUT" | grep -iE '(TLS|timeout|Unable)' | head -1)"
+                                                sleep 20
+                                            elif echo "\$cmd" | grep -q "rollout status" && [ \$exit_code -eq 1 ]; then
                                                 # Rollout status failures are deployment issues, not connection errors
                                                 echo "Deployment rollout failed (not a connection error)"
                                                 return 1
+                                            else
+                                                echo "Command failed (exit code: \$exit_code), retrying in 15s..."
+                                                sleep 15
                                             fi
-                                            echo "Failed (connection error likely), retrying in 15s..."
-                                            sleep 15
                                         fi
                                     done
                                     echo "Failed after \$max_attempts attempts"
@@ -285,9 +294,12 @@ def call() {
                                 # Update ConfigMap with actual RDS endpoint
                                 if [ -n "${rdsEndpoint}" ]; then
                                     echo "Updating ConfigMap with RDS endpoint: ${rdsEndpoint}"
+                                    # Create temp file with updated ConfigMap to use with retry function
+                                    TEMP_CONFIGMAP=\$(mktemp)
                                     cat ../k8s/configmap.yaml | \\
-                                        sed "s|RDS_ENDPOINT_PLACEHOLDER|${rdsEndpoint}|g" | \\
-                                        kubectl apply -f -
+                                        sed "s|RDS_ENDPOINT_PLACEHOLDER|${rdsEndpoint}|g" > \$TEMP_CONFIGMAP
+                                    kubectl_retry kubectl apply -f \$TEMP_CONFIGMAP
+                                    rm -f \$TEMP_CONFIGMAP
                                 else
                                     echo "WARNING: Applying ConfigMap without RDS endpoint update!"
                                     kubectl_retry kubectl apply -f ../k8s/configmap.yaml
