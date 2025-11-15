@@ -11,12 +11,63 @@ def call() {
                 echo 'Stage 14: Health Check'
                 echo '========================================='
 
-            dir(TERRAFORM_DIR) {
-                    // Get application URL from Terraform output
-                    def appUrl = sh(
-                        script: 'terraform output -raw application_url 2>/dev/null || echo ""',
-                        returnStdout: true
-                    ).trim()
+            withCredentials([file(credentialsId: "${AWS_CREDENTIAL_ID}", variable: 'AWS_CREDENTIALS_FILE')]) {
+                dir(TERRAFORM_DIR) {
+                        // Refresh Terraform state first to get latest EC2 instance info
+                        // This is important in REUSE_INFRASTRUCTURE mode where instance was just recreated
+                        echo "Refreshing Terraform state to get latest instance information..."
+                        sh '''
+                            # Setup AWS credentials for terraform refresh
+                            export AWS_ACCESS_KEY_ID=$(grep aws_access_key_id "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                            export AWS_SECRET_ACCESS_KEY=$(grep aws_secret_access_key "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                            export AWS_SESSION_TOKEN=$(grep aws_session_token "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                            export AWS_DEFAULT_REGION=''' + AWS_REGION + '''
+                            terraform refresh -input=false 2>&1 || echo "Refresh completed (warnings OK)"
+                        '''
+                        
+                        // Get application URL from Terraform output (now refreshed)
+                        def appUrl = sh(
+                            script: 'terraform output -raw application_url 2>/dev/null || echo ""',
+                            returnStdout: true
+                        ).trim()
+                        
+                        // Also verify by getting IP directly from AWS to ensure we have the correct IP
+                        echo "Verifying IP address from AWS..."
+                        def instanceId = sh(
+                            script: 'terraform output -raw instance_id 2>/dev/null || echo ""',
+                            returnStdout: true
+                        ).trim()
+                        
+                        if (instanceId && instanceId != "") {
+                            // Get public IP directly from AWS to verify
+                            def publicIp = sh(
+                                script: '''
+                                    export AWS_ACCESS_KEY_ID=$(grep aws_access_key_id "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                    export AWS_SECRET_ACCESS_KEY=$(grep aws_secret_access_key "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                    export AWS_SESSION_TOKEN=$(grep aws_session_token "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                    export AWS_DEFAULT_REGION=''' + AWS_REGION + '''
+                                    aws ec2 describe-instances --region ''' + AWS_REGION + ''' --instance-ids ''' + instanceId + ''' --query "Reservations[0].Instances[0].PublicIpAddress" --output text 2>/dev/null || echo ""
+                                ''',
+                                returnStdout: true
+                            ).trim()
+                            
+                            if (publicIp && publicIp != "None" && publicIp != "") {
+                                def verifiedUrl = "http://${publicIp}:8089/SpringMVC"
+                                echo "Terraform output URL: ${appUrl}"
+                                echo "AWS direct IP: ${publicIp}"
+                                echo "Verified URL: ${verifiedUrl}"
+                                
+                                // Use the verified URL from AWS (most reliable)
+                                if (appUrl && appUrl.contains(publicIp)) {
+                                    echo "✓ URLs match - using Terraform output"
+                                } else {
+                                    echo "⚠ URLs don't match - using AWS direct IP (more reliable)"
+                                    appUrl = verifiedUrl
+                                }
+                            } else {
+                                echo "Could not get IP from AWS, using Terraform output: ${appUrl}"
+                            }
+                        }
 
                     if (appUrl) {
                         def healthUrl = "${appUrl}/actuator/health"
@@ -113,8 +164,8 @@ def call() {
                         echo "-----------------"
                     } else {
                         echo "Could not retrieve application URL"
-                    
                     }
+                }
             }
 
     }
