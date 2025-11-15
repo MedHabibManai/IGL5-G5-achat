@@ -25,11 +25,53 @@ def call() {
                             terraform refresh -input=false 2>&1 || echo "Refresh completed (warnings OK)"
                         '''
                         
-                        // Get application URL from Terraform output (now refreshed)
-                        def appUrl = sh(
-                            script: 'terraform output -raw application_url 2>/dev/null || echo ""',
+                        // Get instance ID first to verify it exists
+                        def instanceId = sh(
+                            script: 'terraform output -raw instance_id 2>/dev/null || echo ""',
                             returnStdout: true
                         ).trim()
+                        
+                        echo "Terraform instance ID: ${instanceId}"
+                        
+                        // Verify instance exists and get its actual IP from AWS
+                        def actualIp = ""
+                        if (instanceId && instanceId != "") {
+                            // Get the actual current IP from AWS (most reliable)
+                            actualIp = sh(
+                                script: '''
+                                    export AWS_ACCESS_KEY_ID=$(grep aws_access_key_id "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                    export AWS_SECRET_ACCESS_KEY=$(grep aws_secret_access_key "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                    export AWS_SESSION_TOKEN=$(grep aws_session_token "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                    export AWS_DEFAULT_REGION=''' + AWS_REGION + '''
+                                    # First check for EIP
+                                    EIP_IP=$(aws ec2 describe-addresses --region ''' + AWS_REGION + ''' --filters "Name=instance-id,Values=''' + instanceId + '''" --query "Addresses[0].PublicIp" --output text 2>/dev/null || echo "")
+                                    if [ -n "$EIP_IP" ] && [ "$EIP_IP" != "None" ] && [ "$EIP_IP" != "" ]; then
+                                        echo "$EIP_IP"
+                                    else
+                                        # Fallback to instance public IP
+                                        aws ec2 describe-instances --region ''' + AWS_REGION + ''' --instance-ids ''' + instanceId + ''' --query "Reservations[0].Instances[0].PublicIpAddress" --output text 2>/dev/null || echo ""
+                                    fi
+                                ''',
+                                returnStdout: true
+                            ).trim()
+                            
+                            if (actualIp && actualIp != "None" && actualIp != "") {
+                                echo "✓ Verified IP from AWS: ${actualIp}"
+                                def appUrl = "http://${actualIp}:8089/SpringMVC"
+                            } else {
+                                echo "⚠ Could not get IP from AWS, trying Terraform output..."
+                                def appUrl = sh(
+                                    script: 'terraform output -raw application_url 2>/dev/null || echo ""',
+                                    returnStdout: true
+                                ).trim()
+                            }
+                        } else {
+                            echo "⚠ No instance ID found, using Terraform output..."
+                            def appUrl = sh(
+                                script: 'terraform output -raw application_url 2>/dev/null || echo ""',
+                                returnStdout: true
+                            ).trim()
+                        }
                         
                         // Also verify by getting IP directly from AWS to ensure we have the correct IP
                         echo "Verifying IP address from AWS..."
