@@ -25,7 +25,6 @@ def stageFiles = [
     'jenkins/stages/buildFrontendDocker.groovy',
     'jenkins/stages/pushFrontendDocker.groovy',
     'jenkins/stages/deployToEKS.groovy',
-    'jenkins/stages/deployToLocalK8s.groovy',
     'jenkins/stages/finalSummary.groovy'
 ]
 

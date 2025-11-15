@@ -13,8 +13,6 @@ def call() {
         def awsHealthUrl = ""
         def eksBackendUrl = ""
         def eksFrontendUrl = ""
-        def localK8sBackendUrl = ""
-        def localK8sFrontendUrl = ""
         
         // Get AWS EC2 URLs from Terraform
         if (fileExists('terraform/main.tf')) {
@@ -73,45 +71,6 @@ def call() {
             echo "Could not get EKS URLs: ${e.message}"
         }
         
-        // Local K8s URLs (Docker Desktop) - Get actual NodePort
-        def localK8sBackendPort = ""
-        def localK8sFrontendPort = ""
-        try {
-            withKubeConfig([credentialsId: 'kubeconfig-credentials']) {
-                // Check if we're on local K8s (not EKS)
-                def clusterInfo = sh(
-                    script: 'kubectl config current-context 2>/dev/null || echo ""',
-                    returnStdout: true
-                ).trim()
-                
-                if (!clusterInfo || (!clusterInfo.contains("eks") && !clusterInfo.contains("achat-app-eks"))) {
-                    // This is local K8s, get NodePort
-                    localK8sBackendPort = sh(
-                        script: 'kubectl get svc achat-app -n achat-app -o jsonpath="{.spec.ports[0].nodePort}" 2>/dev/null || echo ""',
-                        returnStdout: true
-                    ).trim()
-                    
-                    localK8sFrontendPort = sh(
-                        script: 'kubectl get svc achat-frontend -n achat-app -o jsonpath="{.spec.ports[0].nodePort}" 2>/dev/null || echo ""',
-                        returnStdout: true
-                    ).trim()
-                }
-            }
-        } catch (Exception e) {
-            echo "Could not get local K8s NodePorts: ${e.message}"
-        }
-        
-        if (localK8sBackendPort && localK8sBackendPort != "" && localK8sBackendPort != "null") {
-            localK8sBackendUrl = "http://localhost:${localK8sBackendPort}/SpringMVC"
-        } else {
-            localK8sBackendUrl = "http://localhost:8089/SpringMVC (use port-forward)"
-        }
-        
-        if (localK8sFrontendPort && localK8sFrontendPort != "" && localK8sFrontendPort != "null") {
-            localK8sFrontendUrl = "http://localhost:${localK8sFrontendPort}"
-        } else {
-            localK8sFrontendUrl = "http://localhost:30080 (use port-forward)"
-        }
         
         // Print comprehensive summary
         echo ''
