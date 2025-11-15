@@ -33,17 +33,18 @@ def call() {
                         
                         echo "Terraform instance ID: ${instanceId}"
                         
-                        // Verify instance exists and get its actual IP from AWS
-                        def actualIp = ""
+                        // Get application URL - always query AWS directly for most reliable IP
+                        def appUrl = ""
                         if (instanceId && instanceId != "") {
+                            echo "Verifying IP address directly from AWS (most reliable)..."
                             // Get the actual current IP from AWS (most reliable)
-                            actualIp = sh(
+                            def actualIp = sh(
                                 script: '''
                                     export AWS_ACCESS_KEY_ID=$(grep aws_access_key_id "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
                                     export AWS_SECRET_ACCESS_KEY=$(grep aws_secret_access_key "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
                                     export AWS_SESSION_TOKEN=$(grep aws_session_token "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
                                     export AWS_DEFAULT_REGION=''' + AWS_REGION + '''
-                                    # First check for EIP
+                                    # First check for EIP (preferred)
                                     EIP_IP=$(aws ec2 describe-addresses --region ''' + AWS_REGION + ''' --filters "Name=instance-id,Values=''' + instanceId + '''" --query "Addresses[0].PublicIp" --output text 2>/dev/null || echo "")
                                     if [ -n "$EIP_IP" ] && [ "$EIP_IP" != "None" ] && [ "$EIP_IP" != "" ]; then
                                         echo "$EIP_IP"
@@ -57,76 +58,33 @@ def call() {
                             
                             if (actualIp && actualIp != "None" && actualIp != "") {
                                 echo "✓ Verified IP from AWS: ${actualIp}"
-                                def appUrl = "http://${actualIp}:8089/SpringMVC"
+                                appUrl = "http://${actualIp}:8089/SpringMVC"
+                                
+                                // Also get Terraform output for comparison
+                                def terraformUrl = sh(
+                                    script: 'terraform output -raw application_url 2>/dev/null || echo ""',
+                                    returnStdout: true
+                                ).trim()
+                                
+                                if (terraformUrl && terraformUrl.contains(actualIp)) {
+                                    echo "✓ Terraform output matches AWS IP"
+                                } else {
+                                    echo "⚠ Terraform output (${terraformUrl}) doesn't match AWS IP (${actualIp})"
+                                    echo "  Using AWS verified IP: ${appUrl}"
+                                }
                             } else {
-                                echo "⚠ Could not get IP from AWS, trying Terraform output..."
-                                def appUrl = sh(
+                                echo "⚠ Could not get IP from AWS, falling back to Terraform output..."
+                                appUrl = sh(
                                     script: 'terraform output -raw application_url 2>/dev/null || echo ""',
                                     returnStdout: true
                                 ).trim()
                             }
                         } else {
                             echo "⚠ No instance ID found, using Terraform output..."
-                            def appUrl = sh(
+                            appUrl = sh(
                                 script: 'terraform output -raw application_url 2>/dev/null || echo ""',
                                 returnStdout: true
                             ).trim()
-                        }
-                        
-                        // Also verify by getting IP directly from AWS to ensure we have the correct IP
-                        echo "Verifying IP address from AWS..."
-                        def instanceId = sh(
-                            script: 'terraform output -raw instance_id 2>/dev/null || echo ""',
-                            returnStdout: true
-                        ).trim()
-                        
-                        if (instanceId && instanceId != "") {
-                            // First check if EIP is associated (preferred)
-                            def eipIp = sh(
-                                script: '''
-                                    export AWS_ACCESS_KEY_ID=$(grep aws_access_key_id "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
-                                    export AWS_SECRET_ACCESS_KEY=$(grep aws_secret_access_key "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
-                                    export AWS_SESSION_TOKEN=$(grep aws_session_token "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
-                                    export AWS_DEFAULT_REGION=''' + AWS_REGION + '''
-                                    aws ec2 describe-addresses --region ''' + AWS_REGION + ''' --filters "Name=instance-id,Values=''' + instanceId + '''" --query "Addresses[0].PublicIp" --output text 2>/dev/null || echo ""
-                                ''',
-                                returnStdout: true
-                            ).trim()
-                            
-                            // If no EIP, get instance public IP
-                            def publicIp = ""
-                            if (!eipIp || eipIp == "None" || eipIp == "") {
-                                publicIp = sh(
-                                    script: '''
-                                        export AWS_ACCESS_KEY_ID=$(grep aws_access_key_id "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
-                                        export AWS_SECRET_ACCESS_KEY=$(grep aws_secret_access_key "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
-                                        export AWS_SESSION_TOKEN=$(grep aws_session_token "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
-                                        export AWS_DEFAULT_REGION=''' + AWS_REGION + '''
-                                        aws ec2 describe-instances --region ''' + AWS_REGION + ''' --instance-ids ''' + instanceId + ''' --query "Reservations[0].Instances[0].PublicIpAddress" --output text 2>/dev/null || echo ""
-                                    ''',
-                                    returnStdout: true
-                                ).trim()
-                            } else {
-                                publicIp = eipIp
-                                echo "✓ EIP is associated: ${eipIp}"
-                            }
-                            
-                            if (publicIp && publicIp != "None" && publicIp != "") {
-                                def verifiedUrl = "http://${publicIp}:8089/SpringMVC"
-                                echo "Terraform output URL: ${appUrl}"
-                                echo "AWS verified IP: ${publicIp}"
-                                echo "Verified URL: ${verifiedUrl}"
-                                
-                                // Use the verified URL from AWS (most reliable)
-                                if (appUrl && appUrl.contains(publicIp)) {
-                                    echo "✓ URLs match - using Terraform output"
-                                } else {
-                                    echo "⚠ URLs don't match - using AWS verified IP (EIP or instance IP)"
-                                    appUrl = verifiedUrl
-                                }
-                            } else {
-                                echo "Could not get IP from AWS, using Terraform output: ${appUrl}"
-                            }
                         }
 
                     if (appUrl) {
