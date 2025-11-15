@@ -41,6 +41,38 @@ def call() {
                             
                             echo ""
                             echo "Terraform destroy completed successfully"
+                            echo ""
+                            echo "Verifying VPC deletion (AWS may take a few minutes to fully delete VPCs)..."
+                            
+                            # Wait for VPCs to be fully deleted to avoid VPC limit issues
+                            VPC_WAIT_COUNT=0
+                            MAX_VPC_WAIT=20  # 20 * 30 seconds = 10 minutes max
+                            
+                            # Check for VPCs with achat-app-vpc name
+                            while [ \$VPC_WAIT_COUNT -lt \$MAX_VPC_WAIT ]; do
+                                REMAINING_VPCS=\$(aws ec2 describe-vpcs \\
+                                    --region \${AWS_REGION} \\
+                                    --filters "Name=tag:Name,Values=achat-app-vpc" \\
+                                    --query "Vpcs[].VpcId" \\
+                                    --output text 2>/dev/null || echo "")
+                                
+                                if [ -z "\$REMAINING_VPCS" ] || [ "\$REMAINING_VPCS" = "None" ]; then
+                                    echo "  All achat-app VPCs confirmed deleted"
+                                    break
+                                else
+                                    echo "  Waiting for VPCs to delete: \$REMAINING_VPCS (attempt \$VPC_WAIT_COUNT/\$MAX_VPC_WAIT, waiting 30s...)"
+                                    sleep 30
+                                    VPC_WAIT_COUNT=\$((VPC_WAIT_COUNT + 1))
+                                fi
+                            done
+                            
+                            if [ \$VPC_WAIT_COUNT -ge \$MAX_VPC_WAIT ]; then
+                                echo "  WARNING: Some VPCs may still be deleting, but continuing..."
+                                echo "  If you hit VPC limit errors, wait a few minutes and try again"
+                            fi
+                            
+                            echo ""
+                            echo "VPC deletion verification completed"
                         else
                             echo "No Terraform state found. Using manual cleanup..."
                             echo ""
