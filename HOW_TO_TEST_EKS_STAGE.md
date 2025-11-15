@@ -1,6 +1,29 @@
 # How to Test Only the EKS Deployment Stage (Stage 13)
 
-## Quick Method: Use Jenkins Replay
+## ⭐ EASIEST METHOD: Use Build Parameters (Recommended)
+
+### Step-by-Step Instructions:
+
+1. **Open Jenkins**
+   - Go to: http://localhost:8080
+   - Navigate to: **IGL5-G5-achat** job
+
+2. **Click "Build with Parameters"**
+   - Look for the **"Build with Parameters"** link in the left sidebar
+
+3. **Select EKS_ONLY**
+   - In the **DEPLOYMENT_MODE** dropdown, select: **EKS_ONLY**
+   - Click **"Build"**
+
+4. **Done!**
+   - The pipeline will skip all stages except EKS deployment
+   - Results in ~5-10 minutes instead of 20+ minutes
+
+**That's it!** No need to edit files or use Replay. Just select EKS_ONLY from the dropdown.
+
+---
+
+## Alternative Method: Use Jenkins Replay
 
 ### Step-by-Step Instructions:
 
