@@ -143,8 +143,15 @@ def call() {
                                                 returnStdout: true
                                             ).trim()
                                             echo "  Server reachability: ${pingResult}"
+                                            
+                                            // Check if port 8089 is open (using telnet or nc if available)
+                                            def portCheck = sh(
+                                                script: "timeout 2 bash -c '</dev/tcp/${appUrl.replaceAll('http://', '').replaceAll('/SpringMVC', '').replaceAll(':8089', '')}/8089' 2>&1 && echo 'open' || echo 'closed'",
+                                                returnStdout: true
+                                            ).trim()
+                                            echo "  Port 8089 status: ${portCheck}"
                                         } catch (Exception e) {
-                                            echo "  Server appears unreachable"
+                                            echo "  Server appears unreachable: ${e.message}"
                                         }
                                     }
                                     
