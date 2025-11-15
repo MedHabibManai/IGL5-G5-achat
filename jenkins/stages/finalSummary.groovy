@@ -40,7 +40,7 @@ def call() {
         
         // Get EKS URLs - check if EKS cluster exists first
         try {
-            // Check if we're connected to EKS (not local K8s)
+            // Check if we're connected to EKS
             def clusterInfo = sh(
                 script: 'kubectl config current-context 2>/dev/null || echo ""',
                 returnStdout: true
@@ -141,37 +141,6 @@ def call() {
             echo "   (May take 2-5 minutes for LoadBalancer to provision)"
             echo ""
         }
-        
-        // Local Kubernetes
-        echo '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
-        echo '📍 LOCAL KUBERNETES (Docker Desktop)'
-        echo '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
-        if (localK8sBackendPort && localK8sBackendPort != "" && localK8sBackendPort != "null") {
-            echo "✅ Backend (NodePort):"
-            echo "   ${localK8sBackendUrl}"
-            echo "   Swagger UI: http://localhost:${localK8sBackendPort}/SpringMVC/swagger-ui/index.html"
-            echo ""
-        } else {
-            echo "⚠️  Backend NodePort not available"
-            echo "   Use port-forward: kubectl port-forward svc/achat-app 8089:80 -n achat-app"
-            echo "   Then access: http://localhost:8089/SpringMVC"
-            echo ""
-        }
-        
-        if (localK8sFrontendPort && localK8sFrontendPort != "" && localK8sFrontendPort != "null") {
-            echo "✅ Frontend (NodePort):"
-            echo "   ${localK8sFrontendUrl}"
-            echo ""
-        } else {
-            echo "⚠️  Frontend NodePort not available"
-            echo "   Use port-forward: kubectl port-forward svc/achat-frontend 30080:80 -n achat-app"
-            echo "   Then access: http://localhost:30080"
-            echo ""
-        }
-        
-        echo "ℹ️  Services are configured as NodePort for local access"
-        echo "   Check service status: kubectl get svc -n achat-app"
-        echo ""
         
         // Quick Test Commands
         echo '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
