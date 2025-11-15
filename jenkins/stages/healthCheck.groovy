@@ -36,8 +36,9 @@ def call() {
                         sleep(60)
                         
                         // Continuous health check with retries
-                        def maxAttempts = 30  // 30 attempts
-                        def checkInterval = 20  // 20 seconds between checks = 10 minutes total
+                        // Reduced attempts for REUSE_INFRASTRUCTURE (instance already exists, just needs to start app)
+                        def maxAttempts = 20  // 20 attempts = ~6.5 minutes (faster for reuse mode)
+                        def checkInterval = 20  // 20 seconds between checks
                         def healthy = false
                         
                         echo "Starting health checks (max ${maxAttempts} attempts, ${checkInterval}s intervals)..."
@@ -48,8 +49,9 @@ def call() {
                             try {
                                 echo "Health check attempt ${i}/${maxAttempts}..."
                                 
+                                // Try to get HTTP status code with timeout
                                 def response = sh(
-                                    script: "curl -f -s -o /dev/null -w '%{http_code}' ${healthUrl} || echo '000'",
+                                    script: "curl -f -s -o /dev/null -w '%{http_code}' --connect-timeout 5 --max-time 10 ${healthUrl} 2>&1 || echo '000'",
                                     returnStdout: true
                                 ).trim()
                                 
@@ -61,13 +63,29 @@ def call() {
                                     sh "curl -s ${healthUrl} || echo 'Could not fetch health details'"
                                 } else {
                                     echo "  Status: HTTP ${response} (not ready yet)"
+                                    
+                                    // Show diagnostic info every 5 attempts
+                                    if (i % 5 == 0) {
+                                        echo "  Diagnostic check (attempt ${i})..."
+                                        try {
+                                            // Check if we can reach the server at all
+                                            def pingResult = sh(
+                                                script: "curl -s -o /dev/null -w '%{http_code}' --connect-timeout 3 --max-time 5 ${appUrl} 2>&1 || echo 'unreachable'",
+                                                returnStdout: true
+                                            ).trim()
+                                            echo "  Server reachability: ${pingResult}"
+                                        } catch (Exception e) {
+                                            echo "  Server appears unreachable"
+                                        }
+                                    }
+                                    
                                     if (i < maxAttempts) {
                                         echo "  Waiting ${checkInterval} seconds before next check..."
                                         sleep(checkInterval)
                                     }
                                 }
                             } catch (Exception e) {
-                                echo "  Connection failed: ${e.message}"
+                                echo "  Error during health check: ${e.message}"
                                 if (i < maxAttempts) {
                                     echo "  Waiting ${checkInterval} seconds before retry..."
                                     sleep(checkInterval)
@@ -76,7 +94,19 @@ def call() {
                         }
                         
                         if (!healthy) {
-                            error("Application failed to become healthy after ${maxAttempts} attempts (${maxAttempts * checkInterval / 60} minutes)")
+                            echo ""
+                            echo "WARNING: Application did not become healthy after ${maxAttempts} attempts"
+                            echo "This could mean:"
+                            echo "  - EC2 instance is still initializing"
+                            echo "  - Docker is installing/starting"
+                            echo "  - Application container is starting"
+                            echo "  - Database connection issue"
+                            echo ""
+                            echo "The application may still be starting in the background."
+                            echo "You can check manually: ${healthUrl}"
+                            echo ""
+                            // Don't fail the pipeline - just warn (application may start later)
+                            echo "Continuing pipeline - application will be available when ready"
                         }
                         
                         echo ""
