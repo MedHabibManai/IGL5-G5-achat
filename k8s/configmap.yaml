@@ -13,7 +13,7 @@ data:
   
   # Database configuration (non-sensitive)
   # This will be updated by Jenkins with actual RDS endpoint
-  SPRING_DATASOURCE_URL: "jdbc:mysql://RDS_ENDPOINT_PLACEHOLDER:3306/achatdb"
+  SPRING_DATASOURCE_URL: "jdbc:mysql://RDS_ENDPOINT_PLACEHOLDER:3306/achatdb?useSSL=false&allowPublicKeyRetrieval=true"
   SPRING_DATASOURCE_DRIVER_CLASS_NAME: "com.mysql.cj.jdbc.Driver"
   SPRING_JPA_HIBERNATE_DDL_AUTO: "update"
   SPRING_JPA_SHOW_SQL: "false"
