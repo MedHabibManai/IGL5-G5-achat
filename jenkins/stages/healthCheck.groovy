@@ -39,29 +39,47 @@ def call() {
                         ).trim()
                         
                         if (instanceId && instanceId != "") {
-                            // Get public IP directly from AWS to verify
-                            def publicIp = sh(
+                            // First check if EIP is associated (preferred)
+                            def eipIp = sh(
                                 script: '''
                                     export AWS_ACCESS_KEY_ID=$(grep aws_access_key_id "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
                                     export AWS_SECRET_ACCESS_KEY=$(grep aws_secret_access_key "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
                                     export AWS_SESSION_TOKEN=$(grep aws_session_token "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
                                     export AWS_DEFAULT_REGION=''' + AWS_REGION + '''
-                                    aws ec2 describe-instances --region ''' + AWS_REGION + ''' --instance-ids ''' + instanceId + ''' --query "Reservations[0].Instances[0].PublicIpAddress" --output text 2>/dev/null || echo ""
+                                    aws ec2 describe-addresses --region ''' + AWS_REGION + ''' --filters "Name=instance-id,Values=''' + instanceId + '''" --query "Addresses[0].PublicIp" --output text 2>/dev/null || echo ""
                                 ''',
                                 returnStdout: true
                             ).trim()
                             
+                            // If no EIP, get instance public IP
+                            def publicIp = ""
+                            if (!eipIp || eipIp == "None" || eipIp == "") {
+                                publicIp = sh(
+                                    script: '''
+                                        export AWS_ACCESS_KEY_ID=$(grep aws_access_key_id "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                        export AWS_SECRET_ACCESS_KEY=$(grep aws_secret_access_key "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                        export AWS_SESSION_TOKEN=$(grep aws_session_token "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                        export AWS_DEFAULT_REGION=''' + AWS_REGION + '''
+                                        aws ec2 describe-instances --region ''' + AWS_REGION + ''' --instance-ids ''' + instanceId + ''' --query "Reservations[0].Instances[0].PublicIpAddress" --output text 2>/dev/null || echo ""
+                                    ''',
+                                    returnStdout: true
+                                ).trim()
+                            } else {
+                                publicIp = eipIp
+                                echo "✓ EIP is associated: ${eipIp}"
+                            }
+                            
                             if (publicIp && publicIp != "None" && publicIp != "") {
                                 def verifiedUrl = "http://${publicIp}:8089/SpringMVC"
                                 echo "Terraform output URL: ${appUrl}"
-                                echo "AWS direct IP: ${publicIp}"
+                                echo "AWS verified IP: ${publicIp}"
                                 echo "Verified URL: ${verifiedUrl}"
                                 
                                 // Use the verified URL from AWS (most reliable)
                                 if (appUrl && appUrl.contains(publicIp)) {
                                     echo "✓ URLs match - using Terraform output"
                                 } else {
-                                    echo "⚠ URLs don't match - using AWS direct IP (more reliable)"
+                                    echo "⚠ URLs don't match - using AWS verified IP (EIP or instance IP)"
                                     appUrl = verifiedUrl
                                 }
                             } else {

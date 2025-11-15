@@ -157,7 +157,8 @@ def call() {
                         # Apply only EC2-related resources to avoid conflicts with existing EKS/NAT/RDS resources
                         # Use -target to only apply EC2 instance, EIP (if not imported), and EIP association
                         # IMPORTANT: Exclude DB subnet group and RDS to prevent VPC conflicts
-                        # IMPORTANT: Use single line to avoid shell variable expansion issues
+                        # IMPORTANT: Refresh state after apply to ensure EIP association is captured
+                        echo "Applying EC2 resources (instance, EIP, EIP association)..."
                         terraform apply -auto-approve \
                           -target=aws_eip.app \
                           -target=aws_eip_association.app \
@@ -174,6 +175,10 @@ def call() {
                                 exit 1
                             }
                         }
+                        
+                        # Refresh state after apply to ensure outputs are updated
+                        echo "Refreshing Terraform state to update outputs..."
+                        terraform refresh -input=false 2>&1 || echo "Refresh completed (warnings OK)"
                         
                         echo "======================================"
                         echo "EC2 instance refreshed successfully"
