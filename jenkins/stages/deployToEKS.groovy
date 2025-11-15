@@ -126,8 +126,14 @@ def call() {
                                 export AWS_SESSION_TOKEN=\$(grep aws_session_token "\$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
                                 export AWS_DEFAULT_REGION=us-east-1
                                 
-                                # Get VPC ID
-                                VPC_ID=\$(aws ec2 describe-vpcs --region us-east-1 --filters "Name=tag:Name,Values=achat-app-vpc" --query "Vpcs[0].VpcId" --output text 2>/dev/null || echo "")
+                                # Get VPC ID from Terraform first (most reliable)
+                                VPC_ID=\$(terraform output -raw vpc_id 2>/dev/null || echo "")
+                                # If not in Terraform state, try to find by tag (but prefer Terraform output)
+                                if [ -z "\$VPC_ID" ] || [ "\$VPC_ID" = "" ]; then
+                                    echo "VPC not in Terraform state, searching by tag..." >&2
+                                    # Get the most recent VPC with the tag (in case multiple exist)
+                                    VPC_ID=\$(aws ec2 describe-vpcs --region us-east-1 --filters "Name=tag:Name,Values=achat-app-vpc" --query "Vpcs | sort_by(@, &CidrBlock) | [0].VpcId" --output text 2>/dev/null || echo "")
+                                fi
                                 if [ -z "\$VPC_ID" ] || [ "\$VPC_ID" = "None" ]; then
                                     echo "WARNING: Could not find VPC, skipping RDS security group update"
                                 else
