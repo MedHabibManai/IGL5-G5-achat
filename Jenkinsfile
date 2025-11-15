@@ -42,11 +42,12 @@ pipeline {
     parameters {
         choice(
             name: 'DEPLOYMENT_MODE',
-            choices: ['NORMAL', 'CLEANUP_AND_DEPLOY', 'REUSE_INFRASTRUCTURE'],
+            choices: ['NORMAL', 'CLEANUP_AND_DEPLOY', 'REUSE_INFRASTRUCTURE', 'EKS_ONLY'],
             description: '''Deployment mode:
             - NORMAL: Deploy fresh infrastructure (may fail if VPC limit reached)
             - CLEANUP_AND_DEPLOY: Destroy old resources first, then deploy new ones
-            - REUSE_INFRASTRUCTURE: Keep VPC/RDS, only recreate EC2 instance (fastest for testing)'''
+            - REUSE_INFRASTRUCTURE: Keep VPC/RDS, only recreate EC2 instance (fastest for testing)
+            - EKS_ONLY: Skip all stages except EKS deployment (for testing EKS stage only)'''
         )
     }
     
@@ -121,18 +122,32 @@ pipeline {
         stage('Load Stages') {
             steps {
                 script {
-                    // Load and execute each stage file
-                    stageFiles.each { file ->
-                        try {
-                            if (fileExists(file)) {
-                                def stage = load file
-                                stage.call()
-                            } else {
-                                echo "Skipping stage: ${file} not found."
+                    // If EKS_ONLY mode, only run the EKS deployment stage
+                    if (params.DEPLOYMENT_MODE == 'EKS_ONLY') {
+                        echo '========================================='
+                        echo 'EKS_ONLY Mode: Running only EKS deployment stage'
+                        echo '========================================='
+                        def eksStageFile = 'jenkins/stages/deployToEKS.groovy'
+                        if (fileExists(eksStageFile)) {
+                            def stage = load eksStageFile
+                            stage.call()
+                        } else {
+                            error "EKS stage file not found: ${eksStageFile}"
+                        }
+                    } else {
+                        // Normal mode: Load and execute each stage file
+                        stageFiles.each { file ->
+                            try {
+                                if (fileExists(file)) {
+                                    def stage = load file
+                                    stage.call()
+                                } else {
+                                    echo "Skipping stage: ${file} not found."
+                                }
+                            } catch (Exception e) {
+                                echo "Error loading stage from ${file}: ${e.message}"
+                                throw e
                             }
-                        } catch (Exception e) {
-                            echo "Error loading stage from ${file}: ${e.message}"
-                            throw e
                         }
                     }
                 }
