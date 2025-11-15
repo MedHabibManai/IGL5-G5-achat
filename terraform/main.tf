@@ -219,6 +219,12 @@ resource "aws_db_subnet_group" "main" {
       Name = "${var.project_name}-db-subnet-group"
     }
   )
+
+  # Prevent Terraform from modifying subnet_ids when reusing infrastructure
+  # This allows RDS to stay in its original VPC/subnets
+  lifecycle {
+    ignore_changes = [subnet_ids]
+  }
 }
 
 # RDS MySQL Instance - db.t3.micro (cheapest option, ~$0.017/hour = ~$12.24/month)
