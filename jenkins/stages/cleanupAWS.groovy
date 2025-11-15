@@ -16,6 +16,9 @@ def call() {
             withCredentials([file(credentialsId: "${AWS_CREDENTIAL_ID}", variable: 'AWS_CREDENTIALS_FILE')]) {
                 dir(TERRAFORM_DIR) {
                     sh '''
+                        # Don't exit on errors - continue cleanup even if some steps fail
+                        set +e
+                        
                         echo "Setting up AWS credentials..."
                         mkdir -p ~/.aws
                         cp $AWS_CREDENTIALS_FILE ~/.aws/credentials
@@ -177,6 +180,113 @@ def call() {
                                     echo "    No NAT Gateways found"
                                 fi
                                 
+                                # 2.5. Release Elastic IPs (must be done before detaching IGW)
+                                echo "  2.5. Releasing Elastic IPs..."
+                                EIP_ALLOCATIONS=""
+                                
+                                # Check for EIPs associated with instances in this VPC
+                                INSTANCE_IDS=\$(aws ec2 describe-instances \\
+                                    --region \${AWS_REGION} \\
+                                    --filters "Name=vpc-id,Values=\$vpc_id" \\
+                                    --query "Reservations[].Instances[].InstanceId" \\
+                                    --output text 2>&1 || echo "")
+                                
+                                if [ -n "\$INSTANCE_IDS" ] && [ "\$INSTANCE_IDS" != "None" ] && [ "\$INSTANCE_IDS" != "" ]; then
+                                    for instance_id in \$INSTANCE_IDS; do
+                                        EIP_ALLOC=\$(aws ec2 describe-addresses \\
+                                            --region \${AWS_REGION} \\
+                                            --filters "Name=instance-id,Values=\$instance_id" \\
+                                            --query "Addresses[0].AllocationId" \\
+                                            --output text 2>&1 || echo "")
+                                        if [ -n "\$EIP_ALLOC" ] && [ "\$EIP_ALLOC" != "None" ] && [ "\$EIP_ALLOC" != "" ]; then
+                                            EIP_ASSOC_ID=\$(aws ec2 describe-addresses \\
+                                                --region \${AWS_REGION} \\
+                                                --filters "Name=instance-id,Values=\$instance_id" \\
+                                                --query "Addresses[0].AssociationId" \\
+                                                --output text 2>&1 || echo "")
+                                            if [ -n "\$EIP_ASSOC_ID" ] && [ "\$EIP_ASSOC_ID" != "None" ] && [ "\$EIP_ASSOC_ID" != "" ]; then
+                                                echo "    Found EIP associated with instance \$instance_id: \$EIP_ALLOC"
+                                                # Disassociate first
+                                                aws ec2 disassociate-address \\
+                                                    --region \${AWS_REGION} \\
+                                                    --association-id \$EIP_ASSOC_ID 2>&1 | grep -v "InvalidAssociationID.NotFound" || true
+                                            fi
+                                            EIP_ALLOCATIONS="\$EIP_ALLOCATIONS \$EIP_ALLOC"
+                                        fi
+                                    done
+                                fi
+                                
+                                # Check for unassociated Elastic IPs (might be from terminated instances)
+                                UNAssoc_EIPS=\$(aws ec2 describe-addresses \\
+                                    --region \${AWS_REGION} \\
+                                    --filters "Name=domain,Values=vpc" \\
+                                    --query "Addresses[?AssociationId==null].AllocationId" \\
+                                    --output text 2>&1 || echo "")
+                                
+                                if [ -n "\$UNAssoc_EIPS" ] && [ "\$UNAssoc_EIPS" != "None" ] && [ "\$UNAssoc_EIPS" != "" ]; then
+                                    echo "    Found unassociated Elastic IPs: \$UNAssoc_EIPS"
+                                    EIP_ALLOCATIONS="\$EIP_ALLOCATIONS \$UNAssoc_EIPS"
+                                fi
+                                
+                                # Also check for any EIPs that might be tagged with achat-app
+                                TAGGED_EIPS=\$(aws ec2 describe-addresses \\
+                                    --region \${AWS_REGION} \\
+                                    --filters "Name=tag:Project,Values=achat-app" \\
+                                    --query "Addresses[].AllocationId" \\
+                                    --output text 2>&1 || echo "")
+                                
+                                if [ -z "\$TAGGED_EIPS" ] || [ "\$TAGGED_EIPS" = "None" ]; then
+                                    TAGGED_EIPS=\$(aws ec2 describe-addresses \\
+                                        --region \${AWS_REGION} \\
+                                        --filters "Name=tag:Name,Values=achat-app*" \\
+                                        --query "Addresses[].AllocationId" \\
+                                        --output text 2>&1 || echo "")
+                                fi
+                                
+                                if [ -n "\$TAGGED_EIPS" ] && [ "\$TAGGED_EIPS" != "None" ] && [ "\$TAGGED_EIPS" != "" ]; then
+                                    echo "    Found tagged Elastic IPs: \$TAGGED_EIPS"
+                                    for eip in \$TAGGED_EIPS; do
+                                        # Disassociate if associated
+                                        ASSOC_ID=\$(aws ec2 describe-addresses \\
+                                            --region \${AWS_REGION} \\
+                                            --allocation-ids \$eip \\
+                                            --query "Addresses[0].AssociationId" \\
+                                            --output text 2>&1 || echo "")
+                                        if [ -n "\$ASSOC_ID" ] && [ "\$ASSOC_ID" != "None" ] && [ "\$ASSOC_ID" != "" ]; then
+                                            echo "      Disassociating tagged EIP: \$eip"
+                                            aws ec2 disassociate-address \\
+                                                --region \${AWS_REGION} \\
+                                                --association-id \$ASSOC_ID 2>&1 | grep -v "InvalidAssociationID.NotFound" || true
+                                        fi
+                                        EIP_ALLOCATIONS="\$EIP_ALLOCATIONS \$eip"
+                                    done
+                                fi
+                                
+                                # Release all found Elastic IPs (remove duplicates and empty entries)
+                                if [ -n "\$EIP_ALLOCATIONS" ] && [ "\$EIP_ALLOCATIONS" != "None" ] && [ "\$EIP_ALLOCATIONS" != "" ]; then
+                                    # Remove duplicates and empty entries
+                                    UNIQUE_EIPS=\$(echo \$EIP_ALLOCATIONS | tr ' ' '\\n' | grep -v '^$' | grep -v 'None' | sort -u | tr '\\n' ' ')
+                                    if [ -n "\$UNIQUE_EIPS" ] && [ "\$UNIQUE_EIPS" != "None" ] && [ "\$UNIQUE_EIPS" != "" ]; then
+                                        for eip_alloc in \$UNIQUE_EIPS; do
+                                            if [ -n "\$eip_alloc" ] && [ "\$eip_alloc" != "None" ] && [ "\$eip_alloc" != "" ]; then
+                                                echo "    Releasing Elastic IP: \$eip_alloc"
+                                                RELEASE_OUTPUT=\$(aws ec2 release-address \\
+                                                    --region \${AWS_REGION} \\
+                                                    --allocation-id \$eip_alloc 2>&1)
+                                                if echo "\$RELEASE_OUTPUT" | grep -qi "InvalidAllocationID.NotFound"; then
+                                                    echo "      EIP already released"
+                                                elif echo "\$RELEASE_OUTPUT" | grep -qi "error"; then
+                                                    echo "      WARNING releasing EIP: \$RELEASE_OUTPUT"
+                                                else
+                                                    echo "      Elastic IP released successfully"
+                                                fi
+                                            fi
+                                        done
+                                    fi
+                                else
+                                    echo "    No Elastic IPs found to release"
+                                fi
+                                
                                 # 3. Detach and delete Internet Gateways
                                 echo "  3. Deleting Internet Gateways..."
                                 IGW_IDS=\$(aws ec2 describe-internet-gateways \\
@@ -188,10 +298,39 @@ def call() {
                                     for igw_id in \$IGW_IDS; do
                                         echo "    Detaching IGW: \$igw_id"
                                         DETACH_OUTPUT=\$(aws ec2 detach-internet-gateway --region \${AWS_REGION} --internet-gateway-id \$igw_id --vpc-id \$vpc_id 2>&1)
+                                        if echo "\$DETACH_OUTPUT" | grep -qi "DependencyViolation.*mapped public address"; then
+                                            echo "      ERROR: VPC has mapped public addresses. Attempting to find and release remaining EIPs..."
+                                            # Try to find any remaining EIPs associated with network interfaces in this VPC
+                                            REMAINING_EIPS=\$(aws ec2 describe-network-interfaces \\
+                                                --region \${AWS_REGION} \\
+                                                --filters "Name=vpc-id,Values=\$vpc_id" \\
+                                                --query "NetworkInterfaces[].Association.PublicIp" \\
+                                                --output text 2>&1 | tr '\\t' '\\n' | grep -v '^$' | grep -v 'None' || echo "")
+                                            if [ -n "\$REMAINING_EIPS" ]; then
+                                                echo "        Found EIPs on network interfaces: \$REMAINING_EIPS"
+                                                for eip in \$REMAINING_EIPS; do
+                                                    EIP_ALLOC=\$(aws ec2 describe-addresses \\
+                                                        --region \${AWS_REGION} \\
+                                                        --filters "Name=public-ip,Values=\$eip" \\
+                                                        --query "Addresses[0].AllocationId" \\
+                                                        --output text 2>&1 || echo "")
+                                                    if [ -n "\$EIP_ALLOC" ] && [ "\$EIP_ALLOC" != "None" ]; then
+                                                        echo "        Releasing EIP: \$EIP_ALLOC (public IP: \$eip)"
+                                                        aws ec2 release-address \\
+                                                            --region \${AWS_REGION} \\
+                                                            --allocation-id \$EIP_ALLOC 2>&1 | grep -v "InvalidAllocationID.NotFound" || true
+                                                    fi
+                                                done
+                                                echo "        Retrying IGW detachment after EIP release..."
+                                                sleep 5
+                                                DETACH_OUTPUT=\$(aws ec2 detach-internet-gateway --region \${AWS_REGION} --internet-gateway-id \$igw_id --vpc-id \$vpc_id 2>&1)
+                                            fi
+                                        fi
                                         if echo "\$DETACH_OUTPUT" | grep -qi "error"; then
                                             echo "      WARNING detaching IGW: \$DETACH_OUTPUT"
+                                            echo "      This may prevent VPC deletion, but continuing..."
                                         else
-                                            echo "      IGW detached"
+                                            echo "      IGW detached successfully"
                                         fi
                                         echo "    Deleting IGW: \$igw_id"
                                         DELETE_OUTPUT=\$(aws ec2 delete-internet-gateway --region \${AWS_REGION} --internet-gateway-id \$igw_id 2>&1)

@@ -38,37 +38,86 @@ def call() {
             }
         }
         
-        // Get EKS URLs - check if EKS cluster exists first
-        try {
-            // Check if we're connected to EKS
-            def clusterInfo = sh(
-                script: 'kubectl config current-context 2>/dev/null || echo ""',
-                returnStdout: true
-            ).trim()
-            
-            if (clusterInfo && clusterInfo.contains("eks") || clusterInfo.contains("achat-app-eks")) {
-                withKubeConfig([credentialsId: 'kubeconfig-credentials']) {
-                    def eksBackend = sh(
-                        script: 'kubectl get svc achat-app -n achat-app -o jsonpath="{.status.loadBalancer.ingress[0].hostname}" 2>/dev/null || echo ""',
+        // Get EKS URLs - use AWS credentials to configure kubectl (same as deployToEKS stage)
+        withCredentials([file(credentialsId: "${AWS_CREDENTIAL_ID}", variable: 'AWS_CREDENTIALS_FILE')]) {
+            dir(TERRAFORM_DIR) {
+                try {
+                    // Get EKS cluster name from Terraform
+                    def eksClusterName = sh(
+                        script: '''
+                            # Parse and export AWS credentials
+                            export AWS_ACCESS_KEY_ID=$(grep aws_access_key_id "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                            export AWS_SECRET_ACCESS_KEY=$(grep aws_secret_access_key "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                            export AWS_SESSION_TOKEN=$(grep aws_session_token "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                            export AWS_DEFAULT_REGION=us-east-1
+                            
+                            # Try to get from Terraform output first
+                            CLUSTER_NAME=$(terraform output -raw eks_cluster_name 2>/dev/null || echo "")
+                            
+                            # If not in Terraform state, use default name
+                            if [ -z "$CLUSTER_NAME" ] || [ "$CLUSTER_NAME" = "" ]; then
+                                CLUSTER_NAME="achat-app-eks-cluster"
+                            fi
+                            
+                            echo "$CLUSTER_NAME"
+                        ''',
                         returnStdout: true
                     ).trim()
                     
-                    if (eksBackend && eksBackend != "" && eksBackend != "null" && eksBackend != "<none>") {
-                        eksBackendUrl = "http://${eksBackend}/SpringMVC"
+                    if (eksClusterName && eksClusterName != "") {
+                        // Configure kubectl with AWS credentials
+                        sh """
+                            # Parse and export AWS credentials
+                            export AWS_ACCESS_KEY_ID=\$(grep aws_access_key_id "\$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                            export AWS_SECRET_ACCESS_KEY=\$(grep aws_secret_access_key "\$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                            export AWS_SESSION_TOKEN=\$(grep aws_session_token "\$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                            export AWS_DEFAULT_REGION=us-east-1
+                            
+                            # Update kubeconfig
+                            aws eks update-kubeconfig \\
+                                --region ${AWS_REGION} \\
+                                --name ${eksClusterName} 2>/dev/null || true
+                        """
+                        
+                        // Get EKS service URLs
+                        def eksBackend = sh(
+                            script: '''
+                                # Parse and export AWS credentials (needed for kubectl to work)
+                                export AWS_ACCESS_KEY_ID=$(grep aws_access_key_id "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                export AWS_SECRET_ACCESS_KEY=$(grep aws_secret_access_key "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                export AWS_SESSION_TOKEN=$(grep aws_session_token "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                export AWS_DEFAULT_REGION=us-east-1
+                                
+                                kubectl get svc achat-app -n achat-app -o jsonpath="{.status.loadBalancer.ingress[0].hostname}" 2>/dev/null || echo ""
+                            ''',
+                            returnStdout: true
+                        ).trim()
+                        
+                        if (eksBackend && eksBackend != "" && eksBackend != "null" && eksBackend != "<none>") {
+                            eksBackendUrl = "http://${eksBackend}/SpringMVC"
+                        }
+                        
+                        def eksFrontend = sh(
+                            script: '''
+                                # Parse and export AWS credentials (needed for kubectl to work)
+                                export AWS_ACCESS_KEY_ID=$(grep aws_access_key_id "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                export AWS_SECRET_ACCESS_KEY=$(grep aws_secret_access_key "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                export AWS_SESSION_TOKEN=$(grep aws_session_token "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                export AWS_DEFAULT_REGION=us-east-1
+                                
+                                kubectl get svc achat-frontend -n achat-app -o jsonpath="{.status.loadBalancer.ingress[0].hostname}" 2>/dev/null || echo ""
+                            ''',
+                            returnStdout: true
+                        ).trim()
+                        
+                        if (eksFrontend && eksFrontend != "" && eksFrontend != "null" && eksFrontend != "<none>") {
+                            eksFrontendUrl = "http://${eksFrontend}"
+                        }
                     }
-                    
-                    def eksFrontend = sh(
-                        script: 'kubectl get svc achat-frontend -n achat-app -o jsonpath="{.status.loadBalancer.ingress[0].hostname}" 2>/dev/null || echo ""',
-                        returnStdout: true
-                    ).trim()
-                    
-                    if (eksFrontend && eksFrontend != "" && eksFrontend != "null" && eksFrontend != "<none>") {
-                        eksFrontendUrl = "http://${eksFrontend}"
-                    }
+                } catch (Exception e) {
+                    echo "Could not get EKS URLs: ${e.message}"
                 }
             }
-        } catch (Exception e) {
-            echo "Could not get EKS URLs: ${e.message}"
         }
         
         
