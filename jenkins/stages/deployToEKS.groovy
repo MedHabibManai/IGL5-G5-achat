@@ -405,14 +405,24 @@ def call() {
                                 
                                 # Get Load Balancer URLs
                                 echo ""
-                                echo "=== Frontend LoadBalancer URL ==="
+                                echo "=== EKS Frontend LoadBalancer URL ==="
                                 FRONTEND_URL=\$(kubectl get svc achat-frontend -n achat-app -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "Pending...")
-                                echo "Frontend will be accessible at: http://\${FRONTEND_URL}"
+                                if [ "\$FRONTEND_URL" != "Pending..." ] && [ -n "\$FRONTEND_URL" ]; then
+                                    echo "✅ Frontend: http://\${FRONTEND_URL}"
+                                else
+                                    echo "⏳ Frontend LoadBalancer is pending (may take 2-5 minutes)"
+                                fi
                                 
                                 echo ""
-                                echo "=== Backend LoadBalancer URL ==="
+                                echo "=== EKS Backend LoadBalancer URL ==="
                                 BACKEND_URL=\$(kubectl get svc achat-app -n achat-app -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "Pending...")
-                                echo "Backend will be accessible at: http://\${BACKEND_URL}/SpringMVC"
+                                if [ "\$BACKEND_URL" != "Pending..." ] && [ -n "\$BACKEND_URL" ]; then
+                                    echo "✅ Backend API: http://\${BACKEND_URL}/SpringMVC"
+                                    echo "✅ Swagger UI: http://\${BACKEND_URL}/SpringMVC/swagger-ui/index.html"
+                                    echo "✅ Health Check: http://\${BACKEND_URL}/SpringMVC/actuator/health"
+                                else
+                                    echo "⏳ Backend LoadBalancer is pending (may take 2-5 minutes)"
+                                fi
                             """
                             
                             echo 'Application deployed to EKS successfully!'
