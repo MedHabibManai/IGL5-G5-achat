@@ -139,12 +139,19 @@ def call() {
                                     --region \${AWS_REGION} \\
                                     --filters "Name=vpc-id,Values=\$vpc_id" "Name=instance-state-name,Values=running,stopped,stopping" \\
                                     --query "Reservations[].Instances[].InstanceId" \\
-                                    --output text 2>/dev/null || echo "")
-                                if [ -n "\$INSTANCE_IDS" ] && [ "\$INSTANCE_IDS" != "None" ]; then
+                                    --output text 2>&1 || echo "")
+                                if [ -n "\$INSTANCE_IDS" ] && [ "\$INSTANCE_IDS" != "None" ] && [ "\$INSTANCE_IDS" != "" ]; then
                                     echo "    Found instances: \$INSTANCE_IDS"
-                                    aws ec2 terminate-instances --region \${AWS_REGION} --instance-ids \$INSTANCE_IDS 2>/dev/null || true
+                                    DELETE_OUTPUT=\$(aws ec2 terminate-instances --region \${AWS_REGION} --instance-ids \$INSTANCE_IDS 2>&1)
+                                    if echo "\$DELETE_OUTPUT" | grep -qi "error"; then
+                                        echo "    ERROR terminating instances: \$DELETE_OUTPUT"
+                                    else
+                                        echo "    Instances termination initiated"
+                                    fi
                                     echo "    Waiting for instances to terminate..."
-                                    aws ec2 wait instance-terminated --region \${AWS_REGION} --instance-ids \$INSTANCE_IDS 2>/dev/null || sleep 30
+                                    aws ec2 wait instance-terminated --region \${AWS_REGION} --instance-ids \$INSTANCE_IDS 2>&1 || sleep 30
+                                else
+                                    echo "    No instances found in this VPC"
                                 fi
                                 
                                 # 2. Delete NAT Gateways
@@ -153,14 +160,21 @@ def call() {
                                     --region \${AWS_REGION} \\
                                     --filter "Name=vpc-id,Values=\$vpc_id" "Name=state,Values=available,pending" \\
                                     --query "NatGateways[].NatGatewayId" \\
-                                    --output text 2>/dev/null || echo "")
-                                if [ -n "\$NAT_GW_IDS" ] && [ "\$NAT_GW_IDS" != "None" ]; then
+                                    --output text 2>&1 || echo "")
+                                if [ -n "\$NAT_GW_IDS" ] && [ "\$NAT_GW_IDS" != "None" ] && [ "\$NAT_GW_IDS" != "" ]; then
                                     for nat_id in \$NAT_GW_IDS; do
                                         echo "    Deleting NAT Gateway: \$nat_id"
-                                        aws ec2 delete-nat-gateway --region \${AWS_REGION} --nat-gateway-id \$nat_id 2>/dev/null || true
+                                        DELETE_OUTPUT=\$(aws ec2 delete-nat-gateway --region \${AWS_REGION} --nat-gateway-id \$nat_id 2>&1)
+                                        if echo "\$DELETE_OUTPUT" | grep -qi "error"; then
+                                            echo "      ERROR: \$DELETE_OUTPUT"
+                                        else
+                                            echo "      NAT Gateway deletion initiated"
+                                        fi
                                     done
-                                    echo "    Waiting for NAT Gateways to delete..."
+                                    echo "    Waiting for NAT Gateways to delete (60 seconds)..."
                                     sleep 60
+                                else
+                                    echo "    No NAT Gateways found"
                                 fi
                                 
                                 # 3. Detach and delete Internet Gateways
@@ -169,13 +183,26 @@ def call() {
                                     --region \${AWS_REGION} \\
                                     --filters "Name=attachment.vpc-id,Values=\$vpc_id" \\
                                     --query "InternetGateways[].InternetGatewayId" \\
-                                    --output text 2>/dev/null || echo "")
-                                if [ -n "\$IGW_IDS" ] && [ "\$IGW_IDS" != "None" ]; then
+                                    --output text 2>&1 || echo "")
+                                if [ -n "\$IGW_IDS" ] && [ "\$IGW_IDS" != "None" ] && [ "\$IGW_IDS" != "" ]; then
                                     for igw_id in \$IGW_IDS; do
-                                        echo "    Detaching and deleting IGW: \$igw_id"
-                                        aws ec2 detach-internet-gateway --region \${AWS_REGION} --internet-gateway-id \$igw_id --vpc-id \$vpc_id 2>/dev/null || true
-                                        aws ec2 delete-internet-gateway --region \${AWS_REGION} --internet-gateway-id \$igw_id 2>/dev/null || true
+                                        echo "    Detaching IGW: \$igw_id"
+                                        DETACH_OUTPUT=\$(aws ec2 detach-internet-gateway --region \${AWS_REGION} --internet-gateway-id \$igw_id --vpc-id \$vpc_id 2>&1)
+                                        if echo "\$DETACH_OUTPUT" | grep -qi "error"; then
+                                            echo "      WARNING detaching IGW: \$DETACH_OUTPUT"
+                                        else
+                                            echo "      IGW detached"
+                                        fi
+                                        echo "    Deleting IGW: \$igw_id"
+                                        DELETE_OUTPUT=\$(aws ec2 delete-internet-gateway --region \${AWS_REGION} --internet-gateway-id \$igw_id 2>&1)
+                                        if echo "\$DELETE_OUTPUT" | grep -qi "error"; then
+                                            echo "      ERROR deleting IGW: \$DELETE_OUTPUT"
+                                        else
+                                            echo "      IGW deleted"
+                                        fi
                                     done
+                                else
+                                    echo "    No Internet Gateways found"
                                 fi
                                 
                                 # 4. Delete Subnets
@@ -184,12 +211,19 @@ def call() {
                                     --region \${AWS_REGION} \\
                                     --filters "Name=vpc-id,Values=\$vpc_id" \\
                                     --query "Subnets[].SubnetId" \\
-                                    --output text 2>/dev/null || echo "")
-                                if [ -n "\$SUBNET_IDS" ] && [ "\$SUBNET_IDS" != "None" ]; then
+                                    --output text 2>&1 || echo "")
+                                if [ -n "\$SUBNET_IDS" ] && [ "\$SUBNET_IDS" != "None" ] && [ "\$SUBNET_IDS" != "" ]; then
                                     for subnet_id in \$SUBNET_IDS; do
                                         echo "    Deleting subnet: \$subnet_id"
-                                        aws ec2 delete-subnet --region \${AWS_REGION} --subnet-id \$subnet_id 2>/dev/null || true
+                                        DELETE_OUTPUT=\$(aws ec2 delete-subnet --region \${AWS_REGION} --subnet-id \$subnet_id 2>&1)
+                                        if echo "\$DELETE_OUTPUT" | grep -qi "error"; then
+                                            echo "      ERROR: \$DELETE_OUTPUT"
+                                        else
+                                            echo "      Subnet deleted"
+                                        fi
                                     done
+                                else
+                                    echo "    No subnets found"
                                 fi
                                 
                                 # 5. Delete Route Tables (except main)
@@ -198,12 +232,19 @@ def call() {
                                     --region \${AWS_REGION} \\
                                     --filters "Name=vpc-id,Values=\$vpc_id" \\
                                     --query 'RouteTables[?Associations[0].Main!=`true`].RouteTableId' \\
-                                    --output text 2>/dev/null || echo "")
-                                if [ -n "\$RTB_IDS" ] && [ "\$RTB_IDS" != "None" ]; then
+                                    --output text 2>&1 || echo "")
+                                if [ -n "\$RTB_IDS" ] && [ "\$RTB_IDS" != "None" ] && [ "\$RTB_IDS" != "" ]; then
                                     for rtb_id in \$RTB_IDS; do
                                         echo "    Deleting route table: \$rtb_id"
-                                        aws ec2 delete-route-table --region \${AWS_REGION} --route-table-id \$rtb_id 2>/dev/null || true
+                                        DELETE_OUTPUT=\$(aws ec2 delete-route-table --region \${AWS_REGION} --route-table-id \$rtb_id 2>&1)
+                                        if echo "\$DELETE_OUTPUT" | grep -qi "error"; then
+                                            echo "      ERROR: \$DELETE_OUTPUT"
+                                        else
+                                            echo "      Route table deleted"
+                                        fi
                                     done
+                                else
+                                    echo "    No custom route tables found"
                                 fi
                                 
                                 # 6. Delete Security Groups (except default)
@@ -212,20 +253,29 @@ def call() {
                                     --region \${AWS_REGION} \\
                                     --filters "Name=vpc-id,Values=\$vpc_id" \\
                                     --query 'SecurityGroups[?GroupName!=`default`].GroupId' \\
-                                    --output text 2>/dev/null || echo "")
-                                if [ -n "\$SG_IDS" ] && [ "\$SG_IDS" != "None" ]; then
+                                    --output text 2>&1 || echo "")
+                                if [ -n "\$SG_IDS" ] && [ "\$SG_IDS" != "None" ] && [ "\$SG_IDS" != "" ]; then
                                     for sg_id in \$SG_IDS; do
                                         echo "    Deleting security group: \$sg_id"
-                                        aws ec2 delete-security-group --region \${AWS_REGION} --group-id \$sg_id 2>/dev/null || true
+                                        DELETE_OUTPUT=\$(aws ec2 delete-security-group --region \${AWS_REGION} --group-id \$sg_id 2>&1)
+                                        if echo "\$DELETE_OUTPUT" | grep -qi "error"; then
+                                            echo "      ERROR: \$DELETE_OUTPUT"
+                                        else
+                                            echo "      Security group deleted"
+                                        fi
                                     done
+                                else
+                                    echo "    No custom security groups found"
                                 fi
                                 
                                 # 7. Delete the VPC
                                 echo "  7. Deleting VPC: \$vpc_id"
-                                if aws ec2 delete-vpc --region \${AWS_REGION} --vpc-id \$vpc_id 2>/dev/null; then
-                                    echo "    VPC \$vpc_id deleted successfully"
+                                DELETE_OUTPUT=\$(aws ec2 delete-vpc --region \${AWS_REGION} --vpc-id \$vpc_id 2>&1)
+                                if echo "\$DELETE_OUTPUT" | grep -qi "error"; then
+                                    echo "    ERROR deleting VPC: \$DELETE_OUTPUT"
+                                    echo "    VPC may still have dependencies. Check AWS console."
                                 else
-                                    echo "    Failed to delete VPC \$vpc_id (may have dependencies)"
+                                    echo "    VPC \$vpc_id deleted successfully"
                                 fi
                                 
                                 echo "=========================================="
