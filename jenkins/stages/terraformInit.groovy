@@ -49,7 +49,15 @@ def call() {
                             else
                                 if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
                                     # Exponential backoff: 15s, 30s, 60s, 120s, 180s, 240s
-                                    WAIT_TIME=$((15 * (2 ** (RETRY_COUNT - 1))))
+                                    # Calculate 2^(RETRY_COUNT-1) using simple multiplication
+                                    EXPONENT=$((RETRY_COUNT - 1))
+                                    POWER_OF_2=1
+                                    i=0
+                                    while [ $i -lt $EXPONENT ]; do
+                                        POWER_OF_2=$((POWER_OF_2 * 2))
+                                        i=$((i + 1))
+                                    done
+                                    WAIT_TIME=$((15 * POWER_OF_2))
                                     if [ $WAIT_TIME -gt 240 ]; then
                                         WAIT_TIME=240
                                     fi
