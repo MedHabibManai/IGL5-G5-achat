@@ -403,26 +403,25 @@ def call() {
                                 echo "=== EKS Services ==="
                                 kubectl_retry kubectl get svc -n achat-app
                                 
-                                # Get Load Balancer URLs
+                                # Get Load Balancer URLs (brief output - full summary at end)
                                 echo ""
-                                echo "=== EKS Frontend LoadBalancer URL ==="
-                                FRONTEND_URL=\$(kubectl get svc achat-frontend -n achat-app -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "Pending...")
-                                if [ "\$FRONTEND_URL" != "Pending..." ] && [ -n "\$FRONTEND_URL" ]; then
-                                    echo "✅ Frontend: http://\${FRONTEND_URL}"
+                                echo "=== EKS LoadBalancer URLs ==="
+                                FRONTEND_URL=\$(kubectl get svc achat-frontend -n achat-app -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
+                                BACKEND_URL=\$(kubectl get svc achat-app -n achat-app -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
+                                
+                                if [ -n "\$BACKEND_URL" ]; then
+                                    echo "Backend LoadBalancer ready"
                                 else
-                                    echo "⏳ Frontend LoadBalancer is pending (may take 2-5 minutes)"
+                                    echo "Backend LoadBalancer pending (see final summary for URLs)"
                                 fi
                                 
-                                echo ""
-                                echo "=== EKS Backend LoadBalancer URL ==="
-                                BACKEND_URL=\$(kubectl get svc achat-app -n achat-app -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "Pending...")
-                                if [ "\$BACKEND_URL" != "Pending..." ] && [ -n "\$BACKEND_URL" ]; then
-                                    echo "✅ Backend API: http://\${BACKEND_URL}/SpringMVC"
-                                    echo "✅ Swagger UI: http://\${BACKEND_URL}/SpringMVC/swagger-ui/index.html"
-                                    echo "✅ Health Check: http://\${BACKEND_URL}/SpringMVC/actuator/health"
+                                if [ -n "\$FRONTEND_URL" ]; then
+                                    echo "Frontend LoadBalancer ready"
                                 else
-                                    echo "⏳ Backend LoadBalancer is pending (may take 2-5 minutes)"
+                                    echo "Frontend LoadBalancer pending (see final summary for URLs)"
                                 fi
+                                
+                                echo "(Full URLs will be shown in Final Deployment Summary stage)"
                             """
                             
                             echo 'Application deployed to EKS successfully!'

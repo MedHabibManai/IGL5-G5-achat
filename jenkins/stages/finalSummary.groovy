@@ -40,25 +40,33 @@ def call() {
             }
         }
         
-        // Get EKS URLs
+        // Get EKS URLs - check if EKS cluster exists first
         try {
-            withKubeConfig([credentialsId: 'kubeconfig-credentials']) {
-                def eksBackend = sh(
-                    script: 'kubectl get svc achat-app -n achat-app -o jsonpath="{.status.loadBalancer.ingress[0].hostname}" 2>/dev/null || echo ""',
-                    returnStdout: true
-                ).trim()
-                
-                if (eksBackend && eksBackend != "" && eksBackend != "null") {
-                    eksBackendUrl = "http://${eksBackend}/SpringMVC"
-                }
-                
-                def eksFrontend = sh(
-                    script: 'kubectl get svc achat-frontend -n achat-app -o jsonpath="{.status.loadBalancer.ingress[0].hostname}" 2>/dev/null || echo ""',
-                    returnStdout: true
-                ).trim()
-                
-                if (eksFrontend && eksFrontend != "" && eksFrontend != "null") {
-                    eksFrontendUrl = "http://${eksFrontend}"
+            // Check if we're connected to EKS (not local K8s)
+            def clusterInfo = sh(
+                script: 'kubectl config current-context 2>/dev/null || echo ""',
+                returnStdout: true
+            ).trim()
+            
+            if (clusterInfo && clusterInfo.contains("eks") || clusterInfo.contains("achat-app-eks")) {
+                withKubeConfig([credentialsId: 'kubeconfig-credentials']) {
+                    def eksBackend = sh(
+                        script: 'kubectl get svc achat-app -n achat-app -o jsonpath="{.status.loadBalancer.ingress[0].hostname}" 2>/dev/null || echo ""',
+                        returnStdout: true
+                    ).trim()
+                    
+                    if (eksBackend && eksBackend != "" && eksBackend != "null" && eksBackend != "<none>") {
+                        eksBackendUrl = "http://${eksBackend}/SpringMVC"
+                    }
+                    
+                    def eksFrontend = sh(
+                        script: 'kubectl get svc achat-frontend -n achat-app -o jsonpath="{.status.loadBalancer.ingress[0].hostname}" 2>/dev/null || echo ""',
+                        returnStdout: true
+                    ).trim()
+                    
+                    if (eksFrontend && eksFrontend != "" && eksFrontend != "null" && eksFrontend != "<none>") {
+                        eksFrontendUrl = "http://${eksFrontend}"
+                    }
                 }
             }
         } catch (Exception e) {
@@ -81,19 +89,23 @@ def call() {
         echo '📍 AWS EC2 BACKEND (Production)'
         echo '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
         if (awsBackendUrl && awsBackendUrl != "") {
-            echo "✅ Main Application:"
-            echo "   ${awsBackendUrl}"
-            echo ""
+            echo "✅ Swagger UI (API Documentation):"
             if (awsSwaggerUrl && awsSwaggerUrl != "") {
-                echo "✅ Swagger UI:"
                 echo "   ${awsSwaggerUrl}"
-                echo ""
+            } else {
+                echo "   ${awsBackendUrl}/swagger-ui/index.html"
             }
+            echo ""
             if (awsHealthUrl && awsHealthUrl != "") {
                 echo "✅ Health Check:"
                 echo "   ${awsHealthUrl}"
                 echo ""
             }
+            echo "ℹ️  API Endpoints (use Swagger UI above to see all endpoints):"
+            echo "   ${awsBackendUrl}/produit/retrieve-all-produits"
+            echo "   ${awsBackendUrl}/stock/retrieve-all-stocks"
+            echo "   (Note: /SpringMVC alone shows 404 - this is normal, use specific endpoints)"
+            echo ""
         } else {
             echo "⚠️  AWS EC2 backend not deployed or not available"
             echo ""
@@ -104,14 +116,16 @@ def call() {
         echo '📍 EKS BACKEND (Kubernetes on AWS)'
         echo '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
         if (eksBackendUrl && eksBackendUrl != "") {
-            echo "✅ Backend API:"
-            echo "   ${eksBackendUrl}"
-            echo ""
-            echo "✅ Swagger UI:"
+            echo "✅ Swagger UI (API Documentation):"
             echo "   ${eksBackendUrl}/swagger-ui/index.html"
             echo ""
             echo "✅ Health Check:"
             echo "   ${eksBackendUrl}/actuator/health"
+            echo ""
+            echo "ℹ️  API Endpoints (use Swagger UI above to see all endpoints):"
+            echo "   ${eksBackendUrl}/produit/retrieve-all-produits"
+            echo "   ${eksBackendUrl}/stock/retrieve-all-stocks"
+            echo "   (Note: /SpringMVC alone shows 404 - this is normal, use specific endpoints)"
             echo ""
         } else {
             echo "⚠️  EKS backend not deployed or LoadBalancer pending"
@@ -137,11 +151,18 @@ def call() {
         echo '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
         echo '📍 LOCAL KUBERNETES (Docker Desktop)'
         echo '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
-        echo "✅ Backend API:"
-        echo "   ${localK8sBackendUrl}"
+        echo "ℹ️  Local K8s uses Ingress (requires ingress controller)"
         echo ""
-        echo "✅ Frontend Application:"
-        echo "   ${localK8sFrontendUrl}"
+        echo "If ingress controller is installed:"
+        echo "   Backend: ${localK8sBackendUrl}"
+        echo "   Frontend: ${localK8sFrontendUrl}"
+        echo ""
+        echo "To check ingress status:"
+        echo "   kubectl get ingress -n achat-app"
+        echo "   kubectl get svc -n achat-app"
+        echo ""
+        echo "Note: If using LoadBalancer type, it may not work on Docker Desktop."
+        echo "      Consider using NodePort or install an ingress controller."
         echo ""
         
         // Quick Test Commands
