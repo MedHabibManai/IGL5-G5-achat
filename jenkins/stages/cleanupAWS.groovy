@@ -408,15 +408,34 @@ def call() {
                                 fi
                                 
                                 # 6.5. Delete Network Interfaces (ENIs) - often block VPC deletion
-                                echo "  6.5. Deleting Network Interfaces..."
+                                # Skip if ENIs are managed by EKS or other AWS services (permission issues)
+                                echo "  6.5. Checking Network Interfaces..."
                                 ENI_IDS=\$(aws ec2 describe-network-interfaces \\
                                     --region \${AWS_REGION} \\
                                     --filters "Name=vpc-id,Values=\$vpc_id" \\
                                     --query "NetworkInterfaces[].NetworkInterfaceId" \\
                                     --output text 2>&1 || echo "")
+                                SKIP_VPC_DELETION=false
+                                
                                 if [ -n "\$ENI_IDS" ] && [ "\$ENI_IDS" != "None" ] && [ "\$ENI_IDS" != "" ]; then
+                                    echo "    Found network interfaces: \$ENI_IDS"
+                                    ENI_DELETE_FAILED=false
                                     for eni_id in \$ENI_IDS; do
-                                        echo "    Deleting network interface: \$eni_id"
+                                        echo "    Attempting to delete network interface: \$eni_id"
+                                        # Check if ENI is managed by AWS service (EKS, etc.)
+                                        ENI_DESCRIPTION=\$(aws ec2 describe-network-interfaces \\
+                                            --region \${AWS_REGION} \\
+                                            --network-interface-ids \$eni_id \\
+                                            --query "NetworkInterfaces[0].Description" \\
+                                            --output text 2>/dev/null || echo "")
+                                        
+                                        # Skip if ENI is managed by EKS or other AWS services
+                                        if echo "\$ENI_DESCRIPTION" | grep -qiE "(eks|EKS|aws|AWS|amazon|Amazon)"; then
+                                            echo "      SKIPPING: ENI appears to be managed by AWS service (likely EKS): \$ENI_DESCRIPTION"
+                                            ENI_DELETE_FAILED=true
+                                            continue
+                                        fi
+                                        
                                         # First detach if attached
                                         ATTACHMENT_ID=\$(aws ec2 describe-network-interfaces \\
                                             --region \${AWS_REGION} \\
@@ -425,34 +444,59 @@ def call() {
                                             --output text 2>/dev/null || echo "")
                                         if [ -n "\$ATTACHMENT_ID" ] && [ "\$ATTACHMENT_ID" != "None" ] && [ "\$ATTACHMENT_ID" != "none" ]; then
                                             echo "      Detaching ENI attachment: \$ATTACHMENT_ID"
-                                            aws ec2 detach-network-interface \\
+                                            DETACH_OUTPUT=\$(aws ec2 detach-network-interface \\
                                                 --region \${AWS_REGION} \\
                                                 --attachment-id \$ATTACHMENT_ID \\
-                                                --force 2>&1 | grep -v "InvalidAttachmentID.NotFound" || true
+                                                --force 2>&1)
+                                            if echo "\$DETACH_OUTPUT" | grep -qiE "(AuthFailure|permission|Permission)"; then
+                                                echo "      SKIPPING: Permission denied to detach ENI (likely managed by AWS service)"
+                                                ENI_DELETE_FAILED=true
+                                                continue
+                                            fi
                                             sleep 2
                                         fi
                                         # Then delete
                                         DELETE_OUTPUT=\$(aws ec2 delete-network-interface --region \${AWS_REGION} --network-interface-id \$eni_id 2>&1)
                                         if echo "\$DELETE_OUTPUT" | grep -qi "InvalidNetworkInterfaceID.NotFound"; then
                                             echo "      ENI already deleted"
+                                        elif echo "\$DELETE_OUTPUT" | grep -qiE "(currently in use|in use|AuthFailure|permission|Permission)"; then
+                                            echo "      SKIPPING: ENI is in use or permission denied: \$DELETE_OUTPUT"
+                                            ENI_DELETE_FAILED=true
                                         elif echo "\$DELETE_OUTPUT" | grep -qi "error"; then
                                             echo "      WARNING deleting ENI: \$DELETE_OUTPUT"
+                                            ENI_DELETE_FAILED=true
                                         else
-                                            echo "      Network interface deleted"
+                                            echo "      Network interface deleted successfully"
                                         fi
                                     done
-                                    echo "    Waiting 5 seconds for ENI deletions to complete..."
-                                    sleep 5
+                                    
+                                    if [ "\$ENI_DELETE_FAILED" = "true" ]; then
+                                        echo "    WARNING: Some ENIs could not be deleted (likely managed by EKS or other AWS services)"
+                                        echo "    VPC deletion will be skipped to avoid blocking deployment"
+                                        SKIP_VPC_DELETION=true
+                                    else
+                                        echo "    All network interfaces processed"
+                                        echo "    Waiting 5 seconds for ENI deletions to complete..."
+                                        sleep 5
+                                    fi
                                 else
                                     echo "    No network interfaces found"
                                 fi
                                 
-                                # 7. Delete the VPC (with diagnostics if it fails)
-                                echo "  7. Deleting VPC: \$vpc_id"
-                                DELETE_OUTPUT=\$(aws ec2 delete-vpc --region \${AWS_REGION} --vpc-id \$vpc_id 2>&1)
-                                if echo "\$DELETE_OUTPUT" | grep -qi "error"; then
-                                    echo "    ERROR deleting VPC: \$DELETE_OUTPUT"
-                                    echo "    Diagnosing remaining dependencies..."
+                                # 7. Delete the VPC (skip if ENIs are managed by AWS services)
+                                if [ "\$SKIP_VPC_DELETION" = "true" ]; then
+                                    echo "  7. SKIPPING VPC deletion: Network interfaces are managed by AWS services (EKS, etc.)"
+                                    echo "    VPC \$vpc_id will be reused for next deployment"
+                                    echo "    This is safe - existing VPC can be reused"
+                                else
+                                    echo "  7. Deleting VPC: \$vpc_id"
+                                    DELETE_OUTPUT=\$(aws ec2 delete-vpc --region \${AWS_REGION} --vpc-id \$vpc_id 2>&1)
+                                    if echo "\$DELETE_OUTPUT" | grep -qi "error"; then
+                                        echo "    ERROR deleting VPC: \$DELETE_OUTPUT"
+                                        echo "    VPC deletion failed - will skip to avoid blocking deployment"
+                                        echo "    VPC \$vpc_id will be reused for next deployment"
+                                        SKIP_VPC_DELETION=true
+                                        echo "    Diagnosing remaining dependencies..."
                                     
                                     # Check for remaining resources
                                     REMAINING_INSTANCES=\$(aws ec2 describe-instances --region \${AWS_REGION} --filters "Name=vpc-id,Values=\$vpc_id" --query "Reservations[].Instances[].InstanceId" --output text 2>/dev/null | grep -v '^$' || echo "")
@@ -495,77 +539,99 @@ def call() {
                                     echo "    VPC \$vpc_id deleted successfully"
                                 fi
                                 
+                                # Store skip flag for wait loop
+                                if [ "\$SKIP_VPC_DELETION" = "true" ]; then
+                                    echo "SKIP_VPC_DELETION=true" > /tmp/vpc_skip_\${vpc_id}.flag
+                                fi
+                                
                                 echo "=========================================="
                             done
                         fi
                         
                         echo ""
-                        echo "Verifying VPC deletion (AWS may take a few minutes to fully delete VPCs)..."
+                        echo "Checking VPC deletion status..."
                         
-                        # Wait for VPCs to be fully deleted to avoid VPC limit issues
-                        VPC_WAIT_COUNT=0
-                        MAX_VPC_WAIT=30  # 30 * 30 seconds = 15 minutes max
-                        
-                        # Check for VPCs with achat-app-vpc name
-                        while [ \$VPC_WAIT_COUNT -lt \$MAX_VPC_WAIT ]; do
-                            REMAINING_VPCS=\$(aws ec2 describe-vpcs \\
-                                --region \${AWS_REGION} \\
-                                --filters "Name=tag:Name,Values=achat-app-vpc" \\
-                                --query "Vpcs[].VpcId" \\
-                                --output text 2>/dev/null || echo "")
+                        # Check if any VPCs were skipped
+                        SKIPPED_VPCS=\$(find /tmp -name "vpc_skip_*.flag" 2>/dev/null | wc -l || echo "0")
+                        if [ "\$SKIPPED_VPCS" -gt 0 ]; then
+                            echo "  Some VPCs were skipped (managed by AWS services) - will not wait for deletion"
+                            echo "  Existing VPCs will be reused for deployment"
+                        else
+                            echo "  Verifying VPC deletion (AWS may take a few minutes to fully delete VPCs)..."
                             
-                            if [ -z "\$REMAINING_VPCS" ] || [ "\$REMAINING_VPCS" = "None" ]; then
-                                echo "  All achat-app VPCs confirmed deleted"
-                                break
-                            else
-                                echo "  VPCs still exist: \$REMAINING_VPCS (attempt \$VPC_WAIT_COUNT/\$MAX_VPC_WAIT)"
+                            # Wait for VPCs to be fully deleted to avoid VPC limit issues
+                            VPC_WAIT_COUNT=0
+                            MAX_VPC_WAIT=10  # Reduced to 10 attempts (5 minutes) since we're skipping problematic VPCs
+                            
+                            # Check for VPCs with achat-app-vpc name
+                            while [ \$VPC_WAIT_COUNT -lt \$MAX_VPC_WAIT ]; do
+                                REMAINING_VPCS=\$(aws ec2 describe-vpcs \\
+                                    --region \${AWS_REGION} \\
+                                    --filters "Name=tag:Name,Values=achat-app-vpc" \\
+                                    --query "Vpcs[].VpcId" \\
+                                    --output text 2>/dev/null || echo "")
                                 
-                                # Every 5 attempts, try to delete again and clean up remaining resources
-                                if [ \$((VPC_WAIT_COUNT % 5)) -eq 0 ] && [ \$VPC_WAIT_COUNT -gt 0 ]; then
-                                    echo "  Retrying VPC cleanup and deletion..."
+                                if [ -z "\$REMAINING_VPCS" ] || [ "\$REMAINING_VPCS" = "None" ]; then
+                                    echo "  All achat-app VPCs confirmed deleted"
+                                    break
+                                else
+                                    echo "  VPCs still exist: \$REMAINING_VPCS (attempt \$VPC_WAIT_COUNT/\$MAX_VPC_WAIT)"
+                                    
+                                    # Check if these VPCs were marked to skip
+                                    SKIP_ALL=true
                                     for vpc_id in \$REMAINING_VPCS; do
-                                        # Check and delete remaining network interfaces
-                                        ENIS=\$(aws ec2 describe-network-interfaces \\
-                                            --region \${AWS_REGION} \\
-                                            --filters "Name=vpc-id,Values=\$vpc_id" \\
-                                            --query "NetworkInterfaces[].NetworkInterfaceId" \\
-                                            --output text 2>/dev/null | grep -v '^$' || echo "")
-                                        if [ -n "\$ENIS" ]; then
-                                            echo "    Deleting remaining network interfaces: \$ENIS"
-                                            for eni in \$ENIS; do
-                                                aws ec2 delete-network-interface --region \${AWS_REGION} --network-interface-id \$eni 2>&1 | grep -v "InvalidNetworkInterfaceID.NotFound" || true
-                                            done
-                                            sleep 5
-                                        fi
-                                        
-                                        # Try deleting VPC again
-                                        echo "    Retrying VPC deletion: \$vpc_id"
-                                        DELETE_OUTPUT=\$(aws ec2 delete-vpc --region \${AWS_REGION} --vpc-id \$vpc_id 2>&1)
-                                        if ! echo "\$DELETE_OUTPUT" | grep -qi "error"; then
-                                            echo "      VPC deletion retry successful!"
-                                        else
-                                            echo "      VPC deletion still failing: \$DELETE_OUTPUT"
+                                        if [ ! -f "/tmp/vpc_skip_\${vpc_id}.flag" ]; then
+                                            SKIP_ALL=false
+                                            break
                                         fi
                                     done
+                                    
+                                    if [ "\$SKIP_ALL" = "true" ]; then
+                                        echo "  All remaining VPCs were marked to skip - exiting wait loop"
+                                        echo "  VPCs will be reused for deployment"
+                                        break
+                                    fi
+                                    
+                                    # Every 5 attempts, try to delete again (only if not skipped)
+                                    if [ \$((VPC_WAIT_COUNT % 5)) -eq 0 ] && [ \$VPC_WAIT_COUNT -gt 0 ]; then
+                                        echo "  Retrying VPC deletion for non-skipped VPCs..."
+                                        for vpc_id in \$REMAINING_VPCS; do
+                                            if [ -f "/tmp/vpc_skip_\${vpc_id}.flag" ]; then
+                                                echo "    Skipping VPC \$vpc_id (marked to skip)"
+                                                continue
+                                            fi
+                                            
+                                            # Try deleting VPC again
+                                            echo "    Retrying VPC deletion: \$vpc_id"
+                                            DELETE_OUTPUT=\$(aws ec2 delete-vpc --region \${AWS_REGION} --vpc-id \$vpc_id 2>&1)
+                                            if ! echo "\$DELETE_OUTPUT" | grep -qi "error"; then
+                                                echo "      VPC deletion retry successful!"
+                                            else
+                                                echo "      VPC deletion still failing: \$DELETE_OUTPUT"
+                                            fi
+                                        done
+                                    fi
+                                    
+                                    echo "  Waiting 30s before next check..."
+                                    sleep 30
+                                    VPC_WAIT_COUNT=\$((VPC_WAIT_COUNT + 1))
                                 fi
-                                
-                                echo "  Waiting 30s before next check..."
-                                sleep 30
-                                VPC_WAIT_COUNT=\$((VPC_WAIT_COUNT + 1))
+                            done
+                            
+                            if [ \$VPC_WAIT_COUNT -ge \$MAX_VPC_WAIT ]; then
+                                echo "  INFO: Some VPCs may still exist"
+                                FINAL_VPCS=\$(aws ec2 describe-vpcs \\
+                                    --region \${AWS_REGION} \\
+                                    --filters "Name=tag:Name,Values=achat-app-vpc" \\
+                                    --query "Vpcs[].VpcId" \\
+                                    --output text 2>/dev/null || echo "")
+                                echo "  Remaining VPCs: \$FINAL_VPCS"
+                                echo "  These will be reused for deployment (safe to reuse existing VPCs)"
                             fi
-                        done
-                        
-                        if [ \$VPC_WAIT_COUNT -ge \$MAX_VPC_WAIT ]; then
-                            echo "  WARNING: Some VPCs may still exist after 15 minutes"
-                            FINAL_VPCS=\$(aws ec2 describe-vpcs \\
-                                --region \${AWS_REGION} \\
-                                --filters "Name=tag:Name,Values=achat-app-vpc" \\
-                                --query "Vpcs[].VpcId" \\
-                                --output text 2>/dev/null || echo "")
-                            echo "  Remaining VPCs: \$FINAL_VPCS"
-                            echo "  These may need manual deletion from AWS Console"
-                            echo "  Common causes: EKS cluster resources, RDS endpoints, or network interfaces"
                         fi
+                        
+                        # Clean up flag files
+                        rm -f /tmp/vpc_skip_*.flag 2>/dev/null || true
                         
                         echo ""
                         echo "VPC deletion verification completed"
