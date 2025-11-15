@@ -134,7 +134,7 @@ def call() {
                                             --group-id \$RDS_SG_ID \\
                                             --ip-permissions "\$IP_PERMISSIONS_JSON" 2>&1) || true
                                         EXIT_CODE=\$?
-                                        if echo "\$OUTPUT" | grep -qi "already exists\|Duplicate"; then
+                                        if echo "\$OUTPUT" | grep -qiE "(already exists|Duplicate)"; then
                                             echo "RDS security group rule already exists (this is OK)"
                                         elif echo "\$OUTPUT" | grep -q "SecurityGroupIngress"; then
                                             echo "RDS security group rule added successfully"
