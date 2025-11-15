@@ -26,6 +26,24 @@ def call() {
                         cp $AWS_CREDENTIALS_FILE ~/.aws/credentials
                         chmod 600 ~/.aws/credentials
                         
+                        # Also export as environment variables for Terraform
+                        # Terraform AWS provider prefers environment variables
+                        export AWS_ACCESS_KEY_ID=$(grep aws_access_key_id "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                        export AWS_SECRET_ACCESS_KEY=$(grep aws_secret_access_key "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                        export AWS_SESSION_TOKEN=$(grep aws_session_token "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ' || echo "")
+                        export AWS_DEFAULT_REGION=us-east-1
+                        
+                        # Verify credentials are set
+                        if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+                            echo "ERROR: Failed to parse AWS credentials from file"
+                            exit 1
+                        fi
+                        
+                        echo "AWS credentials configured (Access Key ID: ${AWS_ACCESS_KEY_ID:0:10}...)"
+                        if [ -n "$AWS_SESSION_TOKEN" ]; then
+                            echo "Session token is set"
+                        fi
+                        
                         # Pre-check: Wait for any existing EKS cluster to be fully deleted
                         echo ""
                         echo "=========================================="
