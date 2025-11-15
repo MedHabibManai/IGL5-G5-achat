@@ -407,12 +407,90 @@ def call() {
                                     echo "    No custom security groups found"
                                 fi
                                 
-                                # 7. Delete the VPC
+                                # 6.5. Delete Network Interfaces (ENIs) - often block VPC deletion
+                                echo "  6.5. Deleting Network Interfaces..."
+                                ENI_IDS=\$(aws ec2 describe-network-interfaces \\
+                                    --region \${AWS_REGION} \\
+                                    --filters "Name=vpc-id,Values=\$vpc_id" \\
+                                    --query "NetworkInterfaces[].NetworkInterfaceId" \\
+                                    --output text 2>&1 || echo "")
+                                if [ -n "\$ENI_IDS" ] && [ "\$ENI_IDS" != "None" ] && [ "\$ENI_IDS" != "" ]; then
+                                    for eni_id in \$ENI_IDS; do
+                                        echo "    Deleting network interface: \$eni_id"
+                                        # First detach if attached
+                                        ATTACHMENT_ID=\$(aws ec2 describe-network-interfaces \\
+                                            --region \${AWS_REGION} \\
+                                            --network-interface-ids \$eni_id \\
+                                            --query "NetworkInterfaces[0].Attachment.AttachmentId" \\
+                                            --output text 2>/dev/null || echo "")
+                                        if [ -n "\$ATTACHMENT_ID" ] && [ "\$ATTACHMENT_ID" != "None" ] && [ "\$ATTACHMENT_ID" != "none" ]; then
+                                            echo "      Detaching ENI attachment: \$ATTACHMENT_ID"
+                                            aws ec2 detach-network-interface \\
+                                                --region \${AWS_REGION} \\
+                                                --attachment-id \$ATTACHMENT_ID \\
+                                                --force 2>&1 | grep -v "InvalidAttachmentID.NotFound" || true
+                                            sleep 2
+                                        fi
+                                        # Then delete
+                                        DELETE_OUTPUT=\$(aws ec2 delete-network-interface --region \${AWS_REGION} --network-interface-id \$eni_id 2>&1)
+                                        if echo "\$DELETE_OUTPUT" | grep -qi "InvalidNetworkInterfaceID.NotFound"; then
+                                            echo "      ENI already deleted"
+                                        elif echo "\$DELETE_OUTPUT" | grep -qi "error"; then
+                                            echo "      WARNING deleting ENI: \$DELETE_OUTPUT"
+                                        else
+                                            echo "      Network interface deleted"
+                                        fi
+                                    done
+                                    echo "    Waiting 5 seconds for ENI deletions to complete..."
+                                    sleep 5
+                                else
+                                    echo "    No network interfaces found"
+                                fi
+                                
+                                # 7. Delete the VPC (with diagnostics if it fails)
                                 echo "  7. Deleting VPC: \$vpc_id"
                                 DELETE_OUTPUT=\$(aws ec2 delete-vpc --region \${AWS_REGION} --vpc-id \$vpc_id 2>&1)
                                 if echo "\$DELETE_OUTPUT" | grep -qi "error"; then
                                     echo "    ERROR deleting VPC: \$DELETE_OUTPUT"
-                                    echo "    VPC may still have dependencies. Check AWS console."
+                                    echo "    Diagnosing remaining dependencies..."
+                                    
+                                    # Check for remaining resources
+                                    REMAINING_INSTANCES=\$(aws ec2 describe-instances --region \${AWS_REGION} --filters "Name=vpc-id,Values=\$vpc_id" --query "Reservations[].Instances[].InstanceId" --output text 2>/dev/null | grep -v '^$' || echo "")
+                                    REMAINING_ENIS=\$(aws ec2 describe-network-interfaces --region \${AWS_REGION} --filters "Name=vpc-id,Values=\$vpc_id" --query "NetworkInterfaces[].NetworkInterfaceId" --output text 2>/dev/null | grep -v '^$' || echo "")
+                                    REMAINING_NAT=\$(aws ec2 describe-nat-gateways --region \${AWS_REGION} --filter "Name=vpc-id,Values=\$vpc_id" "Name=state,Values=available,deleting,pending" --query "NatGateways[].NatGatewayId" --output text 2>/dev/null | grep -v '^$' || echo "")
+                                    REMAINING_IGW=\$(aws ec2 describe-internet-gateways --region \${AWS_REGION} --filters "Name=attachment.vpc-id,Values=\$vpc_id" --query "InternetGateways[].InternetGatewayId" --output text 2>/dev/null | grep -v '^$' || echo "")
+                                    REMAINING_SUBNETS=\$(aws ec2 describe-subnets --region \${AWS_REGION} --filters "Name=vpc-id,Values=\$vpc_id" --query "Subnets[].SubnetId" --output text 2>/dev/null | grep -v '^$' || echo "")
+                                    REMAINING_SGS=\$(aws ec2 describe-security-groups --region \${AWS_REGION} --filters "Name=vpc-id,Values=\$vpc_id" --query "SecurityGroups[?GroupName!='default'].GroupId" --output text 2>/dev/null | grep -v '^$' || echo "")
+                                    REMAINING_RT=\$(aws ec2 describe-route-tables --region \${AWS_REGION} --filters "Name=vpc-id,Values=\$vpc_id" --query "RouteTables[?Associations[0].Main!=true].RouteTableId" --output text 2>/dev/null | grep -v '^$' || echo "")
+                                    
+                                    if [ -n "\$REMAINING_INSTANCES" ]; then
+                                        echo "      WARNING: Remaining instances: \$REMAINING_INSTANCES"
+                                    fi
+                                    if [ -n "\$REMAINING_ENIS" ]; then
+                                        echo "      WARNING: Remaining network interfaces: \$REMAINING_ENIS"
+                                        # Try to delete ENIs
+                                        for eni_id in \$REMAINING_ENIS; do
+                                            echo "        Attempting to delete ENI: \$eni_id"
+                                            aws ec2 delete-network-interface --region \${AWS_REGION} --network-interface-id \$eni_id 2>&1 | grep -v "InvalidNetworkInterfaceID.NotFound" || true
+                                        done
+                                    fi
+                                    if [ -n "\$REMAINING_NAT" ]; then
+                                        echo "      WARNING: Remaining NAT gateways: \$REMAINING_NAT"
+                                    fi
+                                    if [ -n "\$REMAINING_IGW" ]; then
+                                        echo "      WARNING: Remaining Internet Gateways: \$REMAINING_IGW"
+                                    fi
+                                    if [ -n "\$REMAINING_SUBNETS" ]; then
+                                        echo "      WARNING: Remaining subnets: \$REMAINING_SUBNETS"
+                                    fi
+                                    if [ -n "\$REMAINING_SGS" ]; then
+                                        echo "      WARNING: Remaining security groups: \$REMAINING_SGS"
+                                    fi
+                                    if [ -n "\$REMAINING_RT" ]; then
+                                        echo "      WARNING: Remaining route tables: \$REMAINING_RT"
+                                    fi
+                                    
+                                    echo "    VPC deletion will be retried in wait loop if dependencies are cleared"
                                 else
                                     echo "    VPC \$vpc_id deleted successfully"
                                 fi
@@ -440,16 +518,53 @@ def call() {
                                 echo "  All achat-app VPCs confirmed deleted"
                                 break
                             else
-                                echo "  Waiting for VPCs to delete: \$REMAINING_VPCS (attempt \$VPC_WAIT_COUNT/\$MAX_VPC_WAIT, waiting 30s...)"
+                                echo "  VPCs still exist: \$REMAINING_VPCS (attempt \$VPC_WAIT_COUNT/\$MAX_VPC_WAIT)"
+                                
+                                # Every 5 attempts, try to delete again and clean up remaining resources
+                                if [ \$((VPC_WAIT_COUNT % 5)) -eq 0 ] && [ \$VPC_WAIT_COUNT -gt 0 ]; then
+                                    echo "  Retrying VPC cleanup and deletion..."
+                                    for vpc_id in \$REMAINING_VPCS; do
+                                        # Check and delete remaining network interfaces
+                                        ENIS=\$(aws ec2 describe-network-interfaces \\
+                                            --region \${AWS_REGION} \\
+                                            --filters "Name=vpc-id,Values=\$vpc_id" \\
+                                            --query "NetworkInterfaces[].NetworkInterfaceId" \\
+                                            --output text 2>/dev/null | grep -v '^$' || echo "")
+                                        if [ -n "\$ENIS" ]; then
+                                            echo "    Deleting remaining network interfaces: \$ENIS"
+                                            for eni in \$ENIS; do
+                                                aws ec2 delete-network-interface --region \${AWS_REGION} --network-interface-id \$eni 2>&1 | grep -v "InvalidNetworkInterfaceID.NotFound" || true
+                                            done
+                                            sleep 5
+                                        fi
+                                        
+                                        # Try deleting VPC again
+                                        echo "    Retrying VPC deletion: \$vpc_id"
+                                        DELETE_OUTPUT=\$(aws ec2 delete-vpc --region \${AWS_REGION} --vpc-id \$vpc_id 2>&1)
+                                        if ! echo "\$DELETE_OUTPUT" | grep -qi "error"; then
+                                            echo "      VPC deletion retry successful!"
+                                        else
+                                            echo "      VPC deletion still failing: \$DELETE_OUTPUT"
+                                        fi
+                                    done
+                                fi
+                                
+                                echo "  Waiting 30s before next check..."
                                 sleep 30
                                 VPC_WAIT_COUNT=\$((VPC_WAIT_COUNT + 1))
                             fi
                         done
                         
                         if [ \$VPC_WAIT_COUNT -ge \$MAX_VPC_WAIT ]; then
-                            echo "  WARNING: Some VPCs may still be deleting after 15 minutes"
-                            echo "  Current VPCs: \$REMAINING_VPCS"
-                            echo "  You may need to wait longer or manually delete them"
+                            echo "  WARNING: Some VPCs may still exist after 15 minutes"
+                            FINAL_VPCS=\$(aws ec2 describe-vpcs \\
+                                --region \${AWS_REGION} \\
+                                --filters "Name=tag:Name,Values=achat-app-vpc" \\
+                                --query "Vpcs[].VpcId" \\
+                                --output text 2>/dev/null || echo "")
+                            echo "  Remaining VPCs: \$FINAL_VPCS"
+                            echo "  These may need manual deletion from AWS Console"
+                            echo "  Common causes: EKS cluster resources, RDS endpoints, or network interfaces"
                         fi
                         
                         echo ""
