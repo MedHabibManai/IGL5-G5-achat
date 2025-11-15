@@ -340,19 +340,19 @@ def call() {
                                     echo "Normal deployment mode - images were built, will update to build ${BUILD_NUMBER}"
                                 fi
                                 
-                                # Update backend image
+                                # Update backend image (with retry for connection issues)
                                 if [ "\$BACKEND_EXISTS" = "true" ]; then
                                     echo "Updating backend deployment image to build ${BUILD_NUMBER}..."
-                                    kubectl set image deployment/achat-app -n achat-app achat-app=\$BACKEND_IMAGE --record
+                                    kubectl_retry kubectl set image deployment/achat-app -n achat-app achat-app=\$BACKEND_IMAGE --record
                                     echo "Backend image updated successfully"
                                 else
                                     echo "Skipping backend image update - will use existing image"
                                 fi
                                 
-                                # Update frontend image
+                                # Update frontend image (with retry for connection issues)
                                 if [ "\$FRONTEND_EXISTS" = "true" ]; then
                                     echo "Updating frontend deployment image to build ${BUILD_NUMBER}..."
-                                    kubectl set image deployment/achat-frontend -n achat-app frontend=\$FRONTEND_IMAGE --record
+                                    kubectl_retry kubectl set image deployment/achat-frontend -n achat-app frontend=\$FRONTEND_IMAGE --record
                                     echo "Frontend image updated successfully"
                                 else
                                     echo "Skipping frontend image update - will use existing image"
