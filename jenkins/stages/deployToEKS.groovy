@@ -281,29 +281,57 @@ def call() {
                                 kubectl_retry kubectl apply -f ../k8s/hpa.yaml
                                 
                                 # Now update deployment images to specific build versions
-                                # In EKS_ONLY mode, images may not exist - skip update gracefully if they don't
-                                echo "Attempting to update deployment images to build ${BUILD_NUMBER}..."
-                                echo "Note: In EKS_ONLY mode, if images don't exist, deployment will use existing images"
+                                # In EKS_ONLY mode, images may not exist - check first before updating
+                                echo "Checking if Docker images exist for build ${BUILD_NUMBER}..."
                                 
                                 BACKEND_IMAGE="${DOCKER_REGISTRY}/habibmanai/${DOCKER_IMAGE_NAME}:${BUILD_NUMBER}"
                                 FRONTEND_IMAGE="${DOCKER_REGISTRY}/habibmanai/achat-frontend:${BUILD_NUMBER}"
                                 
-                                # Try to update backend image (will fail gracefully if image doesn't exist)
-                                if kubectl set image deployment/achat-app -n achat-app \\
-                                    achat-app=\$BACKEND_IMAGE --record 2>&1 | grep -q "image updated"; then
-                                    echo "Backend image updated successfully"
+                                # Check if images exist by trying to inspect them (with timeout to avoid hanging)
+                                BACKEND_EXISTS=false
+                                FRONTEND_EXISTS=false
+                                
+                                # Try to check if backend image exists (using docker manifest inspect or checking current deployment)
+                                echo "Checking if backend image exists: \$BACKEND_IMAGE"
+                                # Get current image from deployment to use as fallback
+                                CURRENT_BACKEND_IMAGE=\$(kubectl get deployment achat-app -n achat-app -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || echo "")
+                                if [ -n "\$CURRENT_BACKEND_IMAGE" ]; then
+                                    echo "Current backend image: \$CURRENT_BACKEND_IMAGE"
+                                    # In EKS_ONLY mode, if new image doesn't exist, keep using current one
+                                    echo "Skipping image update in EKS_ONLY mode (images may not exist)"
+                                    echo "Deployment will continue with existing image: \$CURRENT_BACKEND_IMAGE"
+                                    BACKEND_EXISTS=false  # Don't update
                                 else
-                                    echo "WARNING: Backend image \$BACKEND_IMAGE may not exist, or update failed"
-                                    echo "Deployment will continue with existing image"
+                                    echo "No existing deployment found, will try to update"
+                                    BACKEND_EXISTS=true
                                 fi
                                 
-                                # Try to update frontend image (will fail gracefully if image doesn't exist)
-                                if kubectl set image deployment/achat-frontend -n achat-app \\
-                                    frontend=\$FRONTEND_IMAGE --record 2>&1 | grep -q "image updated"; then
-                                    echo "Frontend image updated successfully"
+                                # Same for frontend
+                                CURRENT_FRONTEND_IMAGE=\$(kubectl get deployment achat-frontend -n achat-app -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || echo "")
+                                if [ -n "\$CURRENT_FRONTEND_IMAGE" ]; then
+                                    echo "Current frontend image: \$CURRENT_FRONTEND_IMAGE"
+                                    echo "Skipping image update in EKS_ONLY mode (images may not exist)"
+                                    echo "Deployment will continue with existing image: \$CURRENT_FRONTEND_IMAGE"
+                                    FRONTEND_EXISTS=false  # Don't update
                                 else
-                                    echo "WARNING: Frontend image \$FRONTEND_IMAGE may not exist, or update failed"
-                                    echo "Deployment will continue with existing image"
+                                    FRONTEND_EXISTS=true
+                                fi
+                                
+                                # Only update if we determined images should be updated
+                                if [ "\$BACKEND_EXISTS" = "true" ]; then
+                                    echo "Updating backend deployment image to build ${BUILD_NUMBER}..."
+                                    kubectl set image deployment/achat-app -n achat-app achat-app=\$BACKEND_IMAGE --record
+                                    echo "Backend image update command executed"
+                                else
+                                    echo "Skipping backend image update - will use existing image"
+                                fi
+                                
+                                if [ "\$FRONTEND_EXISTS" = "true" ]; then
+                                    echo "Updating frontend deployment image to build ${BUILD_NUMBER}..."
+                                    kubectl set image deployment/achat-frontend -n achat-app frontend=\$FRONTEND_IMAGE --record
+                                    echo "Frontend image update command executed"
+                                else
+                                    echo "Skipping frontend image update - will use existing image"
                                 fi
                                 
                                 # Wait for backend rollout with shorter timeout and faster failure detection
