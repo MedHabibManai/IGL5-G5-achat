@@ -23,7 +23,7 @@ def call() {
                 try {
                     retryCount++
                     if (retryCount > 1) {
-                        def waitTime = (int)(Math.pow(2, retryCount - 1) * 10)
+                        def waitTime = (int)(Math.pow(2.0, (retryCount - 1) as double) * 10)
                         echo "Retry attempt ${retryCount}/${maxRetries} after ${waitTime}s wait..."
                         sleep(time: waitTime, unit: 'SECONDS')
                     }
