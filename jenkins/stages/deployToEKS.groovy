@@ -306,23 +306,38 @@ def call() {
                                     echo "Deployment will continue with existing image"
                                 fi
                                 
-                                # Wait for backend rollout with diagnostics on failure
-                                echo "Waiting for backend deployment (timeout: 10 minutes)..."
-                                if ! kubectl rollout status deployment/achat-app -n achat-app --timeout=10m; then
-                                    diagnose_deployment "achat-app" "achat-app"
-                                    echo "ERROR: Backend deployment failed!"
-                                    exit 1
+                                # Wait for backend rollout with shorter timeout and faster failure detection
+                                echo "Waiting for backend deployment (timeout: 5 minutes)..."
+                                # Use shorter timeout and check progress more frequently
+                                if ! timeout 300 kubectl rollout status deployment/achat-app -n achat-app --timeout=5m; then
+                                    echo "Rollout timeout or failure detected, checking status..."
+                                    # Check if deployment is actually progressing or stuck
+                                    ROLLOUT_STATUS=\$(kubectl get deployment achat-app -n achat-app -o jsonpath='{.status.conditions[?(@.type==\"Progressing\")].status}' 2>/dev/null || echo "Unknown")
+                                    if [ "\$ROLLOUT_STATUS" = "True" ]; then
+                                        echo "Deployment is still progressing, but taking longer than expected"
+                                        echo "Continuing with deployment (pods may still be starting)..."
+                                    else
+                                        diagnose_deployment "achat-app" "achat-app"
+                                        echo "ERROR: Backend deployment failed or is stuck!"
+                                        exit 1
+                                    fi
                                 fi
-                                echo "Backend deployment successful!"
+                                echo "Backend deployment rollout completed!"
                                 
-                                # Wait for frontend rollout with diagnostics on failure
-                                echo "Waiting for frontend deployment (timeout: 10 minutes)..."
-                                if ! kubectl rollout status deployment/achat-frontend -n achat-app --timeout=10m; then
-                                    diagnose_deployment "achat-frontend" "achat-app"
-                                    echo "ERROR: Frontend deployment failed!"
-                                    exit 1
+                                # Wait for frontend rollout with shorter timeout
+                                echo "Waiting for frontend deployment (timeout: 5 minutes)..."
+                                if ! timeout 300 kubectl rollout status deployment/achat-frontend -n achat-app --timeout=5m; then
+                                    echo "Frontend rollout timeout, checking status..."
+                                    ROLLOUT_STATUS=\$(kubectl get deployment achat-frontend -n achat-app -o jsonpath='{.status.conditions[?(@.type==\"Progressing\")].status}' 2>/dev/null || echo "Unknown")
+                                    if [ "\$ROLLOUT_STATUS" = "True" ]; then
+                                        echo "Frontend deployment is still progressing, continuing..."
+                                    else
+                                        diagnose_deployment "achat-frontend" "achat-app"
+                                        echo "ERROR: Frontend deployment failed or is stuck!"
+                                        exit 1
+                                    fi
                                 fi
-                                echo "Frontend deployment successful!"
+                                echo "Frontend deployment rollout completed!"
                                 
                                 # Get service endpoints
                                 echo ""

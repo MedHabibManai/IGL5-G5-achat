@@ -15,8 +15,9 @@ spec:
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 1  # Allow 1 pod to be unavailable during rollout to prevent stuck deployments
+      maxSurge: 2  # Allow 2 new pods to be created at once (faster rollout)
+      maxUnavailable: 50%  # Allow up to 50% of pods to be unavailable (more aggressive, faster)
+  progressDeadlineSeconds: 300  # Fail after 5 minutes instead of default 10 minutes
   template:
     metadata:
       labels:
