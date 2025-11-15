@@ -52,8 +52,13 @@ def call() {
                         /usr/local/bin/aws --version
 
                         echo ""
-                        echo "AWS Account:"
-                        /usr/local/bin/aws sts get-caller-identity
+                        echo "Verifying AWS credentials (non-fatal)..."
+                        if /usr/local/bin/aws sts get-caller-identity 2>&1; then
+                            echo "AWS credentials verified successfully"
+                        else
+                            echo "WARNING: AWS credential verification failed, but terraform init succeeded"
+                            echo "This is non-fatal - credentials will be verified again during terraform plan/apply"
+                        fi
                     '''
                 }
             }
