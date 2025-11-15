@@ -100,13 +100,38 @@ def call() {
                         echo "  - Application container startup"
                         echo ""
                         
+                        // Check if this is REUSE_INFRASTRUCTURE mode (instance was just recreated)
+                        def isReuseMode = false
+                        try {
+                            // Access params.DEPLOYMENT_MODE from pipeline context (same way other stages do)
+                            isReuseMode = (params.DEPLOYMENT_MODE == 'REUSE_INFRASTRUCTURE')
+                            echo "Deployment mode: ${params.DEPLOYMENT_MODE} (isReuseMode: ${isReuseMode})"
+                        } catch (Exception e) {
+                            echo "Could not determine deployment mode, assuming NORMAL: ${e.message}"
+                            isReuseMode = false
+                        }
+                        
                         // Initial wait for EC2 instance to initialize
-                        echo "Initial wait: 60 seconds for EC2 instance boot..."
-                        sleep(60)
+                        // In REUSE_INFRASTRUCTURE mode, instance was just created, so user-data script needs time
+                        if (isReuseMode) {
+                            echo "REUSE_INFRASTRUCTURE mode detected - instance was just recreated"
+                            echo "User-data script needs time to:"
+                            echo "  - Update system packages (~30 seconds)"
+                            echo "  - Install Docker (~1-2 minutes)"
+                            echo "  - Wait for RDS connectivity (~30 seconds)"
+                            echo "  - Pull Docker image (~1-2 minutes)"
+                            echo "  - Start application container (~30 seconds)"
+                            echo ""
+                            echo "Initial wait: 4 minutes for user-data script to complete..."
+                            sleep(240)  // 4 minutes for user-data script
+                        } else {
+                            echo "Initial wait: 60 seconds for EC2 instance boot..."
+                            sleep(60)
+                        }
                         
                         // Continuous health check with retries
-                        // Reduced attempts for REUSE_INFRASTRUCTURE (instance already exists, just needs to start app)
-                        def maxAttempts = 20  // 20 attempts = ~6.5 minutes (faster for reuse mode)
+                        // In REUSE_INFRASTRUCTURE, we already waited 4 minutes, so reduce total attempts
+                        def maxAttempts = isReuseMode ? 15 : 20  // 15 attempts = ~5 minutes after initial wait
                         def checkInterval = 20  // 20 seconds between checks
                         def healthy = false
                         
@@ -133,10 +158,13 @@ def call() {
                                 } else {
                                     echo "  Status: HTTP ${response} (not ready yet)"
                                     
-                                    // Show diagnostic info every 5 attempts
-                                    if (i % 5 == 0) {
+                                    // Show diagnostic info every 3 attempts (more frequent for troubleshooting)
+                                    if (i % 3 == 0) {
                                         echo "  Diagnostic check (attempt ${i})..."
                                         try {
+                                            // Extract IP from URL for port check
+                                            def ipAddress = appUrl.replaceAll('http://', '').replaceAll('/SpringMVC', '').replaceAll(':8089', '')
+                                            
                                             // Check if we can reach the server at all
                                             def pingResult = sh(
                                                 script: "curl -s -o /dev/null -w '%{http_code}' --connect-timeout 3 --max-time 5 ${appUrl} 2>&1 || echo 'unreachable'",
@@ -144,12 +172,18 @@ def call() {
                                             ).trim()
                                             echo "  Server reachability: ${pingResult}"
                                             
-                                            // Check if port 8089 is open (using telnet or nc if available)
+                                            // Check if port 8089 is open
                                             def portCheck = sh(
-                                                script: "timeout 2 bash -c '</dev/tcp/${appUrl.replaceAll('http://', '').replaceAll('/SpringMVC', '').replaceAll(':8089', '')}/8089' 2>&1 && echo 'open' || echo 'closed'",
+                                                script: "timeout 2 bash -c '</dev/tcp/${ipAddress}/8089' 2>&1 && echo 'open' || echo 'closed'",
                                                 returnStdout: true
                                             ).trim()
                                             echo "  Port 8089 status: ${portCheck}"
+                                            
+                                            // In REUSE_INFRASTRUCTURE mode, provide more context
+                                            if (isReuseMode && portCheck == 'closed') {
+                                                echo "  ℹ️  In REUSE_INFRASTRUCTURE mode, user-data script may still be running"
+                                                echo "     This is normal - Docker installation and container startup takes 3-5 minutes"
+                                            }
                                         } catch (Exception e) {
                                             echo "  Server appears unreachable: ${e.message}"
                                         }
