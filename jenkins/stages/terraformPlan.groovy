@@ -32,7 +32,9 @@ def call() {
                             exit 1
                         fi
                         
-                        echo "AWS credentials configured (Access Key ID: ${AWS_ACCESS_KEY_ID:0:10}...)"
+                        # Show first 10 chars of access key (POSIX-compatible)
+                        ACCESS_KEY_PREFIX=$(echo "$AWS_ACCESS_KEY_ID" | cut -c1-10)
+                        echo "AWS credentials configured (Access Key ID: ${ACCESS_KEY_PREFIX}...)"
                         if [ -n "$AWS_SESSION_TOKEN" ]; then
                             echo "Session token is set"
                         fi
