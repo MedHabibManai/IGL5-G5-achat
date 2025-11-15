@@ -42,6 +42,11 @@ def call() {
                         returnStdout: true
                     ).trim()
 
+                    def swaggerUrl = sh(
+                        script: "terraform output -raw swagger_url 2>/dev/null || echo 'N/A'",
+                        returnStdout: true
+                    ).trim()
+                    
                     if (appUrl != 'N/A') {
                         echo ""
                         echo "========================================="
@@ -49,6 +54,9 @@ def call() {
                         echo "========================================="
                         echo "Application URL: ${appUrl}"
                         echo "Health Check: ${healthCheckUrl}"
+                        if (swaggerUrl != 'N/A') {
+                            echo "Swagger UI: ${swaggerUrl}"
+                        }
                         echo "Public IP: ${publicIp}"
                         echo "Instance ID: ${instanceId}"
                         echo "========================================="

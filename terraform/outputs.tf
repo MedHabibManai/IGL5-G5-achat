@@ -94,7 +94,7 @@ output "health_check_url" {
 
 output "swagger_url" {
   description = "URL for Swagger UI (if enabled)"
-  value       = "http://${aws_eip.app.public_ip}:${var.app_port}/SpringMVC/swagger-ui.html"
+  value       = "http://${aws_eip.app.public_ip}:${var.app_port}/SpringMVC/swagger-ui/index.html"
 }
 
 # ============================================================================
