@@ -79,7 +79,7 @@ def call() {
                                     --name ${eksClusterName}
                             """
                             
-                            // Get RDS endpoint from Terraform
+                            // Get RDS endpoint from Terraform, fallback to AWS API if not in state
                             def rdsEndpoint = sh(
                                 script: '''
                                     # Parse and export AWS credentials
@@ -88,7 +88,24 @@ def call() {
                                     export AWS_SESSION_TOKEN=$(grep aws_session_token "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
                                     export AWS_DEFAULT_REGION=us-east-1
                                     
-                                    terraform output -raw rds_endpoint 2>/dev/null || echo ""
+                                    # Try Terraform output first
+                                    RDS_ENDPOINT=$(terraform output -raw rds_endpoint 2>/dev/null || echo "")
+                                    
+                                    # If not in Terraform state (e.g., EKS_ONLY mode), query AWS directly
+                                    if [ -z "$RDS_ENDPOINT" ] || [ "$RDS_ENDPOINT" = "" ]; then
+                                        echo "RDS endpoint not in Terraform state, checking AWS directly..." >&2
+                                        # Get RDS instance by name pattern
+                                        RDS_ENDPOINT=$(aws rds describe-db-instances --region us-east-1 --query "DBInstances[?contains(DBInstanceIdentifier, 'achat-app')].Endpoint.Address" --output text 2>/dev/null | head -1 || echo "")
+                                        if [ -z "$RDS_ENDPOINT" ] || [ "$RDS_ENDPOINT" = "None" ]; then
+                                            echo "Could not find RDS instance in AWS" >&2
+                                            echo ""
+                                            exit 0
+                                        fi
+                                        echo "Found RDS endpoint in AWS: $RDS_ENDPOINT" >&2
+                                    fi
+                                    
+                                    # Only output the endpoint to stdout (for returnStdout capture)
+                                    echo "$RDS_ENDPOINT"
                                 ''',
                                 returnStdout: true
                             ).trim()
@@ -97,7 +114,7 @@ def call() {
                                 echo "RDS Endpoint: ${rdsEndpoint}"
                                 echo "Updating ConfigMap with RDS endpoint..."
                             } else {
-                                echo "WARNING: Could not retrieve RDS endpoint!"
+                                echo "WARNING: Could not retrieve RDS endpoint from Terraform or AWS!"
                             }
                             
                             // Ensure RDS security group allows traffic from EKS nodes
