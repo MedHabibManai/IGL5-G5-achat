@@ -140,8 +140,22 @@ def call() {
                                     # Get RDS security group ID
                                     RDS_SG_ID=\$(aws ec2 describe-security-groups --region us-east-1 --filters "Name=vpc-id,Values=\$VPC_ID" "Name=group-name,Values=achat-app-rds-sg" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || echo "")
                                     
-                                    # Get EKS nodes security group ID
+                                    # Get EKS nodes security group ID - try multiple methods
+                                    # Method 1: Try to find by name (Terraform-created)
                                     EKS_NODES_SG_ID=\$(aws ec2 describe-security-groups --region us-east-1 --filters "Name=vpc-id,Values=\$VPC_ID" "Name=group-name,Values=achat-app-eks-nodes-sg" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || echo "")
+                                    
+                                    # Method 2: If not found, get from actual EKS node instances (most reliable)
+                                    if [ -z "\$EKS_NODES_SG_ID" ] || [ "\$EKS_NODES_SG_ID" = "None" ] || [ "\$EKS_NODES_SG_ID" = "" ]; then
+                                        echo "EKS nodes SG not found by name, getting from actual node instances..." >&2
+                                        # Get the security group from actual running EKS node instances
+                                        EKS_NODES_SG_ID=\$(aws ec2 describe-instances --region us-east-1 \\
+                                            --filters "Name=tag:eks:cluster-name,Values=achat-app-eks-cluster" "Name=instance-state-name,Values=running" \\
+                                            --query "Reservations[0].Instances[0].SecurityGroups[0].GroupId" \\
+                                            --output text 2>/dev/null || echo "")
+                                        if [ -n "\$EKS_NODES_SG_ID" ] && [ "\$EKS_NODES_SG_ID" != "None" ]; then
+                                            echo "Found EKS nodes SG from instances: \$EKS_NODES_SG_ID" >&2
+                                        fi
+                                    fi
                                     
                                     if [ -n "\$RDS_SG_ID" ] && [ "\$RDS_SG_ID" != "None" ] && [ -n "\$EKS_NODES_SG_ID" ] && [ "\$EKS_NODES_SG_ID" != "None" ]; then
                                         echo "RDS Security Group: \$RDS_SG_ID"
