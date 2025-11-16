@@ -178,18 +178,15 @@ def call(Map config = [:]) {
         echo "========================================="
         
         try {
-            // Use emailext with explicit configuration
-            // Note: This uses "Extended E-mail Notification" settings from Jenkins
-            emailext(
+            // Use mail() instead of emailext() because:
+            // - Extended E-mail Notification requires OAuth2 (complex setup)
+            // - Default E-mail Notification uses SMTP Authentication (already working)
+            // - Test email works, so default email config is correct
+            mail(
+                to: config.to,
                 subject: emailSubject,
                 body: emailBody,
-                mimeType: 'text/html',
-                to: config.to,
-                attachLog: config.attachLog,
-                compressLog: true,
-                replyTo: config.to,  // Set reply-to to recipient
-                from: ''  // Use default from address (set in Jenkins config)
-                // Removed recipientProviders to avoid adding extra recipients automatically
+                mimeType: 'text/html'
             )
             
             echo "========================================="
