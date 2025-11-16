@@ -13,14 +13,10 @@ def call(Map config = [:]) {
     config = defaultConfig + config
     
     // Only send email if recipients are configured
-    echo "Email notification - Recipients: '${config.to}'"
     if (!config.to || config.to.trim().isEmpty()) {
-        echo "Email notification skipped: No recipients configured (set EMAIL_RECIPIENTS environment variable)"
-        echo "Current EMAIL_RECIPIENTS env var: '${env.EMAIL_RECIPIENTS ?: 'NOT SET'}'"
+        echo "Email notification skipped: No recipients configured"
         return
     }
-    
-    echo "Attempting to send email to: ${config.to}"
     
     try {
         // Get build status
@@ -168,20 +164,11 @@ def call(Map config = [:]) {
 </html>
         """
         
-        // Send email using Email Extension Plugin
-        // Note: emailext doesn't throw exceptions, it logs errors internally
-        // We can't directly check if it succeeded, but we'll add warnings
-        echo "========================================="
-        echo "Attempting to send email notification..."
-        echo "Recipients: ${config.to}"
-        echo "Subject: ${emailSubject}"
-        echo "========================================="
+        // Send email using mail() function
+        // This uses the default E-mail Notification settings (SMTP Authentication)
+        echo "Attempting to send email notification to: ${config.to}"
         
         try {
-            // Use mail() instead of emailext() because:
-            // - Extended E-mail Notification requires OAuth2 (complex setup)
-            // - Default E-mail Notification uses SMTP Authentication (already working)
-            // - Test email works, so default email config is correct
             mail(
                 to: config.to,
                 subject: emailSubject,
@@ -189,27 +176,12 @@ def call(Map config = [:]) {
                 mimeType: 'text/html'
             )
             
-            echo "========================================="
-            echo "Email send command executed"
-            echo "WARNING: Check console output above for connection errors!"
-            echo "If you see 'Connection error' or 'Failed after second try',"
-            echo "the email was NOT sent successfully."
-            echo "========================================="
-            echo ""
-            echo "Troubleshooting steps if email not received:"
-            echo "1. Check console output for 'Connection error' messages"
-            echo "2. Verify SMTP settings in Jenkins: Manage Jenkins → Configure System"
-            echo "3. Test SMTP configuration using 'Test configuration' button"
-            echo "4. Check spam/junk folder"
-            echo "5. Verify EMAIL_RECIPIENTS is set correctly: '${env.EMAIL_RECIPIENTS ?: 'NOT SET'}'"
-            echo ""
+            // If we get here without exception, email was sent successfully
+            echo "✓ Email notification sent successfully to: ${config.to}"
             
         } catch (Exception e) {
-            echo "========================================="
-            echo "EXCEPTION while calling emailext:"
-            echo "Error: ${e.message}"
-            echo "========================================="
-            throw e
+            echo "✗ Email notification failed: ${e.message}"
+            // Don't fail the build if email fails
         }
         
     } catch (Exception e) {
