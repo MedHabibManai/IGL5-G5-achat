@@ -1,17 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import factureService from '../../services/factureService';
-import fournisseurService from '../../services/fournisseurService';
-import operateurService from '../../services/operateurService';
 import './FactureList.css';
 
 const FactureList = () => {
   const [factures, setFactures] = useState([]);
-  const [fournisseurs, setFournisseurs] = useState([]);
-  const [operateurs, setOperateurs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
-  const [editingFacture, setEditingFacture] = useState(null);
   const [formData, setFormData] = useState({
     montantRemise: '',
     montantFacture: '',
@@ -24,8 +19,6 @@ const FactureList = () => {
 
   useEffect(() => {
     fetchFactures();
-    fetchFournisseurs();
-    fetchOperateurs();
   }, []);
 
   const fetchFactures = async () => {
@@ -39,24 +32,6 @@ const FactureList = () => {
       console.error(err);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchFournisseurs = async () => {
-    try {
-      const data = await fournisseurService.getAllFournisseurs();
-      setFournisseurs(data);
-    } catch (err) {
-      console.error('Failed to fetch fournisseurs:', err);
-    }
-  };
-
-  const fetchOperateurs = async () => {
-    try {
-      const data = await operateurService.getAllOperateurs();
-      setOperateurs(data);
-    } catch (err) {
-      console.error('Failed to fetch operateurs:', err);
     }
   };
 

@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import reglementService from '../../services/reglementService';
-import factureService from '../../services/factureService';
 import './ReglementList.css';
 
 const ReglementList = () => {
   const [reglements, setReglements] = useState([]);
-  const [factures, setFactures] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
@@ -21,7 +19,6 @@ const ReglementList = () => {
 
   useEffect(() => {
     fetchReglements();
-    fetchFactures();
   }, []);
 
   const fetchReglements = async () => {
@@ -35,15 +32,6 @@ const ReglementList = () => {
       console.error(err);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchFactures = async () => {
-    try {
-      const data = await factureService.getAllFactures();
-      setFactures(data);
-    } catch (err) {
-      console.error('Failed to fetch factures:', err);
     }
   };
 

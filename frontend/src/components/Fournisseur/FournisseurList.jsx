@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import fournisseurService from '../../services/fournisseurService';
-import secteurActiviteService from '../../services/secteurActiviteService';
 import './FournisseurList.css';
 
 const FournisseurList = () => {
   const [fournisseurs, setFournisseurs] = useState([]);
-  const [secteurActivites, setSecteurActivites] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
@@ -18,7 +16,6 @@ const FournisseurList = () => {
 
   useEffect(() => {
     fetchFournisseurs();
-    fetchSecteurActivites();
   }, []);
 
   const fetchFournisseurs = async () => {
@@ -32,15 +29,6 @@ const FournisseurList = () => {
       console.error(err);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchSecteurActivites = async () => {
-    try {
-      const data = await secteurActiviteService.getAllSecteurActivites();
-      setSecteurActivites(data);
-    } catch (err) {
-      console.error('Failed to fetch secteur activites:', err);
     }
   };
 
