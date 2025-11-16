@@ -9,8 +9,9 @@ const ProduitList = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingProduit, setEditingProduit] = useState(null);
   const [formData, setFormData] = useState({
+    codeProduit: '',
     libelleProduit: '',
-    prixProduit: '',
+    prix: '',
     dateCreation: '',
     dateDerniereModification: '',
   });
@@ -47,8 +48,9 @@ const ProduitList = () => {
   const handleEdit = (produit) => {
     setEditingProduit(produit);
     setFormData({
+      codeProduit: produit.codeProduit || '',
       libelleProduit: produit.libelleProduit || '',
-      prixProduit: produit.prixProduit || '',
+      prix: produit.prix || '',
       dateCreation: produit.dateCreation || '',
       dateDerniereModification: produit.dateDerniereModification || '',
     });
@@ -58,8 +60,9 @@ const ProduitList = () => {
   const handleAdd = () => {
     setEditingProduit(null);
     setFormData({
+      codeProduit: '',
       libelleProduit: '',
-      prixProduit: '',
+      prix: '',
       dateCreation: '',
       dateDerniereModification: '',
     });
@@ -74,10 +77,14 @@ const ProduitList = () => {
         await produitService.updateProduit({
           ...editingProduit,
           ...formData,
+          prix: parseFloat(formData.prix),
         });
       } else {
         // Add new
-        await produitService.addProduit(formData);
+        await produitService.addProduit({
+          ...formData,
+          prix: parseFloat(formData.prix),
+        });
       }
       setShowForm(false);
       fetchProduits(); // Refresh list
@@ -112,6 +119,16 @@ const ProduitList = () => {
             <h2>{editingProduit ? 'Modifier Produit' : 'Nouveau Produit'}</h2>
             <form onSubmit={handleSubmit}>
               <div className="form-group">
+                <label>Code Produit:</label>
+                <input
+                  type="text"
+                  name="codeProduit"
+                  value={formData.codeProduit}
+                  onChange={handleInputChange}
+                  required
+                />
+              </div>
+              <div className="form-group">
                 <label>Libellé:</label>
                 <input
                   type="text"
@@ -125,8 +142,8 @@ const ProduitList = () => {
                 <label>Prix:</label>
                 <input
                   type="number"
-                  name="prixProduit"
-                  value={formData.prixProduit}
+                  name="prix"
+                  value={formData.prix}
                   onChange={handleInputChange}
                   step="0.01"
                   required
@@ -166,6 +183,7 @@ const ProduitList = () => {
             <thead>
               <tr>
                 <th>ID</th>
+                <th>Code</th>
                 <th>Libellé</th>
                 <th>Prix</th>
                 <th>Date Création</th>
@@ -176,8 +194,9 @@ const ProduitList = () => {
               {produits.map((produit) => (
                 <tr key={produit.idProduit}>
                   <td>{produit.idProduit}</td>
+                  <td>{produit.codeProduit || 'N/A'}</td>
                   <td>{produit.libelleProduit}</td>
-                  <td>{produit.prixProduit} DT</td>
+                  <td>{produit.prix} DT</td>
                   <td>{produit.dateCreation || 'N/A'}</td>
                   <td className="actions">
                     <button
