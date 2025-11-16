@@ -46,11 +46,11 @@ pipeline {
     parameters {
         choice(
             name: 'DEPLOYMENT_MODE',
-            choices: ['NORMAL', 'CLEANUP_AND_DEPLOY', 'REUSE_INFRASTRUCTURE', 'EKS_ONLY'],
+            choices: ['REUSE_INFRASTRUCTURE', 'NORMAL', 'CLEANUP_AND_DEPLOY', 'EKS_ONLY'],
             description: '''Deployment mode:
+            - REUSE_INFRASTRUCTURE: Keep VPC/RDS, only recreate EC2 instance (fastest for testing) [DEFAULT for webhooks]
             - NORMAL: Deploy fresh infrastructure (may fail if VPC limit reached)
             - CLEANUP_AND_DEPLOY: Destroy old resources first, then deploy new ones
-            - REUSE_INFRASTRUCTURE: Keep VPC/RDS, only recreate EC2 instance (fastest for testing)
             - EKS_ONLY: Skip all stages except EKS deployment (for testing EKS stage only)'''
         )
     }
@@ -127,6 +127,7 @@ pipeline {
                     
                     // Detect deployment mode from commit message
                     // Supports: [NORMAL], [CLEANUP_AND_DEPLOY], [REUSE_INFRASTRUCTURE], [EKS_ONLY]
+                    // Also handles: [reuse_infrastructure], [Reuse_Infrastructure], etc. (case-insensitive)
                     def commitMessage = sh(
                         script: 'git log -1 --pretty=%B',
                         returnStdout: true
@@ -135,26 +136,34 @@ pipeline {
                     def detectedMode = null
                     def validModes = ['NORMAL', 'CLEANUP_AND_DEPLOY', 'REUSE_INFRASTRUCTURE', 'EKS_ONLY']
                     
+                    // Check for mode in commit message (case-insensitive)
+                    def commitMessageUpper = commitMessage.toUpperCase()
                     validModes.each { mode ->
-                        if (commitMessage.contains("[${mode}]") || commitMessage.contains("[${mode.toLowerCase()}]")) {
+                        // Check with brackets: [REUSE_INFRASTRUCTURE] or [reuse_infrastructure]
+                        if (commitMessageUpper.contains("[${mode}]") || 
+                            commitMessageUpper.contains("[${mode.replace('_', '-')}]")) {
                             detectedMode = mode
+                            return
                         }
                     }
                     
                     if (detectedMode) {
                         echo "========================================="
-                        echo "Deployment mode detected from commit message: ${detectedMode}"
+                        echo "✅ Deployment mode detected from commit message: ${detectedMode}"
                         echo "Commit message: ${commitMessage}"
                         echo "========================================="
                         env.DEPLOYMENT_MODE = detectedMode
                     } else {
                         echo "========================================="
-                        echo "No deployment mode in commit message, using default: ${params.DEPLOYMENT_MODE}"
+                        echo "⚠️  No deployment mode in commit message, using default: ${params.DEPLOYMENT_MODE}"
                         echo "Commit message: ${commitMessage}"
                         echo "To specify mode, use: [NORMAL], [REUSE_INFRASTRUCTURE], [CLEANUP_AND_DEPLOY], or [EKS_ONLY]"
                         echo "========================================="
                         env.DEPLOYMENT_MODE = params.DEPLOYMENT_MODE
                     }
+                    
+                    // Log the final deployment mode that will be used
+                    echo "🔧 Final deployment mode: ${env.DEPLOYMENT_MODE}"
                 }
             }
         }

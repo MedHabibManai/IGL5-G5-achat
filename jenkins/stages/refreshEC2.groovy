@@ -2,8 +2,10 @@
 // jenkins/stages/refreshEC2.groovy
 def call() {
     stage('Refresh EC2 Instance Only') {
-        if (params.DEPLOYMENT_MODE != 'REUSE_INFRASTRUCTURE' || !fileExists('terraform/main.tf')) {
-            echo 'Skipping EC2 refresh: not in REUSE_INFRASTRUCTURE mode or terraform config missing'
+        // Check both env.DEPLOYMENT_MODE (set from commit message or params) and params.DEPLOYMENT_MODE (fallback)
+        def deploymentMode = env.DEPLOYMENT_MODE ?: params.DEPLOYMENT_MODE
+        if (deploymentMode != 'REUSE_INFRASTRUCTURE' || !fileExists('terraform/main.tf')) {
+            echo "Skipping EC2 refresh: not in REUSE_INFRASTRUCTURE mode or terraform config missing (mode: ${deploymentMode})"
             return
         }
 

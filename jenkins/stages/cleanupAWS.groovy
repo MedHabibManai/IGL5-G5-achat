@@ -2,8 +2,10 @@
 // jenkins/stages/cleanupAWS.groovy
 def call() {
     stage('Cleanup AWS Infrastructure') {
-        if (params.DEPLOYMENT_MODE != 'CLEANUP_AND_DEPLOY' || !fileExists('terraform/main.tf')) {
-            echo 'Skipping AWS cleanup: not in CLEANUP_AND_DEPLOY mode or terraform config missing'
+        // Check both env.DEPLOYMENT_MODE (set from commit message or params) and params.DEPLOYMENT_MODE (fallback)
+        def deploymentMode = env.DEPLOYMENT_MODE ?: params.DEPLOYMENT_MODE
+        if (deploymentMode != 'CLEANUP_AND_DEPLOY' || !fileExists('terraform/main.tf')) {
+            echo "Skipping AWS cleanup: not in CLEANUP_AND_DEPLOY mode or terraform config missing (mode: ${deploymentMode})"
             return
         }
 

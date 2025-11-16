@@ -2,8 +2,10 @@
 // jenkins/stages/terraformApply.groovy
 def call() {
     stage('Terraform Apply') {
-        if (!fileExists('terraform/main.tf') || params.DEPLOYMENT_MODE == 'REUSE_INFRASTRUCTURE') {
-            echo 'Skipping Terraform Apply: configuration missing or deployment mode reuses infra'
+        // Check both env.DEPLOYMENT_MODE (set from commit message or params) and params.DEPLOYMENT_MODE (fallback)
+        def deploymentMode = env.DEPLOYMENT_MODE ?: params.DEPLOYMENT_MODE
+        if (!fileExists('terraform/main.tf') || deploymentMode == 'REUSE_INFRASTRUCTURE') {
+            echo "Skipping Terraform Apply: configuration missing or deployment mode reuses infra (mode: ${deploymentMode})"
             return
         }
 
