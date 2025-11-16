@@ -26,8 +26,58 @@ def call() {
                         echo "Importing existing infrastructure state..."
                         echo "======================================"
                         
-                        # Initialize Terraform first
-                        terraform init -input=false
+                        # Initialize Terraform first with retry logic for TLS errors
+                        echo "Initializing Terraform..."
+                        MAX_RETRIES=7
+                        RETRY_COUNT=0
+                        INIT_SUCCESS=false
+                        
+                        while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$INIT_SUCCESS" != "true" ]; do
+                            RETRY_COUNT=$((RETRY_COUNT + 1))
+                            echo ""
+                            echo "=========================================="
+                            echo "Terraform Init - Attempt $RETRY_COUNT of $MAX_RETRIES"
+                            echo "=========================================="
+                            
+                            # On first attempt, try with upgrade. On retries, skip upgrade to use cache if available
+                            if [ $RETRY_COUNT -eq 1 ]; then
+                                INIT_CMD="terraform init -input=false -upgrade"
+                            else
+                                INIT_CMD="terraform init -input=false"
+                                echo "Skipping -upgrade flag to use cached providers if available"
+                            fi
+                            
+                            if $INIT_CMD; then
+                                echo ""
+                                echo "✅ Terraform init successful!"
+                                INIT_SUCCESS=true
+                            else
+                                if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                                    # Exponential backoff: 15s, 30s, 60s, 120s, 180s, 240s
+                                    EXPONENT=$((RETRY_COUNT - 1))
+                                    POWER_OF_2=1
+                                    i=0
+                                    while [ $i -lt $EXPONENT ]; do
+                                        POWER_OF_2=$((POWER_OF_2 * 2))
+                                        i=$((i + 1))
+                                    done
+                                    WAIT_TIME=$((15 * POWER_OF_2))
+                                    if [ $WAIT_TIME -gt 240 ]; then
+                                        WAIT_TIME=240
+                                    fi
+                                    echo ""
+                                    echo "⚠️  Terraform init failed (likely network/TLS timeout)"
+                                    echo "    Waiting ${WAIT_TIME} seconds before retry..."
+                                    echo "    This is attempt $RETRY_COUNT of $MAX_RETRIES"
+                                    sleep $WAIT_TIME
+                                else
+                                    echo ""
+                                    echo "❌ Terraform init failed after $MAX_RETRIES attempts"
+                                    echo "    This is likely a network connectivity issue from Jenkins to Terraform registry"
+                                    exit 1
+                                fi
+                            fi
+                        done
                         
                         # Import existing resources (ignore errors if already in state)
                         echo "Importing VPC and network resources..."
