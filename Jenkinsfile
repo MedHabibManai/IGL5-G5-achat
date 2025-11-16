@@ -124,6 +124,37 @@ pipeline {
                     
                     // Configure git to skip SSL verification for this workspace
                     sh 'git config http.sslVerify false'
+                    
+                    // Detect deployment mode from commit message
+                    // Supports: [NORMAL], [CLEANUP_AND_DEPLOY], [REUSE_INFRASTRUCTURE], [EKS_ONLY]
+                    def commitMessage = sh(
+                        script: 'git log -1 --pretty=%B',
+                        returnStdout: true
+                    ).trim()
+                    
+                    def detectedMode = null
+                    def validModes = ['NORMAL', 'CLEANUP_AND_DEPLOY', 'REUSE_INFRASTRUCTURE', 'EKS_ONLY']
+                    
+                    validModes.each { mode ->
+                        if (commitMessage.contains("[${mode}]") || commitMessage.contains("[${mode.toLowerCase()}]")) {
+                            detectedMode = mode
+                        }
+                    }
+                    
+                    if (detectedMode) {
+                        echo "========================================="
+                        echo "Deployment mode detected from commit message: ${detectedMode}"
+                        echo "Commit message: ${commitMessage}"
+                        echo "========================================="
+                        env.DEPLOYMENT_MODE = detectedMode
+                    } else {
+                        echo "========================================="
+                        echo "No deployment mode in commit message, using default: ${params.DEPLOYMENT_MODE}"
+                        echo "Commit message: ${commitMessage}"
+                        echo "To specify mode, use: [NORMAL], [REUSE_INFRASTRUCTURE], [CLEANUP_AND_DEPLOY], or [EKS_ONLY]"
+                        echo "========================================="
+                        env.DEPLOYMENT_MODE = params.DEPLOYMENT_MODE
+                    }
                 }
             }
         }
@@ -131,8 +162,11 @@ pipeline {
         stage('Load Stages') {
             steps {
                 script {
+                    // Use detected mode from commit message, or fall back to parameter default
+                    def deploymentMode = env.DEPLOYMENT_MODE ?: params.DEPLOYMENT_MODE
+                    
                     // If EKS_ONLY mode, only run the EKS deployment stage
-                    if (params.DEPLOYMENT_MODE == 'EKS_ONLY') {
+                    if (deploymentMode == 'EKS_ONLY') {
                         echo '========================================='
                         echo 'EKS_ONLY Mode: Running only EKS deployment stage'
                         echo '========================================='
@@ -174,7 +208,8 @@ pipeline {
                 echo "Build Number: ${BUILD_NUMBER}"
                 echo "Build Status: ${currentBuild.currentResult}"
                 echo "Duration: ${currentBuild.durationString}"
-                echo "Deployment Mode: ${params.DEPLOYMENT_MODE}"
+                def deploymentMode = env.DEPLOYMENT_MODE ?: params.DEPLOYMENT_MODE
+                echo "Deployment Mode: ${deploymentMode}"
                 echo ''
                 echo 'For all deployment URLs, see the "Final Deployment Summary" stage above.'
                 echo '========================================='
