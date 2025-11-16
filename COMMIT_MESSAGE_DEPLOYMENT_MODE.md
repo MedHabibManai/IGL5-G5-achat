@@ -1,5 +1,7 @@
 # 🎯 Specify Deployment Mode in Commit Messages
 
+<!-- Test commit for REUSE_INFRASTRUCTURE mode -->
+
 ## ✅ How It Works
 
 You can now specify the deployment mode **in your commit message** when pushing! Jenkins will automatically detect it and use that mode instead of the default.
