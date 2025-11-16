@@ -39,11 +39,8 @@ pipeline {
     }
 
     // Webhook trigger: Build automatically on GitHub push
-    // Note: Also enable "GitHub hook trigger for GITScm polling" in Jenkins job configuration
-    triggers {
-        // This allows the pipeline to be triggered by GitHub webhooks
-        // The actual webhook configuration is done in Jenkins job settings
-    }
+    // Note: Enable "GitHub hook trigger for GITScm polling" in Jenkins job configuration
+    // The triggers block is not needed - webhook is configured via Jenkins UI checkbox
 
     // Parameters to control pipeline behavior
     parameters {
