@@ -201,79 +201,92 @@ def call() {
                                 } else {
                                     echo "  Status: HTTP ${response} (not ready yet)"
                                     
-                                    // Show diagnostic info every 3 attempts (more frequent for troubleshooting)
+                                    // Extract IP from URL for port check
+                                    def ipAddress = appUrl.replaceAll('http://', '').replaceAll('/SpringMVC', '').replaceAll(':8089', '')
+                                    
+                                    // Check if port 8089 is open (check every attempt)
+                                    def portCheck = ""
+                                    try {
+                                        portCheck = sh(
+                                            script: "timeout 2 bash -c '</dev/tcp/${ipAddress}/8089' 2>&1 && echo 'open' || echo 'closed'",
+                                            returnStdout: true
+                                        ).trim()
+                                    } catch (Exception e) {
+                                        portCheck = "closed"
+                                    }
+                                    
+                                    // If port is open but app isn't responding, check container status via SSM
+                                    // Only run SSM check once to avoid spamming
+                                    if (portCheck == 'open' && response == '000' && i == maxAttempts) {
+                                        echo "  ⚠️  Port is open but application not responding - checking container status via SSM..."
+                                        try {
+                                            def containerStatus = sh(
+                                                script: """
+                                                    export AWS_ACCESS_KEY_ID=\$(grep aws_access_key_id "\$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                                    export AWS_SECRET_ACCESS_KEY=\$(grep aws_secret_access_key "\$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                                    export AWS_SESSION_TOKEN=\$(grep aws_session_token "\$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                                    export AWS_DEFAULT_REGION=${AWS_REGION}
+                                                    aws ssm send-command \
+                                                        --instance-id ${instanceId} \
+                                                        --document-name "AWS-RunShellScript" \
+                                                        --parameters 'commands=["echo === Container Status ===","docker ps -a | grep achat || echo \"No container found\"","echo === Container Logs ===","docker logs achat --tail 50 2>&1 || echo \"Container logs unavailable\"","echo === User-Data Log ===","cat /var/log/user-data.log | tail -50 || echo \"User-data log unavailable\"","echo === Docker Service ===","systemctl status docker | head -10 || echo \"Docker status unavailable\""]' \
+                                                        --output text \
+                                                        --query "Command.CommandId" 2>/dev/null || echo "SSM_CHECK_FAILED"
+                                                """,
+                                                returnStdout: true
+                                            ).trim()
+                                            
+                                            if (containerStatus && containerStatus != "SSM_CHECK_FAILED") {
+                                                echo "  ✓ SSM command sent: ${containerStatus}"
+                                                echo "  ℹ️  Waiting for command to complete (10 seconds)..."
+                                                sleep(10)
+                                                def commandOutput = sh(
+                                                    script: """
+                                                        export AWS_ACCESS_KEY_ID=\$(grep aws_access_key_id "\$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                                        export AWS_SECRET_ACCESS_KEY=\$(grep aws_secret_access_key "\$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                                        export AWS_SESSION_TOKEN=\$(grep aws_session_token "\$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                                        export AWS_DEFAULT_REGION=${AWS_REGION}
+                                                        aws ssm get-command-invocation \
+                                                            --command-id ${containerStatus} \
+                                                            --instance-id ${instanceId} \
+                                                            --query "StandardOutputContent" \
+                                                            --output text 2>/dev/null || echo "Output not available yet"
+                                                    """,
+                                                    returnStdout: true
+                                                ).trim()
+                                                if (commandOutput && commandOutput != "Output not available yet") {
+                                                    echo "  Container Diagnostics:"
+                                                    echo "  ${commandOutput.split('\n').collect { "    ${it}" }.join('\n')}"
+                                                } else {
+                                                    echo "  ⚠️  SSM command output not available yet - check AWS Console for details"
+                                                }
+                                            } else {
+                                                echo "  ⚠️  SSM command failed - instance may not have SSM agent or IAM permissions"
+                                            }
+                                        } catch (Exception e) {
+                                            echo "  Could not check container status via SSM: ${e.message}"
+                                        }
+                                    }
+                                    
+                                    // Show diagnostic info every 3 attempts
                                     if (i % 3 == 0) {
                                         echo "  Diagnostic check (attempt ${i})..."
                                         try {
-                                            // Extract IP from URL for port check
-                                            def ipAddress = appUrl.replaceAll('http://', '').replaceAll('/SpringMVC', '').replaceAll(':8089', '')
-                                            
                                             // Check if we can reach the server at all
                                             def pingResult = sh(
                                                 script: "curl -s -o /dev/null -w '%{http_code}' --connect-timeout 3 --max-time 5 ${appUrl} 2>&1 || echo 'unreachable'",
                                                 returnStdout: true
                                             ).trim()
                                             echo "  Server reachability: ${pingResult}"
-                                            
-                                            // Check if port 8089 is open
-                                            def portCheck = sh(
-                                                script: "timeout 2 bash -c '</dev/tcp/${ipAddress}/8089' 2>&1 && echo 'open' || echo 'closed'",
-                                                returnStdout: true
-                                            ).trim()
                                             echo "  Port 8089 status: ${portCheck}"
-                                            
-                                            // If port is open but app isn't responding, check container status via SSM
-                                            if (portCheck == 'open' && response == '000') {
-                                                echo "  ⚠️  Port is open but application not responding - checking container status..."
-                                                try {
-                                                    def containerStatus = sh(
-                                                        script: """
-                                                            export AWS_ACCESS_KEY_ID=\$(grep aws_access_key_id "\$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
-                                                            export AWS_SECRET_ACCESS_KEY=\$(grep aws_secret_access_key "\$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
-                                                            export AWS_SESSION_TOKEN=\$(grep aws_session_token "\$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
-                                                            export AWS_DEFAULT_REGION=${AWS_REGION}
-                                                            aws ssm send-command \
-                                                                --instance-id ${instanceId} \
-                                                                --document-name "AWS-RunShellScript" \
-                                                                --parameters 'commands=["docker ps -a | grep achat || echo \"No container found\"","docker logs achat --tail 50 2>&1 || echo \"Container logs unavailable\"","cat /var/log/user-data.log | tail -50 || echo \"User-data log unavailable\"","systemctl status docker | head -10 || echo \"Docker status unavailable\""]' \
-                                                                --output text \
-                                                                --query "Command.CommandId" 2>/dev/null || echo "SSM_CHECK_FAILED"
-                                                        """,
-                                                        returnStdout: true
-                                                    ).trim()
-                                                    
-                                                    if (containerStatus && containerStatus != "SSM_CHECK_FAILED") {
-                                                        echo "  ✓ SSM command sent: ${containerStatus}"
-                                                        echo "  ℹ️  Checking command output in 5 seconds..."
-                                                        sleep(5)
-                                                        def commandOutput = sh(
-                                                            script: """
-                                                                export AWS_ACCESS_KEY_ID=\$(grep aws_access_key_id "\$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
-                                                                export AWS_SECRET_ACCESS_KEY=\$(grep aws_secret_access_key "\$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
-                                                                export AWS_SESSION_TOKEN=\$(grep aws_session_token "\$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
-                                                                export AWS_DEFAULT_REGION=${AWS_REGION}
-                                                                aws ssm get-command-invocation \
-                                                                    --command-id ${containerStatus} \
-                                                                    --instance-id ${instanceId} \
-                                                                    --query "StandardOutputContent" \
-                                                                    --output text 2>/dev/null || echo "Output not available yet"
-                                                            """,
-                                                            returnStdout: true
-                                                        ).trim()
-                                                        if (commandOutput && commandOutput != "Output not available yet") {
-                                                            echo "  Container Status:"
-                                                            echo "  ${commandOutput.split('\n').collect { "    ${it}" }.join('\n')}"
-                                                        }
-                                                    }
-                                                } catch (Exception e) {
-                                                    echo "  Could not check container status via SSM: ${e.message}"
-                                                }
-                                            }
                                             
                                             // In REUSE_INFRASTRUCTURE mode, provide more context
                                             if (isReuseMode && portCheck == 'closed') {
                                                 echo "  ℹ️  In REUSE_INFRASTRUCTURE mode, user-data script may still be running"
                                                 echo "     This is normal - Docker installation and container startup takes 3-5 minutes"
+                                            } else if (portCheck == 'open' && response == '000') {
+                                                echo "  ⚠️  Port is open but application not responding"
+                                                echo "     This may indicate container is running but Spring Boot app hasn't started"
                                             }
                                         } catch (Exception e) {
                                             echo "  Server appears unreachable: ${e.message}"
