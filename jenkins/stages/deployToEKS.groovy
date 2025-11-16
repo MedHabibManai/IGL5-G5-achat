@@ -192,6 +192,9 @@ def call() {
                             
                             // Deploy to EKS
                             sh """
+                                # Don't exit on error - let retry function handle failures
+                                set +e
+                                
                                 # Helper function for kubectl with retry (handles TLS handshake timeouts and connection errors)
                                 kubectl_retry() {
                                     local cmd="\$@"
@@ -285,11 +288,17 @@ def call() {
                                 
                                 # Create namespace first
                                 echo "Creating namespace..."
-                                kubectl_retry kubectl apply -f ../k8s/namespace.yaml
+                                if ! kubectl_retry kubectl apply -f ../k8s/namespace.yaml; then
+                                    echo "ERROR: Failed to create namespace after all retries"
+                                    exit 1
+                                fi
                                 
                                 # Apply secrets and configmaps
                                 echo "Applying secrets and configmaps..."
-                                kubectl_retry kubectl apply -f ../k8s/secret.yaml
+                                if ! kubectl_retry kubectl apply -f ../k8s/secret.yaml; then
+                                    echo "ERROR: Failed to apply secrets after all retries"
+                                    exit 1
+                                fi
                                 
                                 # Update ConfigMap with actual RDS endpoint
                                 if [ -n "${rdsEndpoint}" ]; then
@@ -298,19 +307,37 @@ def call() {
                                     TEMP_CONFIGMAP=\$(mktemp)
                                     cat ../k8s/configmap.yaml | \\
                                         sed "s|RDS_ENDPOINT_PLACEHOLDER|${rdsEndpoint}|g" > \$TEMP_CONFIGMAP
-                                    kubectl_retry kubectl apply -f \$TEMP_CONFIGMAP
+                                    if ! kubectl_retry kubectl apply -f \$TEMP_CONFIGMAP; then
+                                        rm -f \$TEMP_CONFIGMAP
+                                        echo "ERROR: Failed to apply ConfigMap after all retries"
+                                        exit 1
+                                    fi
                                     rm -f \$TEMP_CONFIGMAP
                                 else
                                     echo "WARNING: Applying ConfigMap without RDS endpoint update!"
-                                    kubectl_retry kubectl apply -f ../k8s/configmap.yaml
+                                    if ! kubectl_retry kubectl apply -f ../k8s/configmap.yaml; then
+                                        echo "ERROR: Failed to apply ConfigMap after all retries"
+                                        exit 1
+                                    fi
                                 fi
                                 
                                 # Apply all other Kubernetes manifests (deployments, services, etc.)
                                 echo "Applying deployments and services..."
-                                kubectl_retry kubectl apply -f ../k8s/deployment.yaml
-                                kubectl_retry kubectl apply -f ../k8s/frontend-deployment.yaml
-                                kubectl_retry kubectl apply -f ../k8s/service.yaml
-                                kubectl_retry kubectl apply -f ../k8s/hpa.yaml
+                                if ! kubectl_retry kubectl apply -f ../k8s/deployment.yaml; then
+                                    echo "ERROR: Failed to apply backend deployment after all retries"
+                                    exit 1
+                                fi
+                                if ! kubectl_retry kubectl apply -f ../k8s/frontend-deployment.yaml; then
+                                    echo "ERROR: Failed to apply frontend deployment after all retries"
+                                    exit 1
+                                fi
+                                if ! kubectl_retry kubectl apply -f ../k8s/service.yaml; then
+                                    echo "ERROR: Failed to apply services after all retries"
+                                    exit 1
+                                fi
+                                if ! kubectl_retry kubectl apply -f ../k8s/hpa.yaml; then
+                                    echo "WARNING: Failed to apply HPA after all retries (non-critical, continuing)"
+                                fi
                                 
                                 # Now update deployment images to specific build versions
                                 # In EKS_ONLY mode, images may not exist - check first before updating
