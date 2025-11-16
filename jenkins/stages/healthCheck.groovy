@@ -25,66 +25,119 @@ def call() {
                             terraform refresh -input=false 2>&1 || echo "Refresh completed (warnings OK)"
                         '''
                         
-                        // Get instance ID first to verify it exists
-                        def instanceId = sh(
-                            script: 'terraform output -raw instance_id 2>/dev/null || echo ""',
-                            returnStdout: true
-                        ).trim()
+                        // Check deployment mode to determine how to get instance info
+                        def deploymentMode = env.DEPLOYMENT_MODE ?: params.DEPLOYMENT_MODE
+                        def isReuseMode = (deploymentMode == 'REUSE_INFRASTRUCTURE')
                         
-                        echo "Terraform instance ID: ${instanceId}"
-                        
-                        // Get application URL - always query AWS directly for most reliable IP
-                        def appUrl = ""
-                        if (instanceId && instanceId != "") {
-                            echo "Verifying IP address directly from AWS (most reliable)..."
-                            // Get the actual current IP from AWS (most reliable)
-                            def actualIp = sh(
+                        // Get instance ID - in REUSE_INFRASTRUCTURE mode, query AWS directly for most recent instance
+                        def instanceId = ""
+                        if (isReuseMode) {
+                            echo "REUSE_INFRASTRUCTURE mode: Finding most recent instance by tags..."
+                            // In REUSE mode, find the most recent running instance with our tags
+                            instanceId = sh(
                                 script: '''
                                     export AWS_ACCESS_KEY_ID=$(grep aws_access_key_id "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
                                     export AWS_SECRET_ACCESS_KEY=$(grep aws_secret_access_key "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
                                     export AWS_SESSION_TOKEN=$(grep aws_session_token "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
                                     export AWS_DEFAULT_REGION=''' + AWS_REGION + '''
-                                    # First check for EIP (preferred)
-                                    EIP_IP=$(aws ec2 describe-addresses --region ''' + AWS_REGION + ''' --filters "Name=instance-id,Values=''' + instanceId + '''" --query "Addresses[0].PublicIp" --output text 2>/dev/null || echo "")
-                                    if [ -n "$EIP_IP" ] && [ "$EIP_IP" != "None" ] && [ "$EIP_IP" != "" ]; then
-                                        echo "$EIP_IP"
-                                    else
-                                        # Fallback to instance public IP
-                                        aws ec2 describe-instances --region ''' + AWS_REGION + ''' --instance-ids ''' + instanceId + ''' --query "Reservations[0].Instances[0].PublicIpAddress" --output text 2>/dev/null || echo ""
-                                    fi
+                                    # Find most recent running instance with our project tag
+                                    aws ec2 describe-instances \
+                                        --region ''' + AWS_REGION + ''' \
+                                        --filters "Name=tag:Project,Values=achat-app" "Name=tag:Name,Values=achat-app-instance" "Name=instance-state-name,Values=running" \
+                                        --query "Reservations[*].Instances | sort_by(@, &LaunchTime) | [-1].InstanceId" \
+                                        --output text 2>/dev/null || echo ""
                                 ''',
                                 returnStdout: true
                             ).trim()
+                            if (instanceId && instanceId != "") {
+                                echo "✓ Found most recent instance from AWS: ${instanceId}"
+                            } else {
+                                echo "⚠ Could not find instance by tags, falling back to Terraform output..."
+                                instanceId = sh(
+                                    script: 'terraform output -raw instance_id 2>/dev/null || echo ""',
+                                    returnStdout: true
+                                ).trim()
+                            }
+                        } else {
+                            instanceId = sh(
+                                script: 'terraform output -raw instance_id 2>/dev/null || echo ""',
+                                returnStdout: true
+                            ).trim()
+                        }
+                        
+                        echo "Instance ID: ${instanceId}"
+                        
+                        // Get application URL
+                        // In REUSE_INFRASTRUCTURE mode, trust Terraform output since it just created the resources
+                        // AWS API might have propagation delays for EIP association
+                        def appUrl = ""
+                        if (isReuseMode) {
+                            echo "REUSE_INFRASTRUCTURE mode: Using Terraform output (most reliable after recent creation)..."
+                            appUrl = sh(
+                                script: 'terraform output -raw application_url 2>/dev/null || echo ""',
+                                returnStdout: true
+                            ).trim()
                             
-                            if (actualIp && actualIp != "None" && actualIp != "") {
-                                echo "✓ Verified IP from AWS: ${actualIp}"
-                                appUrl = "http://${actualIp}:8089/SpringMVC"
+                            if (appUrl && appUrl != "") {
+                                // Extract IP from URL for verification
+                                def terraformIp = appUrl.replaceAll('http://', '').replaceAll('/SpringMVC', '').replaceAll(':8089', '')
+                                echo "✓ Using Terraform output IP: ${terraformIp}"
                                 
-                                // Also get Terraform output for comparison
-                                def terraformUrl = sh(
-                                    script: 'terraform output -raw application_url 2>/dev/null || echo ""',
+                                // Verify the instance exists (but trust Terraform for IP)
+                                if (instanceId && instanceId != "") {
+                                    def instanceExists = sh(
+                                        script: '''
+                                            export AWS_ACCESS_KEY_ID=$(grep aws_access_key_id "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                            export AWS_SECRET_ACCESS_KEY=$(grep aws_secret_access_key "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                            export AWS_SESSION_TOKEN=$(grep aws_session_token "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                            export AWS_DEFAULT_REGION=''' + AWS_REGION + '''
+                                            aws ec2 describe-instances --region ''' + AWS_REGION + ''' --instance-ids ''' + instanceId + ''' --query "Reservations[0].Instances[0].State.Name" --output text 2>/dev/null || echo "not-found"
+                                        ''',
+                                        returnStdout: true
+                                    ).trim()
+                                    echo "  Instance state: ${instanceExists}"
+                                }
+                            }
+                        } else {
+                            // In NORMAL/CLEANUP mode, query AWS directly for most reliable IP
+                            if (instanceId && instanceId != "") {
+                                echo "Verifying IP address directly from AWS (most reliable)..."
+                                // Get the actual current IP from AWS (most reliable)
+                                def actualIp = sh(
+                                    script: '''
+                                        export AWS_ACCESS_KEY_ID=$(grep aws_access_key_id "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                        export AWS_SECRET_ACCESS_KEY=$(grep aws_secret_access_key "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                        export AWS_SESSION_TOKEN=$(grep aws_session_token "$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                        export AWS_DEFAULT_REGION=''' + AWS_REGION + '''
+                                        # First check for EIP (preferred)
+                                        EIP_IP=$(aws ec2 describe-addresses --region ''' + AWS_REGION + ''' --filters "Name=instance-id,Values=''' + instanceId + '''" --query "Addresses[0].PublicIp" --output text 2>/dev/null || echo "")
+                                        if [ -n "$EIP_IP" ] && [ "$EIP_IP" != "None" ] && [ "$EIP_IP" != "" ]; then
+                                            echo "$EIP_IP"
+                                        else
+                                            # Fallback to instance public IP
+                                            aws ec2 describe-instances --region ''' + AWS_REGION + ''' --instance-ids ''' + instanceId + ''' --query "Reservations[0].Instances[0].PublicIpAddress" --output text 2>/dev/null || echo ""
+                                        fi
+                                    ''',
                                     returnStdout: true
                                 ).trim()
                                 
-                                if (terraformUrl && terraformUrl.contains(actualIp)) {
-                                    echo "✓ Terraform output matches AWS IP"
+                                if (actualIp && actualIp != "None" && actualIp != "") {
+                                    echo "✓ Verified IP from AWS: ${actualIp}"
+                                    appUrl = "http://${actualIp}:8089/SpringMVC"
                                 } else {
-                                    echo "⚠ Terraform output (${terraformUrl}) doesn't match AWS IP (${actualIp})"
-                                    echo "  Using AWS verified IP: ${appUrl}"
+                                    echo "⚠ Could not get IP from AWS, falling back to Terraform output..."
+                                    appUrl = sh(
+                                        script: 'terraform output -raw application_url 2>/dev/null || echo ""',
+                                        returnStdout: true
+                                    ).trim()
                                 }
                             } else {
-                                echo "⚠ Could not get IP from AWS, falling back to Terraform output..."
+                                echo "⚠ No instance ID found, using Terraform output..."
                                 appUrl = sh(
                                     script: 'terraform output -raw application_url 2>/dev/null || echo ""',
                                     returnStdout: true
                                 ).trim()
                             }
-                        } else {
-                            echo "⚠ No instance ID found, using Terraform output..."
-                            appUrl = sh(
-                                script: 'terraform output -raw application_url 2>/dev/null || echo ""',
-                                returnStdout: true
-                            ).trim()
                         }
 
                     if (appUrl) {
@@ -99,17 +152,7 @@ def call() {
                         echo "  - Database connectivity"
                         echo "  - Application container startup"
                         echo ""
-                        
-                        // Check if this is REUSE_INFRASTRUCTURE mode (instance was just recreated)
-                        def isReuseMode = false
-                        try {
-                            // Access params.DEPLOYMENT_MODE from pipeline context (same way other stages do)
-                            isReuseMode = (params.DEPLOYMENT_MODE == 'REUSE_INFRASTRUCTURE')
-                            echo "Deployment mode: ${params.DEPLOYMENT_MODE} (isReuseMode: ${isReuseMode})"
-                        } catch (Exception e) {
-                            echo "Could not determine deployment mode, assuming NORMAL: ${e.message}"
-                            isReuseMode = false
-                        }
+                        echo "Deployment mode: ${deploymentMode} (isReuseMode: ${isReuseMode})"
                         
                         // Initial wait for EC2 instance to initialize
                         // In REUSE_INFRASTRUCTURE mode, instance was just created, so user-data script needs time
