@@ -127,6 +127,12 @@ pipeline {
                     // Configure git to skip SSL verification for this workspace
                     sh 'git config http.sslVerify false'
                     
+                    // Check if build was triggered manually (by user) or by webhook
+                    def buildCauses = currentBuild.getBuildCauses()
+                    def isManualBuild = buildCauses.any { cause -> 
+                        cause.getClass().getSimpleName() == 'UserIdCause' 
+                    }
+                    
                     // Detect deployment mode from commit message
                     // Supports: [NORMAL], [CLEANUP_AND_DEPLOY], [REUSE_INFRASTRUCTURE], [EKS_ONLY]
                     // Also handles: [reuse_infrastructure], [Reuse_Infrastructure], etc. (case-insensitive)
@@ -149,7 +155,19 @@ pipeline {
                         }
                     }
                     
-                    if (detectedMode) {
+                    // Priority logic:
+                    // 1. Manual builds: Always use params.DEPLOYMENT_MODE (user selection)
+                    // 2. Webhook builds: Use commit message if present, otherwise use default param
+                    if (isManualBuild) {
+                        echo "========================================="
+                        echo "👤 Manual build detected - using selected parameter: ${params.DEPLOYMENT_MODE}"
+                        echo "Commit message: ${commitMessage}"
+                        if (detectedMode) {
+                            echo "ℹ️  Note: Commit message contains [${detectedMode}], but manual selection takes priority"
+                        }
+                        echo "========================================="
+                        env.DEPLOYMENT_MODE = params.DEPLOYMENT_MODE
+                    } else if (detectedMode) {
                         echo "========================================="
                         echo "✅ Deployment mode detected from commit message: ${detectedMode}"
                         echo "Commit message: ${commitMessage}"
