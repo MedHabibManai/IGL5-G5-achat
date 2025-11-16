@@ -222,6 +222,54 @@ def call() {
                                             ).trim()
                                             echo "  Port 8089 status: ${portCheck}"
                                             
+                                            // If port is open but app isn't responding, check container status via SSM
+                                            if (portCheck == 'open' && response == '000') {
+                                                echo "  ⚠️  Port is open but application not responding - checking container status..."
+                                                try {
+                                                    def containerStatus = sh(
+                                                        script: """
+                                                            export AWS_ACCESS_KEY_ID=\$(grep aws_access_key_id "\$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                                            export AWS_SECRET_ACCESS_KEY=\$(grep aws_secret_access_key "\$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                                            export AWS_SESSION_TOKEN=\$(grep aws_session_token "\$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                                            export AWS_DEFAULT_REGION=${AWS_REGION}
+                                                            aws ssm send-command \
+                                                                --instance-id ${instanceId} \
+                                                                --document-name "AWS-RunShellScript" \
+                                                                --parameters 'commands=["docker ps -a | grep achat || echo \"No container found\"","docker logs achat --tail 50 2>&1 || echo \"Container logs unavailable\"","cat /var/log/user-data.log | tail -50 || echo \"User-data log unavailable\"","systemctl status docker | head -10 || echo \"Docker status unavailable\""]' \
+                                                                --output text \
+                                                                --query "Command.CommandId" 2>/dev/null || echo "SSM_CHECK_FAILED"
+                                                        """,
+                                                        returnStdout: true
+                                                    ).trim()
+                                                    
+                                                    if (containerStatus && containerStatus != "SSM_CHECK_FAILED") {
+                                                        echo "  ✓ SSM command sent: ${containerStatus}"
+                                                        echo "  ℹ️  Checking command output in 5 seconds..."
+                                                        sleep(5)
+                                                        def commandOutput = sh(
+                                                            script: """
+                                                                export AWS_ACCESS_KEY_ID=\$(grep aws_access_key_id "\$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                                                export AWS_SECRET_ACCESS_KEY=\$(grep aws_secret_access_key "\$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                                                export AWS_SESSION_TOKEN=\$(grep aws_session_token "\$AWS_CREDENTIALS_FILE" | cut -d '=' -f2 | tr -d ' ')
+                                                                export AWS_DEFAULT_REGION=${AWS_REGION}
+                                                                aws ssm get-command-invocation \
+                                                                    --command-id ${containerStatus} \
+                                                                    --instance-id ${instanceId} \
+                                                                    --query "StandardOutputContent" \
+                                                                    --output text 2>/dev/null || echo "Output not available yet"
+                                                            """,
+                                                            returnStdout: true
+                                                        ).trim()
+                                                        if (commandOutput && commandOutput != "Output not available yet") {
+                                                            echo "  Container Status:"
+                                                            echo "  ${commandOutput.split('\n').collect { "    ${it}" }.join('\n')}"
+                                                        }
+                                                    }
+                                                } catch (Exception e) {
+                                                    echo "  Could not check container status via SSM: ${e.message}"
+                                                }
+                                            }
+                                            
                                             // In REUSE_INFRASTRUCTURE mode, provide more context
                                             if (isReuseMode && portCheck == 'closed') {
                                                 echo "  ℹ️  In REUSE_INFRASTRUCTURE mode, user-data script may still be running"

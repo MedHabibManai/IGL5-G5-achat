@@ -277,7 +277,8 @@ locals {
     echo "Starting user-data script at $(date)"
     echo "=========================================="
     
-    set -e
+    # Don't exit on error - we want to see what fails
+    set +e
     
     # Update system
     echo "Step 1: Updating system packages..."
@@ -336,14 +337,52 @@ locals {
     
     # Check if container is running
     echo "Step 8: Checking container status..."
-    if docker ps | grep ${var.app_name}; then
-      echo "SUCCESS: Application container is running"
-      docker ps | grep ${var.app_name}
+    sleep 5  # Give container more time to start
+    
+    # Check if container exists (running or stopped)
+    if docker ps -a | grep ${var.app_name}; then
+      echo "Container found, checking status..."
+      CONTAINER_STATUS=$(docker ps -a | grep ${var.app_name} | awk '{print $7}')
+      if [ "$CONTAINER_STATUS" = "Up" ]; then
+        echo "SUCCESS: Application container is running"
+        docker ps | grep ${var.app_name}
+      else
+        echo "WARNING: Container exists but is not running (Status: $CONTAINER_STATUS)"
+        echo "Container logs:"
+        docker logs ${var.app_name} || true
+        echo "Attempting to start container..."
+        docker start ${var.app_name} || true
+        sleep 10
+        if docker ps | grep ${var.app_name}; then
+          echo "SUCCESS: Container started successfully"
+        else
+          echo "ERROR: Failed to start container"
+          docker logs ${var.app_name} || true
+        fi
+      fi
     else
-      echo "ERROR: Application container failed to start"
-      echo "Container logs:"
-      docker logs ${var.app_name} || true
-      exit 1
+      echo "ERROR: Application container not found"
+      echo "Checking Docker status..."
+      systemctl status docker || true
+      echo "Checking if image was pulled..."
+      docker images | grep ${var.docker_image} || echo "Image not found"
+      echo "Attempting to create container again..."
+      docker run -d \
+        --name ${var.app_name} \
+        --restart unless-stopped \
+        -p ${var.app_port}:${var.app_port} \
+        -e SPRING_DATASOURCE_URL="jdbc:mysql://${aws_db_instance.mysql.address}:3306/achatdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true" \
+        -e SPRING_DATASOURCE_USERNAME="admin" \
+        -e SPRING_DATASOURCE_PASSWORD="Admin123456!" \
+        -e SPRING_JPA_HIBERNATE_DDL_AUTO="update" \
+        ${var.docker_image} || echo "Container creation failed"
+      sleep 10
+      if docker ps | grep ${var.app_name}; then
+        echo "SUCCESS: Container created and running"
+      else
+        echo "ERROR: Container still not running after retry"
+        docker logs ${var.app_name} 2>&1 || true
+      fi
     fi
     
     # Show container logs
