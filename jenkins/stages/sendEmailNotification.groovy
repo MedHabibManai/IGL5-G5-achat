@@ -13,10 +13,14 @@ def call(Map config = [:]) {
     config = defaultConfig + config
     
     // Only send email if recipients are configured
+    echo "Email notification - Recipients: '${config.to}'"
     if (!config.to || config.to.trim().isEmpty()) {
         echo "Email notification skipped: No recipients configured (set EMAIL_RECIPIENTS environment variable)"
+        echo "Current EMAIL_RECIPIENTS env var: '${env.EMAIL_RECIPIENTS ?: 'NOT SET'}'"
         return
     }
+    
+    echo "Attempting to send email to: ${config.to}"
     
     try {
         // Get build status
@@ -182,7 +186,15 @@ def call(Map config = [:]) {
         echo "Email notification sent successfully to: ${config.to}"
         
     } catch (Exception e) {
-        echo "Failed to send email notification: ${e.message}"
+        echo "========================================="
+        echo "FAILED to send email notification!"
+        echo "Error: ${e.message}"
+        echo "Error class: ${e.getClass().getName()}"
+        echo "Stack trace:"
+        e.getStackTrace().each { line ->
+            echo "  ${line}"
+        }
+        echo "========================================="
         // Don't fail the build if email fails
     }
 }

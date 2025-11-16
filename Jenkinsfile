@@ -174,82 +174,53 @@ pipeline {
                 echo ''
                 echo 'For all deployment URLs, see the "Final Deployment Summary" stage above.'
                 echo '========================================='
+                
+                // Send email notification for ALL build statuses (including aborted)
+                // This ensures email is sent even if build is cancelled early
+                def buildStatus = currentBuild.currentResult ?: 'UNKNOWN'
+                echo "Current build status: ${buildStatus}"
+                echo "EMAIL_RECIPIENTS: ${env.EMAIL_RECIPIENTS ?: 'NOT SET'}"
+                
+                try {
+                    def emailStage = load 'jenkins/stages/sendEmailNotification.groovy'
+                    def emailSubject = ""
+                    def emailBody = ""
+                    
+                    switch(buildStatus) {
+                        case 'SUCCESS':
+                            emailSubject = "✅ SUCCESS: ${env.JOB_NAME} [${env.BUILD_NUMBER}]"
+                            emailBody = "The build completed successfully! Your application has been deployed."
+                            break
+                        case 'FAILURE':
+                            emailSubject = "❌ FAILURE: ${env.JOB_NAME} [${env.BUILD_NUMBER}]"
+                            emailBody = "The build failed. Please check the console output for details."
+                            break
+                        case 'UNSTABLE':
+                            emailSubject = "⚠️ UNSTABLE: ${env.JOB_NAME} [${env.BUILD_NUMBER}]"
+                            emailBody = "The build is unstable. Please review the test results."
+                            break
+                        case 'ABORTED':
+                            emailSubject = "⏹️ ABORTED: ${env.JOB_NAME} [${env.BUILD_NUMBER}]"
+                            emailBody = "The build was cancelled or aborted before completion."
+                            break
+                        default:
+                            emailSubject = "📧 Build ${buildStatus}: ${env.JOB_NAME} [${env.BUILD_NUMBER}]"
+                            emailBody = "Build status: ${buildStatus}"
+                    }
+                    
+                    emailStage.call([
+                        subject: emailSubject,
+                        body: emailBody,
+                        to: env.EMAIL_RECIPIENTS ?: ''
+                    ])
+                } catch (Exception e) {
+                    echo "Email notification failed: ${e.message}"
+                    echo "Stack trace: ${e.getStackTrace().join('\n')}"
+                }
             }
             
-            // Clean workspace
+            // Clean workspace AFTER email is sent
             cleanWs()
-        }
-        
-        success {
-            script {
-                echo 'Pipeline completed successfully! '
-                
-                // Send success email notification
-                try {
-                    def emailStage = load 'jenkins/stages/sendEmailNotification.groovy'
-                    emailStage.call([
-                        subject: "✅ SUCCESS: ${env.JOB_NAME} [${env.BUILD_NUMBER}]",
-                        body: "The build completed successfully! Your application has been deployed.",
-                        to: env.EMAIL_RECIPIENTS ?: ''
-                    ])
-                } catch (Exception e) {
-                    echo "Email notification skipped or failed: ${e.message}"
-                }
-            }
-        }
-        
-        failure {
-            script {
-                echo 'Pipeline failed!'
-                
-                // Send failure email notification
-                try {
-                    def emailStage = load 'jenkins/stages/sendEmailNotification.groovy'
-                    emailStage.call([
-                        subject: "❌ FAILURE: ${env.JOB_NAME} [${env.BUILD_NUMBER}]",
-                        body: "The build failed. Please check the console output for details.",
-                        to: env.EMAIL_RECIPIENTS ?: ''
-                    ])
-                } catch (Exception e) {
-                    echo "Email notification skipped or failed: ${e.message}"
-                }
-            }
-        }
-        
-        unstable {
-            script {
-                echo 'Pipeline is unstable'
-                
-                // Send unstable email notification
-                try {
-                    def emailStage = load 'jenkins/stages/sendEmailNotification.groovy'
-                    emailStage.call([
-                        subject: "⚠️ UNSTABLE: ${env.JOB_NAME} [${env.BUILD_NUMBER}]",
-                        body: "The build is unstable. Please review the test results.",
-                        to: env.EMAIL_RECIPIENTS ?: ''
-                    ])
-                } catch (Exception e) {
-                    echo "Email notification skipped or failed: ${e.message}"
-                }
-            }
-        }
-        
-        aborted {
-            script {
-                echo 'Pipeline was aborted/cancelled'
-                
-                // Send aborted email notification
-                try {
-                    def emailStage = load 'jenkins/stages/sendEmailNotification.groovy'
-                    emailStage.call([
-                        subject: "⏹️ ABORTED: ${env.JOB_NAME} [${env.BUILD_NUMBER}]",
-                        body: "The build was cancelled or aborted before completion.",
-                        to: env.EMAIL_RECIPIENTS ?: ''
-                    ])
-                } catch (Exception e) {
-                    echo "Email notification skipped or failed: ${e.message}"
-                }
-            }
         }
     }
 }
