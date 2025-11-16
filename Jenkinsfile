@@ -92,6 +92,11 @@ pipeline {
         TERRAFORM_DIR = 'terraform'
         DOCKER_HUB_USER = '' // Will be set from credentials
         TF_VAR_docker_image = "${DOCKER_REGISTRY}/habibmanai/${DOCKER_IMAGE}"
+        
+        // Email notifications (configure in Jenkins System Configuration)
+        // Set EMAIL_RECIPIENTS environment variable in Jenkins job configuration
+        // Format: "email1@example.com,email2@example.com"
+        EMAIL_RECIPIENTS = '' // Will be set from Jenkins job configuration or global settings
     }
     
     stages {
@@ -178,18 +183,54 @@ pipeline {
         success {
             script {
                 echo 'Pipeline completed successfully! '
+                
+                // Send success email notification
+                try {
+                    def emailStage = load 'jenkins/stages/sendEmailNotification.groovy'
+                    emailStage.call([
+                        subject: "✅ SUCCESS: ${env.JOB_NAME} [${env.BUILD_NUMBER}]",
+                        body: "The build completed successfully! Your application has been deployed.",
+                        to: env.EMAIL_RECIPIENTS ?: ''
+                    ])
+                } catch (Exception e) {
+                    echo "Email notification skipped or failed: ${e.message}"
+                }
             }
         }
         
         failure {
             script {
                 echo 'Pipeline failed!'
+                
+                // Send failure email notification
+                try {
+                    def emailStage = load 'jenkins/stages/sendEmailNotification.groovy'
+                    emailStage.call([
+                        subject: "❌ FAILURE: ${env.JOB_NAME} [${env.BUILD_NUMBER}]",
+                        body: "The build failed. Please check the console output for details.",
+                        to: env.EMAIL_RECIPIENTS ?: ''
+                    ])
+                } catch (Exception e) {
+                    echo "Email notification skipped or failed: ${e.message}"
+                }
             }
         }
         
         unstable {
             script {
-                echo 'unstable'
+                echo 'Pipeline is unstable'
+                
+                // Send unstable email notification
+                try {
+                    def emailStage = load 'jenkins/stages/sendEmailNotification.groovy'
+                    emailStage.call([
+                        subject: "⚠️ UNSTABLE: ${env.JOB_NAME} [${env.BUILD_NUMBER}]",
+                        body: "The build is unstable. Please review the test results.",
+                        to: env.EMAIL_RECIPIENTS ?: ''
+                    ])
+                } catch (Exception e) {
+                    echo "Email notification skipped or failed: ${e.message}"
+                }
             }
         }
     }
