@@ -96,7 +96,7 @@ pipeline {
         // Email notifications (configure in Jenkins System Configuration)
         // Set EMAIL_RECIPIENTS environment variable in Jenkins job configuration
         // Format: "email1@example.com,email2@example.com"
-        EMAIL_RECIPIENTS = '' // Will be set from Jenkins job configuration or global settings
+        EMAIL_RECIPIENTS = 'sinkingecstasies@gmail.com' // Will be set from Jenkins job configuration or global settings
     }
     
     stages {
@@ -226,6 +226,24 @@ pipeline {
                     emailStage.call([
                         subject: "⚠️ UNSTABLE: ${env.JOB_NAME} [${env.BUILD_NUMBER}]",
                         body: "The build is unstable. Please review the test results.",
+                        to: env.EMAIL_RECIPIENTS ?: ''
+                    ])
+                } catch (Exception e) {
+                    echo "Email notification skipped or failed: ${e.message}"
+                }
+            }
+        }
+        
+        aborted {
+            script {
+                echo 'Pipeline was aborted/cancelled'
+                
+                // Send aborted email notification
+                try {
+                    def emailStage = load 'jenkins/stages/sendEmailNotification.groovy'
+                    emailStage.call([
+                        subject: "⏹️ ABORTED: ${env.JOB_NAME} [${env.BUILD_NUMBER}]",
+                        body: "The build was cancelled or aborted before completion.",
                         to: env.EMAIL_RECIPIENTS ?: ''
                     ])
                 } catch (Exception e) {
