@@ -1,6 +1,7 @@
 // Main Jenkinsfile - Refactored to load stages from external files
 // BOM fix
 // Updated: Fixed deployment mode detection for webhook builds
+// Retry build after TLS connection issue
 
 // Define stage files in order
 def stageFiles = [
