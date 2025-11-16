@@ -185,15 +185,7 @@ def call(Map config = [:]) {
         }
         
     } catch (Exception e) {
-        echo "========================================="
-        echo "FAILED to send email notification!"
-        echo "Error: ${e.message}"
-        echo "Error class: ${e.getClass().getName()}"
-        echo "Stack trace:"
-        e.getStackTrace().each { line ->
-            echo "  ${line}"
-        }
-        echo "========================================="
+        echo "✗ Email notification error: ${e.message}"
         // Don't fail the build if email fails
     }
 }
