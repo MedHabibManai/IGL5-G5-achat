@@ -258,6 +258,12 @@ resource "aws_db_instance" "mysql" {
       Name = "${var.project_name}-mysql-db"
     }
   )
+
+  # Prevent Terraform from modifying RDS when only EC2 is being recreated in REUSE_INFRASTRUCTURE mode
+  # This avoids VPC mismatch errors when RDS is in a different VPC than the new EC2 instance
+  lifecycle {
+    ignore_changes = [vpc_security_group_ids]
+  }
 }
 
 # User Data Script to install Docker and run application

@@ -209,20 +209,20 @@ def call() {
                         # Apply only EC2-related resources to avoid conflicts with existing EKS/NAT/RDS resources
                         # Use -target to only apply EC2 instance, EIP (if not imported), and EIP association
                         # IMPORTANT: Exclude DB subnet group and RDS to prevent VPC conflicts
-                        # IMPORTANT: Refresh state after apply to ensure EIP association is captured
+                        # IMPORTANT: Use -refresh=true so Terraform knows current state and won't try to update RDS
                         echo "Applying EC2 resources (instance, EIP, EIP association)..."
                         terraform apply -auto-approve \
                           -target=aws_eip.app \
                           -target=aws_eip_association.app \
                           -target=aws_instance.app \
                           -var="docker_image=${TF_VAR_docker_image}" \
-                          -refresh=false || {
+                          -refresh=true || {
                             echo "Apply failed. Checking if EIP is the issue..."
                             # If EIP creation failed due to limit, try to apply without EIP (instance will get auto-assigned IP)
                             terraform apply -auto-approve \
                               -target=aws_instance.app \
                               -var="docker_image=${TF_VAR_docker_image}" \
-                              -refresh=false || {
+                              -refresh=true || {
                                 echo "ERROR: Failed to create EC2 instance"
                                 exit 1
                             }
