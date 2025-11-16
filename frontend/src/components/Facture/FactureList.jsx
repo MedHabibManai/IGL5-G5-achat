@@ -47,7 +47,6 @@ const FactureList = () => {
   };
 
   const handleAdd = () => {
-    setEditingFacture(null);
     setFormData({
       montantRemise: '',
       montantFacture: '',
