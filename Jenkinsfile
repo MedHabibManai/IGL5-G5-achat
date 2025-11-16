@@ -38,6 +38,13 @@ pipeline {
         skipDefaultCheckout()
     }
 
+    // Webhook trigger: Build automatically on GitHub push
+    // Note: Also enable "GitHub hook trigger for GITScm polling" in Jenkins job configuration
+    triggers {
+        // This allows the pipeline to be triggered by GitHub webhooks
+        // The actual webhook configuration is done in Jenkins job settings
+    }
+
     // Parameters to control pipeline behavior
     parameters {
         choice(
