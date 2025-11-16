@@ -169,21 +169,47 @@ def call(Map config = [:]) {
         """
         
         // Send email using Email Extension Plugin
-        emailext(
-            subject: emailSubject,
-            body: emailBody,
-            mimeType: 'text/html',
-            to: config.to,
-            attachLog: config.attachLog,
-            compressLog: true,
-            recipientProviders: [
-                [$class: 'CulpritsRecipientProvider'],
-                [$class: 'DevelopersRecipientProvider'],
-                [$class: 'RequesterRecipientProvider']
-            ]
-        )
+        // Note: emailext doesn't throw exceptions, it logs errors internally
+        // We can't directly check if it succeeded, but we'll add warnings
+        echo "========================================="
+        echo "Attempting to send email notification..."
+        echo "Recipients: ${config.to}"
+        echo "Subject: ${emailSubject}"
+        echo "========================================="
         
-        echo "Email notification sent successfully to: ${config.to}"
+        try {
+            emailext(
+                subject: emailSubject,
+                body: emailBody,
+                mimeType: 'text/html',
+                to: config.to,
+                attachLog: config.attachLog,
+                compressLog: true
+                // Removed recipientProviders to avoid adding extra recipients automatically
+            )
+            
+            echo "========================================="
+            echo "Email send command executed"
+            echo "WARNING: Check console output above for connection errors!"
+            echo "If you see 'Connection error' or 'Failed after second try',"
+            echo "the email was NOT sent successfully."
+            echo "========================================="
+            echo ""
+            echo "Troubleshooting steps if email not received:"
+            echo "1. Check console output for 'Connection error' messages"
+            echo "2. Verify SMTP settings in Jenkins: Manage Jenkins → Configure System"
+            echo "3. Test SMTP configuration using 'Test configuration' button"
+            echo "4. Check spam/junk folder"
+            echo "5. Verify EMAIL_RECIPIENTS is set correctly: '${env.EMAIL_RECIPIENTS ?: 'NOT SET'}'"
+            echo ""
+            
+        } catch (Exception e) {
+            echo "========================================="
+            echo "EXCEPTION while calling emailext:"
+            echo "Error: ${e.message}"
+            echo "========================================="
+            throw e
+        }
         
     } catch (Exception e) {
         echo "========================================="
