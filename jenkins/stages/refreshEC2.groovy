@@ -206,39 +206,6 @@ def call() {
                             fi
                         fi
                         
-                        # CRITICAL: Refresh state BEFORE applying to ensure RDS endpoint is available for user-data
-                        echo "Refreshing Terraform state BEFORE apply to ensure RDS endpoint is available..."
-                        terraform refresh -input=false 2>&1 || echo "Refresh completed (warnings OK)"
-                        
-                        # Verify RDS is in state and endpoint is available
-                        echo "Verifying RDS is properly imported in state..."
-                        RDS_IN_STATE=$(terraform state show aws_db_instance.mysql 2>/dev/null | grep -q "id" && echo "yes" || echo "no")
-                        if [ "$RDS_IN_STATE" = "no" ]; then
-                            echo "WARNING: RDS not in state, attempting to import..."
-                            DB_ID=$(aws rds describe-db-instances --region ${AWS_REGION} --query "DBInstances[?DBName=='achatdb'].DBInstanceIdentifier | [0]" --output text 2>/dev/null || echo "")
-                            if [ -n "$DB_ID" ] && [ "$DB_ID" != "None" ]; then
-                                terraform import -var="docker_image=${TF_VAR_docker_image}" aws_db_instance.mysql $DB_ID 2>/dev/null || echo "  (import failed)"
-                            fi
-                        fi
-                        
-                        # Verify RDS endpoint can be resolved
-                        echo "Verifying RDS endpoint can be resolved..."
-                        RDS_ENDPOINT=$(terraform state show aws_db_instance.mysql 2>/dev/null | grep "address" | awk '{print $3}' | tr -d '"' || echo "")
-                        if [ -z "$RDS_ENDPOINT" ]; then
-                            echo "WARNING: RDS endpoint not found in state. Querying AWS directly..."
-                            DB_ID=$(aws rds describe-db-instances --region ${AWS_REGION} --query "DBInstances[?DBName=='achatdb'].DBInstanceIdentifier | [0]" --output text 2>/dev/null || echo "")
-                            if [ -n "$DB_ID" ] && [ "$DB_ID" != "None" ]; then
-                                RDS_ENDPOINT=$(aws rds describe-db-instances --region ${AWS_REGION} --db-instance-identifier $DB_ID --query "DBInstances[0].Endpoint.Address" --output text 2>/dev/null || echo "")
-                                echo "Found RDS endpoint via AWS API: $RDS_ENDPOINT"
-                            fi
-                            if [ -z "$RDS_ENDPOINT" ]; then
-                                echo "ERROR: Cannot determine RDS endpoint. EC2 instance will not be able to connect to database."
-                                exit 1
-                            fi
-                        else
-                            echo "✓ RDS endpoint found in state: $RDS_ENDPOINT"
-                        fi
-                        
                         # Apply only EC2-related resources to avoid conflicts with existing EKS/NAT/RDS resources
                         # Use -target to only apply EC2 instance, EIP (if not imported), and EIP association
                         # IMPORTANT: Exclude DB subnet group and RDS to prevent VPC conflicts
@@ -262,7 +229,7 @@ def call() {
                         }
                         
                         # Refresh state after apply to ensure outputs are updated
-                        echo "Refreshing Terraform state after apply to update outputs..."
+                        echo "Refreshing Terraform state to update outputs..."
                         terraform refresh -input=false 2>&1 || echo "Refresh completed (warnings OK)"
                         
                         echo "======================================"
